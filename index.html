@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>DeepSeek AI · 极简角色扮演</title>
+    <title>DeepSeek AI · 角色扮演</title>
     <style>
         /* ---------- 全局 CSS 变量（日间模式默认） ---------- */
         :root {
@@ -28,7 +28,6 @@
             --modal-overlay: rgba(0,0,0,0.4);
         }
 
-        /* 夜晚模式变量覆盖 */
         body.dark {
             --bg-body: #121212;
             --bg-sidebar: #1e1e2a;
@@ -68,7 +67,6 @@
             color: var(--text-primary);
         }
 
-        /* 主容器：左右结构 */
         .app-container {
             display: flex;
             gap: 20px;
@@ -79,9 +77,9 @@
             margin: 0 auto;
         }
 
-        /* 角色侧边栏 */
+        /* 角色侧边栏 (包含会话列表) */
         .role-sidebar {
-            width: 280px;
+            width: 320px;
             background: var(--bg-sidebar);
             display: flex;
             flex-direction: column;
@@ -175,8 +173,75 @@
             color: var(--text-secondary);
         }
 
-        .role-actions button:hover {
-            background: var(--card-active-border);
+        /* 会话列表 (属于当前角色) */
+        .conversation-section {
+            border-top: 1px solid var(--border-light);
+            margin-top: 8px;
+            padding-top: 8px;
+        }
+
+        .section-title {
+            font-size: 0.75rem;
+            font-weight: 500;
+            color: var(--text-secondary);
+            padding: 8px 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .add-conv-btn {
+            background: none;
+            border: none;
+            font-size: 0.8rem;
+            cursor: pointer;
+            color: var(--text-secondary);
+        }
+
+        .conv-list {
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .conv-item {
+            padding: 8px 12px;
+            margin: 2px 0;
+            border-radius: 10px;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.8rem;
+            color: var(--text-primary);
+        }
+
+        .conv-item.active {
+            background: var(--card-active-bg);
+            border: 1px solid var(--card-active-border);
+        }
+
+        .conv-name {
+            flex: 1;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .conv-actions {
+            display: none;
+            gap: 6px;
+        }
+
+        .conv-item:hover .conv-actions {
+            display: flex;
+        }
+
+        .conv-actions button {
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 0.7rem;
+            color: var(--text-secondary);
         }
 
         /* 聊天区域 */
@@ -196,7 +261,6 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            font-weight: 500;
             flex-wrap: wrap;
             gap: 10px;
         }
@@ -216,7 +280,6 @@
             color: var(--text-primary);
         }
 
-        /* 模型切换下拉框 */
         .model-selector {
             display: flex;
             align-items: center;
@@ -235,7 +298,6 @@
             outline: none;
         }
 
-        /* 夜晚模式切换按钮 */
         .theme-toggle {
             background: var(--badge-bg);
             border: 1px solid var(--input-border);
@@ -248,9 +310,6 @@
             gap: 6px;
             color: var(--text-primary);
             transition: 0.2s;
-        }
-        .theme-toggle:hover {
-            background: var(--card-active-border);
         }
 
         .messages-area {
@@ -266,13 +325,8 @@
             display: flex;
         }
 
-        .user-message {
-            justify-content: flex-end;
-        }
-
-        .assistant-message {
-            justify-content: flex-start;
-        }
+        .user-message { justify-content: flex-end; }
+        .assistant-message { justify-content: flex-start; }
 
         .message-bubble {
             max-width: 75%;
@@ -312,10 +366,6 @@
             color: var(--text-primary);
         }
 
-        #messageInput:focus {
-            border-color: var(--text-secondary);
-        }
-
         button {
             background: var(--button-bg);
             color: white;
@@ -324,15 +374,10 @@
             border-radius: 30px;
             font-size: 0.9rem;
             cursor: pointer;
-            transition: 0.2s;
-        }
-
-        button:hover {
-            background: var(--button-hover);
         }
 
         button:disabled {
-            background: #ccc;
+            opacity: 0.6;
             cursor: not-allowed;
         }
 
@@ -362,12 +407,7 @@
             max-width: 480px;
             border-radius: 24px;
             padding: 24px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
             color: var(--text-primary);
-        }
-        .modal-content h3 {
-            margin-bottom: 16px;
-            font-weight: 500;
         }
         .modal-content input, .modal-content textarea {
             width: 100%;
@@ -375,410 +415,574 @@
             margin-bottom: 16px;
             border: 1px solid var(--input-border);
             border-radius: 16px;
-            font-family: inherit;
-            font-size: 0.9rem;
             background: var(--bg-sidebar);
             color: var(--text-primary);
-        }
-        .modal-content textarea {
-            min-height: 140px;
-            resize: vertical;
+            font-family: inherit;
         }
         .modal-buttons {
             display: flex;
             gap: 12px;
             justify-content: flex-end;
         }
-        .modal-buttons button {
-            padding: 8px 20px;
-        }
 
-        /* 手机适配 */
         @media (max-width: 700px) {
             body { padding: 12px; }
             .app-container { flex-direction: column; }
-            .role-sidebar { width: 100%; max-height: 35%; border-bottom: 1px solid var(--border-light); }
-            .role-list { display: flex; overflow-x: auto; gap: 12px; padding: 12px; }
-            .role-card { min-width: 160px; margin-bottom: 0; }
-            .chat-header { flex-direction: column; align-items: flex-start; }
+            .role-sidebar { width: 100%; max-height: 45%; }
+            .conv-list { max-height: 120px; }
         }
     </style>
 </head>
 <body>
-    <div class="app-container">
-        <!-- 左侧角色面板 -->
-        <div class="role-sidebar">
-            <div class="sidebar-header">
-                🎭 角色卡
-                <button class="add-role-btn" id="addRoleBtn">+</button>
-            </div>
-            <div class="role-list" id="roleList"></div>
+<div class="app-container">
+    <div class="role-sidebar">
+        <div class="sidebar-header">
+            🎭 角色卡
+            <button class="add-role-btn" id="addRoleBtn">+</button>
         </div>
-
-        <!-- 聊天区域 -->
-        <div class="chat-container">
-            <div class="chat-header">
-                <div class="header-left">
-                    🤖 DeepSeek · 角色扮演
-                    <span class="current-role-badge" id="currentRoleBadge">未选择</span>
-                </div>
-                <div style="display: flex; gap: 12px;">
-                    <div class="model-selector">
-                        <span>🧠 模型：</span>
-                        <select id="modelSelect">
-                            <option value="deepseek-chat">deepseek-chat (标准·便宜)</option>
-                            <option value="deepseek-reasoner">deepseek-reasoner (推理·强大)</option>
-                        </select>
-                    </div>
-                    <button class="theme-toggle" id="themeToggle">🌙 夜晚模式</button>
-                </div>
-            </div>
-            <div class="messages-area" id="messagesArea">
-                <div class="message assistant-message">
-                    <div class="message-bubble">你好！请从左侧选择一个角色开始对话～</div>
-                </div>
-            </div>
-            <div class="input-area">
-                <input type="text" id="messageInput" placeholder="输入消息..." autocomplete="off">
-                <button id="sendBtn">发送</button>
-            </div>
-        </div>
+        <div class="role-list" id="roleList"></div>
     </div>
 
-    <!-- 编辑弹窗 -->
-    <div id="roleModal" class="modal">
-        <div class="modal-content">
-            <h3 id="modalTitle">编辑角色</h3>
-            <input type="text" id="roleName" placeholder="角色名称">
-            <textarea id="rolePrompt" placeholder="写一段系统提示词（人设）..."></textarea>
-            <div class="modal-buttons">
-                <button id="saveRoleBtn">保存</button>
-                <button id="cancelModalBtn">取消</button>
+    <div class="chat-container">
+        <div class="chat-header">
+            <div class="header-left">
+                🤖 DeepSeek · 角色扮演
+                <span class="current-role-badge" id="currentRoleBadge">未选择</span>
+            </div>
+            <div style="display: flex; gap: 12px;">
+                <div class="model-selector">
+                    <span>🧠 模型：</span>
+                    <select id="modelSelect">
+                        <option value="deepseek-chat">deepseek-chat (标准)</option>
+                        <option value="deepseek-reasoner">deepseek-reasoner (推理)</option>
+                    </select>
+                </div>
+                <button class="theme-toggle" id="themeToggle">🌙 夜晚模式</button>
             </div>
         </div>
+        <div class="messages-area" id="messagesArea">
+            <div class="message assistant-message">
+                <div class="message-bubble">请从左侧选择一个角色和会话开始～</div>
+            </div>
+        </div>
+        <div class="input-area">
+            <input type="text" id="messageInput" placeholder="输入消息..." autocomplete="off">
+            <button id="sendBtn">发送</button>
+        </div>
     </div>
+</div>
 
-    <script>
-        // ========== 配置区 ==========
-        const WORKER_URL = 'https://still-bread-327a.liaoyilin826.workers.dev/';   // 🔧 替换为你的 Worker 地址
-        const CUSTOM_SECRET = 'xK9mP2vL7qR4nF8t';    // 🔧 替换为你的暗号
-        // ==========================
+<!-- 编辑角色弹窗 -->
+<div id="roleModal" class="modal">
+    <div class="modal-content">
+        <h3 id="modalTitle">编辑角色</h3>
+        <input type="text" id="roleName" placeholder="角色名称">
+        <textarea id="rolePrompt" placeholder="系统提示词（人设）..."></textarea>
+        <div class="modal-buttons">
+            <button id="saveRoleBtn">保存</button>
+            <button id="cancelModalBtn">取消</button>
+        </div>
+    </div>
+</div>
 
-        // DOM 元素
-        const messagesArea = document.getElementById('messagesArea');
-        const messageInput = document.getElementById('messageInput');
-        const sendBtn = document.getElementById('sendBtn');
-        const roleListDiv = document.getElementById('roleList');
-        const currentRoleBadge = document.getElementById('currentRoleBadge');
-        const addRoleBtn = document.getElementById('addRoleBtn');
-        const roleModal = document.getElementById('roleModal');
-        const modalTitle = document.getElementById('modalTitle');
-        const roleNameInput = document.getElementById('roleName');
-        const rolePromptInput = document.getElementById('rolePrompt');
-        const saveRoleBtn = document.getElementById('saveRoleBtn');
-        const cancelModalBtn = document.getElementById('cancelModalBtn');
-        const modelSelect = document.getElementById('modelSelect');
-        const themeToggle = document.getElementById('themeToggle');
+<!-- 重命名会话弹窗 -->
+<div id="renameConvModal" class="modal">
+    <div class="modal-content">
+        <h3>重命名会话</h3>
+        <input type="text" id="newConvName" placeholder="新名称">
+        <div class="modal-buttons">
+            <button id="confirmRenameBtn">确定</button>
+            <button id="cancelRenameBtn">取消</button>
+        </div>
+    </div>
+</div>
 
-        let currentRoleId = null;
-        let conversationHistory = [];
-        let roles = [];
-        let currentModel = 'deepseek-chat';   // 当前选择的模型
+<script>
+    // ========== 配置区 ==========
+    const WORKER_URL = 'https://still-bread-327a.liaoyilin826.workers.dev/';
+    const CUSTOM_SECRET = 'xK9mP2vL7qR4nF8t';
+    // ==========================
 
-        // 默认角色
-        const defaultRoles = [
-            { id: 'role_1', name: '📜 渊明居士', systemPrompt: '你是一位隐居山林的古代文人，自号“渊明居士”。你说话文雅，常用诗词歌赋来回应。你喜爱自然、厌恶世俗名利，对来访者抱有温和而超然的态度。尽量使用半文半白的语言，引用或化用古典诗词。' },
-            { id: 'role_2', name: '🔧 赛博技师', systemPrompt: '你是22世纪的赛博朋克技师，名叫“Zack”。说话夹杂科技黑话，喜欢用机械比喻。性格直爽，有点暴躁但技术超群。称呼用户为“老铁”或“客户”。口头禅：“这破电路，看我给它来一梭子！”' },
-            { id: 'role_3', name: '🐉 龙族长老', systemPrompt: '你是一头活了上千年的龙族长老，名叫“艾泽拉斯”。威严而神秘，对人类抱有好奇但保持高傲。说话缓慢、深沉，偶尔吐出火星。喜欢用“凡人啊”、“以龙族之名”等句式。' }
-        ];
+    // DOM 元素
+    const messagesArea = document.getElementById('messagesArea');
+    const messageInput = document.getElementById('messageInput');
+    const sendBtn = document.getElementById('sendBtn');
+    const roleListDiv = document.getElementById('roleList');
+    const currentRoleBadge = document.getElementById('currentRoleBadge');
+    const addRoleBtn = document.getElementById('addRoleBtn');
+    const roleModal = document.getElementById('roleModal');
+    const modalTitle = document.getElementById('modalTitle');
+    const roleNameInput = document.getElementById('roleName');
+    const rolePromptInput = document.getElementById('rolePrompt');
+    const saveRoleBtn = document.getElementById('saveRoleBtn');
+    const cancelModalBtn = document.getElementById('cancelModalBtn');
+    const modelSelect = document.getElementById('modelSelect');
+    const themeToggle = document.getElementById('themeToggle');
+    const renameConvModal = document.getElementById('renameConvModal');
+    const newConvNameInput = document.getElementById('newConvName');
+    const confirmRenameBtn = document.getElementById('confirmRenameBtn');
+    const cancelRenameBtn = document.getElementById('cancelRenameBtn');
 
-        // ---------- 主题切换 ----------
-        function loadThemePreference() {
-            const savedTheme = localStorage.getItem('deepseek_theme');
-            if (savedTheme === 'dark') {
-                document.body.classList.add('dark');
-                themeToggle.innerHTML = '☀️ 日间模式';
-            } else {
-                document.body.classList.remove('dark');
-                themeToggle.innerHTML = '🌙 夜晚模式';
+    // 数据结构
+    let roles = [];                // { id, name, systemPrompt, conversations: [ { id, name, messages } ] }
+    let currentRoleId = null;
+    let currentConversationId = null;
+    let currentModel = 'deepseek-chat';
+
+    // 辅助函数
+    function generateId() {
+        return crypto.randomUUID ? crypto.randomUUID() : Date.now() + '-' + Math.random();
+    }
+
+    // 默认角色数据
+    const defaultRoles = [
+        { id: 'role_1', name: '📜 渊明居士', systemPrompt: '你是一位隐居山林的古代文人...', conversations: [] },
+        { id: 'role_2', name: '🔧 赛博技师', systemPrompt: '你是22世纪的赛博朋克技师...', conversations: [] },
+        { id: 'role_3', name: '🐉 龙族长老', systemPrompt: '你是一头活了上千年的龙族长老...', conversations: [] }
+    ];
+
+    // 初始化默认会话（每个角色至少一个默认会话）
+    function ensureDefaultConversations() {
+        for (let role of roles) {
+            if (!role.conversations || role.conversations.length === 0) {
+                role.conversations = [{
+                    id: generateId(),
+                    name: '新对话',
+                    messages: [{ role: 'assistant', content: `你好！我是${role.name}，开始对话吧～` }]
+                }];
             }
         }
+        saveData();
+    }
 
-        function toggleTheme() {
-            if (document.body.classList.contains('dark')) {
-                document.body.classList.remove('dark');
-                localStorage.setItem('deepseek_theme', 'light');
-                themeToggle.innerHTML = '🌙 夜晚模式';
-            } else {
-                document.body.classList.add('dark');
-                localStorage.setItem('deepseek_theme', 'dark');
-                themeToggle.innerHTML = '☀️ 日间模式';
-            }
-        }
+    // 存储全部数据
+    function saveData() {
+        const data = { roles, currentRoleId, currentConversationId, currentModel };
+        localStorage.setItem('deepseek_app_data', JSON.stringify(data));
+    }
 
-        // 加载模型偏好
-        function loadModelPreference() {
-            const saved = localStorage.getItem('deepseek_model');
-            if (saved && (saved === 'deepseek-chat' || saved === 'deepseek-reasoner')) {
-                currentModel = saved;
-                modelSelect.value = saved;
-            } else {
-                currentModel = 'deepseek-chat';
-                modelSelect.value = 'deepseek-chat';
-            }
-        }
-
-        function saveModelPreference() {
-            localStorage.setItem('deepseek_model', currentModel);
-        }
-
-        function onModelChange() {
-            currentModel = modelSelect.value;
-            saveModelPreference();
-            addMessage('assistant', `⚠️ 模型已切换为「${currentModel === 'deepseek-chat' ? 'deepseek-chat (标准对话)' : 'deepseek-reasoner (推理模型)'}」。后续对话将使用新模型。`);
-        }
-
-        function loadRoles() {
-            const stored = localStorage.getItem('deepseek_roles');
-            if (stored) {
-                roles = JSON.parse(stored);
-            } else {
-                roles = defaultRoles;
-            }
-            roles = roles.map(r => ({ ...r, id: r.id || crypto.randomUUID?.() || Date.now() + Math.random() }));
-            saveRolesToLocal();
-        }
-
-        function saveRolesToLocal() {
-            localStorage.setItem('deepseek_roles', JSON.stringify(roles));
-        }
-
-        function saveCurrentRoleId() {
-            if (currentRoleId) localStorage.setItem('deepseek_current_role_id', currentRoleId);
-        }
-
-        function loadCurrentRoleId() {
-            const saved = localStorage.getItem('deepseek_current_role_id');
-            if (saved && roles.find(r => r.id === saved)) {
-                currentRoleId = saved;
-            } else if (roles.length) {
-                currentRoleId = roles[0].id;
-            }
-            saveCurrentRoleId();
-        }
-
-        function getRoleById(id) {
-            return roles.find(r => r.id === id);
-        }
-
-        function renderRoleList() {
-            roleListDiv.innerHTML = '';
-            roles.forEach(role => {
-                const card = document.createElement('div');
-                card.className = `role-card ${currentRoleId === role.id ? 'active' : ''}`;
-                card.innerHTML = `
-                    <div class="role-name">
-                        ${escapeHtml(role.name)}
-                    </div>
-                    <div class="role-preview">${escapeHtml(role.systemPrompt.substring(0, 45))}...</div>
-                    <div class="role-actions">
-                        <button class="edit-btn" data-id="${role.id}">编辑</button>
-                        <button class="delete-btn" data-id="${role.id}">删除</button>
-                    </div>
-                `;
-                card.addEventListener('click', (e) => {
-                    if (e.target.tagName === 'BUTTON') return;
-                    switchRole(role.id);
-                });
-                card.querySelector('.edit-btn').addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    openEditModal(role.id);
-                });
-                card.querySelector('.delete-btn').addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    deleteRole(role.id);
-                });
-                roleListDiv.appendChild(card);
-            });
-            const cur = getRoleById(currentRoleId);
-            currentRoleBadge.innerText = cur ? cur.name : '无角色';
-        }
-
-        function switchRole(roleId) {
-            if (currentRoleId === roleId) return;
-            const newRole = getRoleById(roleId);
-            if (!newRole) return;
-            currentRoleId = roleId;
-            saveCurrentRoleId();
-            renderRoleList();
-            conversationHistory = [{ role: "system", content: newRole.systemPrompt }];
-            messagesArea.innerHTML = '';
-            addMessage('assistant', `角色已切换为「${newRole.name}」。`);
-        }
-
-        function addMessage(role, content) {
-            const messageDiv = document.createElement('div');
-            messageDiv.className = `message ${role === 'user' ? 'user-message' : 'assistant-message'}`;
-            const bubble = document.createElement('div');
-            bubble.className = 'message-bubble';
-            bubble.innerText = content;
-            messageDiv.appendChild(bubble);
-            messagesArea.appendChild(messageDiv);
-            messagesArea.scrollTop = messagesArea.scrollHeight;
-        }
-
-        function showLoading() {
-            const ld = document.createElement('div');
-            ld.className = 'loading';
-            ld.id = 'loadingIndicator';
-            ld.innerText = 'AI 思考中...';
-            messagesArea.appendChild(ld);
-            messagesArea.scrollTop = messagesArea.scrollHeight;
-        }
-
-        function hideLoading() {
-            const el = document.getElementById('loadingIndicator');
-            if (el) el.remove();
-        }
-
-        async function callDeepSeekAPI(userMessage) {
-            if (!conversationHistory.length) {
-                const cur = getRoleById(currentRoleId);
-                conversationHistory = [{ role: "system", content: cur ? cur.systemPrompt : "你是一个乐于助人的AI助手。" }];
-            }
-            conversationHistory.push({ role: "user", content: userMessage });
-            const requestBody = {
-                model: currentModel,
-                messages: conversationHistory,
-                stream: false
-            };
+    function loadData() {
+        const saved = localStorage.getItem('deepseek_app_data');
+        if (saved) {
             try {
-                const response = await fetch(WORKER_URL, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'X-API-Key': CUSTOM_SECRET },
-                    body: JSON.stringify(requestBody)
-                });
-                if (!response.ok) throw new Error(`API错误 ${response.status}`);
-                const data = await response.json();
-                const assistantMsg = data.choices[0].message.content;
-                conversationHistory.push({ role: "assistant", content: assistantMsg });
-                return assistantMsg;
-            } catch (err) {
-                console.error(err);
-                return `❌ 请求失败: ${err.message}\n请检查 Worker 地址或暗号。`;
-            }
+                const data = JSON.parse(saved);
+                roles = data.roles || [];
+                currentRoleId = data.currentRoleId || null;
+                currentConversationId = data.currentConversationId || null;
+                currentModel = data.currentModel || 'deepseek-chat';
+                modelSelect.value = currentModel;
+            } catch(e) { console.error(e); }
         }
-
-        async function handleSendMessage() {
-            const userMessage = messageInput.value.trim();
-            if (!userMessage) return;
-            if (!currentRoleId || !getRoleById(currentRoleId)) {
-                addMessage('assistant', '请先在左侧选择一个角色卡～');
-                return;
-            }
-            messageInput.value = '';
-            addMessage('user', userMessage);
-            showLoading();
-            sendBtn.disabled = true;
-            messageInput.disabled = true;
-            const reply = await callDeepSeekAPI(userMessage);
-            hideLoading();
-            addMessage('assistant', reply);
-            sendBtn.disabled = false;
-            messageInput.disabled = false;
-            messageInput.focus();
+        if (!roles || roles.length === 0) {
+            roles = JSON.parse(JSON.stringify(defaultRoles));
+            ensureDefaultConversations();
+        } else {
+            ensureDefaultConversations();
         }
-
-        // 角色管理
-        function openEditModal(roleId = null) {
-            if (roleId === null) {
-                modalTitle.innerText = '新建角色';
-                roleNameInput.value = '';
-                rolePromptInput.value = '';
-                window.editingRoleId = null;
-            } else {
-                const role = getRoleById(roleId);
-                if (!role) return;
-                modalTitle.innerText = '编辑角色';
-                roleNameInput.value = role.name;
-                rolePromptInput.value = role.systemPrompt;
-                window.editingRoleId = roleId;
-            }
-            roleModal.style.display = 'flex';
-        }
-
-        function saveRole() {
-            const name = roleNameInput.value.trim();
-            const prompt = rolePromptInput.value.trim();
-            if (!name || !prompt) { alert('请填写完整'); return; }
-            if (window.editingRoleId) {
-                const idx = roles.findIndex(r => r.id === window.editingRoleId);
-                if (idx !== -1) {
-                    roles[idx].name = name;
-                    roles[idx].systemPrompt = prompt;
+        // 修复旧数据格式（如果 messages 不存在）
+        for (let role of roles) {
+            if (role.conversations) {
+                for (let conv of role.conversations) {
+                    if (!conv.messages) conv.messages = [];
+                    if (conv.messages.length === 0) {
+                        conv.messages = [{ role: 'assistant', content: `你好！我是${role.name}，开始对话吧～` }];
+                    }
                 }
             } else {
-                const newId = crypto.randomUUID ? crypto.randomUUID() : Date.now() + '-' + Math.random();
-                roles.push({ id: newId, name, systemPrompt: prompt });
-            }
-            saveRolesToLocal();
-            if (window.editingRoleId === currentRoleId) {
-                const updated = getRoleById(currentRoleId);
-                if (updated && conversationHistory[0]?.role === 'system') conversationHistory[0].content = updated.systemPrompt;
-            }
-            closeModal();
-            renderRoleList();
-        }
-
-        function deleteRole(roleId) {
-            if (roles.length <= 1) { alert('至少保留一个角色'); return; }
-            if (confirm('删除该角色？')) {
-                roles = roles.filter(r => r.id !== roleId);
-                saveRolesToLocal();
-                if (currentRoleId === roleId) switchRole(roles[0].id);
-                else renderRoleList();
+                role.conversations = [{
+                    id: generateId(),
+                    name: '新对话',
+                    messages: [{ role: 'assistant', content: `你好！我是${role.name}，开始对话吧～` }]
+                }];
             }
         }
-
-        function closeModal() {
-            roleModal.style.display = 'none';
-            window.editingRoleId = null;
+        // 确保 currentRoleId 有效
+        if (!roles.find(r => r.id === currentRoleId) && roles.length) currentRoleId = roles[0].id;
+        if (currentRoleId) {
+            const role = roles.find(r => r.id === currentRoleId);
+            if (role && (!currentConversationId || !role.conversations.find(c => c.id === currentConversationId))) {
+                currentConversationId = role.conversations[0]?.id || null;
+            }
         }
+        saveData();
+    }
 
-        function escapeHtml(str) {
-            if (!str) return '';
-            return str.replace(/[&<>]/g, function(m) {
-                if (m === '&') return '&amp;';
-                if (m === '<') return '&lt;';
-                if (m === '>') return '&gt;';
-                return m;
+    function getCurrentRole() { return roles.find(r => r.id === currentRoleId); }
+    function getCurrentConversation() {
+        const role = getCurrentRole();
+        if (!role) return null;
+        return role.conversations.find(c => c.id === currentConversationId);
+    }
+
+    // 渲染左侧：角色卡片 + 会话列表
+    function renderSidebar() {
+        roleListDiv.innerHTML = '';
+        for (let role of roles) {
+            const roleCard = document.createElement('div');
+            roleCard.className = `role-card ${currentRoleId === role.id ? 'active' : ''}`;
+            roleCard.innerHTML = `
+                <div class="role-name">
+                    ${escapeHtml(role.name)}
+                    <div class="role-actions">
+                        <button class="edit-role-btn" data-id="${role.id}">编辑</button>
+                        <button class="delete-role-btn" data-id="${role.id}">删除</button>
+                    </div>
+                </div>
+                <div class="role-preview">${escapeHtml(role.systemPrompt.substring(0, 45))}...</div>
+            `;
+            roleCard.addEventListener('click', (e) => {
+                if (e.target.tagName === 'BUTTON') return;
+                switchRole(role.id);
+            });
+            roleCard.querySelector('.edit-role-btn').addEventListener('click', (e) => {
+                e.stopPropagation();
+                openEditRoleModal(role.id);
+            });
+            roleCard.querySelector('.delete-role-btn').addEventListener('click', (e) => {
+                e.stopPropagation();
+                deleteRole(role.id);
+            });
+
+            // 会话列表区域
+            const convSection = document.createElement('div');
+            convSection.className = 'conversation-section';
+            convSection.innerHTML = `
+                <div class="section-title">
+                    💬 对话历史
+                    <button class="add-conv-btn" data-role="${role.id}">+ 新建</button>
+                </div>
+                <div class="conv-list" id="conv-list-${role.id}"></div>
+            `;
+            roleCard.appendChild(convSection);
+            roleListDiv.appendChild(roleCard);
+
+            // 渲染该角色下的会话列表
+            const convContainer = convSection.querySelector(`.conv-list`);
+            for (let conv of role.conversations) {
+                const convItem = document.createElement('div');
+                convItem.className = `conv-item ${currentRoleId === role.id && currentConversationId === conv.id ? 'active' : ''}`;
+                convItem.innerHTML = `
+                    <span class="conv-name">${escapeHtml(conv.name)}</span>
+                    <div class="conv-actions">
+                        <button class="rename-conv" data-role="${role.id}" data-conv="${conv.id}">✏️</button>
+                        <button class="delete-conv" data-role="${role.id}" data-conv="${conv.id}">🗑️</button>
+                    </div>
+                `;
+                convItem.addEventListener('click', (e) => {
+                    if (e.target.tagName === 'BUTTON') return;
+                    if (currentRoleId === role.id && currentConversationId === conv.id) return;
+                    switchConversation(role.id, conv.id);
+                });
+                convItem.querySelector('.rename-conv').addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    openRenameModal(role.id, conv.id);
+                });
+                convItem.querySelector('.delete-conv').addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    deleteConversation(role.id, conv.id);
+                });
+                convContainer.appendChild(convItem);
+            }
+
+            // 新建会话按钮
+            convSection.querySelector('.add-conv-btn').addEventListener('click', (e) => {
+                e.stopPropagation();
+                addNewConversation(role.id);
             });
         }
+        const curRole = getCurrentRole();
+        currentRoleBadge.innerText = curRole ? curRole.name : '无角色';
+    }
 
-        function init() {
-            loadRoles();
-            loadCurrentRoleId();
-            loadModelPreference();
-            loadThemePreference();
-            if (!getRoleById(currentRoleId) && roles.length) currentRoleId = roles[0].id;
-            const cur = getRoleById(currentRoleId);
-            conversationHistory = cur ? [{ role: "system", content: cur.systemPrompt }] : [{ role: "system", content: "你是一个乐于助人的AI助手。" }];
-            renderRoleList();
-            messagesArea.innerHTML = '';
-            if (cur) addMessage('assistant', `当前角色：${cur.name}。当前模型：${currentModel === 'deepseek-chat' ? '标准对话' : '推理模型'}。开始对话吧～`);
-            else addMessage('assistant', '请点击左侧 + 按钮创建角色卡。');
+    function switchRole(roleId) {
+        if (currentRoleId === roleId) return;
+        currentRoleId = roleId;
+        const role = getCurrentRole();
+        if (role && role.conversations.length) {
+            currentConversationId = role.conversations[0].id;
+        } else {
+            currentConversationId = null;
         }
+        saveData();
+        renderSidebar();
+        loadConversationToUI();
+    }
 
-        sendBtn.addEventListener('click', handleSendMessage);
-        messageInput.addEventListener('keypress', (e) => { if (e.key === 'Enter' && !sendBtn.disabled) handleSendMessage(); });
-        addRoleBtn.addEventListener('click', () => openEditModal(null));
-        saveRoleBtn.addEventListener('click', saveRole);
-        cancelModalBtn.addEventListener('click', closeModal);
-        roleModal.addEventListener('click', (e) => { if (e.target === roleModal) closeModal(); });
-        modelSelect.addEventListener('change', onModelChange);
-        themeToggle.addEventListener('click', toggleTheme);
+    function switchConversation(roleId, convId) {
+        if (currentRoleId !== roleId) {
+            currentRoleId = roleId;
+        }
+        currentConversationId = convId;
+        saveData();
+        renderSidebar();
+        loadConversationToUI();
+    }
 
-        init();
-    </script>
+    function loadConversationToUI() {
+        const conv = getCurrentConversation();
+        messagesArea.innerHTML = '';
+        if (conv && conv.messages) {
+            for (let msg of conv.messages) {
+                addMessageToUI(msg.role, msg.content);
+            }
+        } else {
+            addMessageToUI('assistant', '选择一个会话开始对话～');
+        }
+    }
+
+    function addMessageToUI(role, content) {
+        const messageDiv = document.createElement('div');
+        messageDiv.className = `message ${role === 'user' ? 'user-message' : 'assistant-message'}`;
+        const bubble = document.createElement('div');
+        bubble.className = 'message-bubble';
+        bubble.innerText = content;
+        messageDiv.appendChild(bubble);
+        messagesArea.appendChild(messageDiv);
+        messagesArea.scrollTop = messagesArea.scrollHeight;
+    }
+
+    // 保存当前会话的消息到 localStorage
+    function saveCurrentConversationMessages(messages) {
+        const role = getCurrentRole();
+        if (!role) return;
+        const conv = role.conversations.find(c => c.id === currentConversationId);
+        if (conv) {
+            conv.messages = messages;
+            saveData();
+        }
+    }
+
+    async function sendMessage(userMessage) {
+        const role = getCurrentRole();
+        if (!role) { addMessageToUI('assistant', '请先选择一个角色'); return; }
+        let conv = getCurrentConversation();
+        if (!conv) {
+            // 自动创建新会话
+            addNewConversation(currentRoleId);
+            conv = getCurrentConversation();
+        }
+        // 当前消息列表
+        let messages = conv.messages.filter(m => m.role !== 'system'); // 不包含 system 提示
+        // 构造给 API 的完整消息：system + 历史 + 新消息
+        const systemMsg = { role: "system", content: role.systemPrompt };
+        const apiMessages = [systemMsg, ...messages, { role: "user", content: userMessage }];
+        const requestBody = {
+            model: currentModel,
+            messages: apiMessages,
+            stream: false
+        };
+        // 立即在 UI 显示用户消息
+        addMessageToUI('user', userMessage);
+        // 添加临时 loading
+        const loadingId = 'loading_' + Date.now();
+        const loadingDiv = document.createElement('div');
+        loadingDiv.className = 'loading';
+        loadingDiv.id = loadingId;
+        loadingDiv.innerText = 'AI 思考中...';
+        messagesArea.appendChild(loadingDiv);
+        messagesArea.scrollTop = messagesArea.scrollHeight;
+
+        try {
+            const response = await fetch(WORKER_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-API-Key': CUSTOM_SECRET },
+                body: JSON.stringify(requestBody)
+            });
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            const data = await response.json();
+            const assistantReply = data.choices[0].message.content;
+            // 更新本地消息列表
+            const updatedMessages = [...messages, { role: "user", content: userMessage }, { role: "assistant", content: assistantReply }];
+            conv.messages = updatedMessages;
+            saveData();
+            // 移除 loading
+            document.getElementById(loadingId)?.remove();
+            addMessageToUI('assistant', assistantReply);
+        } catch (err) {
+            document.getElementById(loadingId)?.remove();
+            addMessageToUI('assistant', `❌ 请求失败: ${err.message}\n请检查 Worker 地址或暗号。`);
+        }
+    }
+
+    function addNewConversation(roleId) {
+        const role = roles.find(r => r.id === roleId);
+        if (!role) return;
+        const newId = generateId();
+        const newConv = {
+            id: newId,
+            name: `新对话 ${role.conversations.length + 1}`,
+            messages: [{ role: 'assistant', content: `你好！我是${role.name}，开始新对话吧～` }]
+        };
+        role.conversations.push(newConv);
+        saveData();
+        if (currentRoleId === roleId) {
+            currentConversationId = newId;
+            saveData();
+        }
+        renderSidebar();
+        if (currentRoleId === roleId) loadConversationToUI();
+    }
+
+    function deleteConversation(roleId, convId) {
+        const role = roles.find(r => r.id === roleId);
+        if (!role) return;
+        if (role.conversations.length <= 1) {
+            alert('每个角色至少保留一个对话');
+            return;
+        }
+        role.conversations = role.conversations.filter(c => c.id !== convId);
+        if (currentRoleId === roleId && currentConversationId === convId) {
+            currentConversationId = role.conversations[0]?.id || null;
+        }
+        saveData();
+        renderSidebar();
+        if (currentRoleId === roleId) loadConversationToUI();
+    }
+
+    function openRenameModal(roleId, convId) {
+        window.renameTarget = { roleId, convId };
+        const role = roles.find(r => r.id === roleId);
+        const conv = role?.conversations.find(c => c.id === convId);
+        if (conv) newConvNameInput.value = conv.name;
+        renameConvModal.style.display = 'flex';
+    }
+
+    function renameConversation() {
+        const { roleId, convId } = window.renameTarget;
+        const newName = newConvNameInput.value.trim();
+        if (!newName) return;
+        const role = roles.find(r => r.id === roleId);
+        if (role) {
+            const conv = role.conversations.find(c => c.id === convId);
+            if (conv) conv.name = newName;
+            saveData();
+            renderSidebar();
+        }
+        renameConvModal.style.display = 'none';
+    }
+
+    // 角色编辑
+    function openEditRoleModal(roleId = null) {
+        if (roleId === null) {
+            modalTitle.innerText = '新建角色';
+            roleNameInput.value = '';
+            rolePromptInput.value = '';
+            window.editingRoleId = null;
+        } else {
+            const role = roles.find(r => r.id === roleId);
+            if (!role) return;
+            modalTitle.innerText = '编辑角色';
+            roleNameInput.value = role.name;
+            rolePromptInput.value = role.systemPrompt;
+            window.editingRoleId = roleId;
+        }
+        roleModal.style.display = 'flex';
+    }
+
+    function saveRole() {
+        const name = roleNameInput.value.trim();
+        const prompt = rolePromptInput.value.trim();
+        if (!name || !prompt) { alert('请填写完整'); return; }
+        if (window.editingRoleId) {
+            const idx = roles.findIndex(r => r.id === window.editingRoleId);
+            if (idx !== -1) {
+                roles[idx].name = name;
+                roles[idx].systemPrompt = prompt;
+            }
+        } else {
+            const newId = generateId();
+            roles.push({ id: newId, name, systemPrompt: prompt, conversations: [] });
+            ensureDefaultConversations();
+        }
+        saveData();
+        if (!currentRoleId && roles.length) currentRoleId = roles[0].id;
+        renderSidebar();
+        if (currentRoleId) loadConversationToUI();
+        closeModal();
+    }
+
+    function deleteRole(roleId) {
+        if (roles.length <= 1) { alert('至少保留一个角色'); return; }
+        if (confirm('删除角色会同时删除其所有对话，确定吗？')) {
+            roles = roles.filter(r => r.id !== roleId);
+            if (currentRoleId === roleId) {
+                currentRoleId = roles[0].id;
+                currentConversationId = roles[0].conversations[0]?.id || null;
+            }
+            saveData();
+            renderSidebar();
+            loadConversationToUI();
+        }
+    }
+
+    function closeModal() {
+        roleModal.style.display = 'none';
+        window.editingRoleId = null;
+    }
+
+    // 主题和模型
+    function loadTheme() {
+        const saved = localStorage.getItem('deepseek_theme');
+        if (saved === 'dark') {
+            document.body.classList.add('dark');
+            themeToggle.innerHTML = '☀️ 日间模式';
+        } else {
+            document.body.classList.remove('dark');
+            themeToggle.innerHTML = '🌙 夜晚模式';
+        }
+    }
+    function toggleTheme() {
+        if (document.body.classList.contains('dark')) {
+            document.body.classList.remove('dark');
+            localStorage.setItem('deepseek_theme', 'light');
+            themeToggle.innerHTML = '🌙 夜晚模式';
+        } else {
+            document.body.classList.add('dark');
+            localStorage.setItem('deepseek_theme', 'dark');
+            themeToggle.innerHTML = '☀️ 日间模式';
+        }
+    }
+    function onModelChange() {
+        currentModel = modelSelect.value;
+        saveData();
+        addMessageToUI('assistant', `模型已切换为 ${currentModel === 'deepseek-chat' ? '标准对话' : '推理模型'}`);
+    }
+
+    // 事件绑定
+    sendBtn.addEventListener('click', async () => {
+        const text = messageInput.value.trim();
+        if (!text) return;
+        messageInput.value = '';
+        await sendMessage(text);
+    });
+    messageInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter' && !sendBtn.disabled) sendBtn.click();
+    });
+    addRoleBtn.addEventListener('click', () => openEditRoleModal(null));
+    saveRoleBtn.addEventListener('click', saveRole);
+    cancelModalBtn.addEventListener('click', closeModal);
+    roleModal.addEventListener('click', (e) => { if (e.target === roleModal) closeModal(); });
+    modelSelect.addEventListener('change', onModelChange);
+    themeToggle.addEventListener('click', toggleTheme);
+    confirmRenameBtn.addEventListener('click', renameConversation);
+    cancelRenameBtn.addEventListener('click', () => renameConvModal.style.display = 'none');
+    renameConvModal.addEventListener('click', (e) => { if (e.target === renameConvModal) renameConvModal.style.display = 'none'; });
+
+    function escapeHtml(str) {
+        if (!str) return '';
+        return str.replace(/[&<>]/g, function(m) {
+            if (m === '&') return '&amp;';
+            if (m === '<') return '&lt;';
+            if (m === '>') return '&gt;';
+            return m;
+        });
+    }
+
+    // 启动
+    loadData();
+    loadTheme();
+    renderSidebar();
+    loadConversationToUI();
+</script>
 </body>
 </html>
