@@ -5,7 +5,52 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>DeepSeek AI · 极简角色扮演</title>
     <style>
-        /* ---------- 极简白风格 ---------- */
+        /* ---------- 全局 CSS 变量（日间模式默认） ---------- */
+        :root {
+            --bg-body: #ffffff;
+            --bg-sidebar: #ffffff;
+            --bg-chat: #ffffff;
+            --border-light: #f0f0f0;
+            --text-primary: #1a1a2e;
+            --text-secondary: #555;
+            --card-active-bg: #fafafa;
+            --card-active-border: #eaeaea;
+            --bubble-user-bg: #f2f2f2;
+            --bubble-user-text: #1a1a2e;
+            --bubble-assistant-bg: #ffffff;
+            --bubble-assistant-border: #eaeaea;
+            --bubble-assistant-text: #1a1a2e;
+            --input-border: #e0e0e0;
+            --button-bg: #2c3e50;
+            --button-hover: #1e2b38;
+            --badge-bg: #f5f5f5;
+            --modal-bg: white;
+            --modal-overlay: rgba(0,0,0,0.4);
+        }
+
+        /* 夜晚模式变量覆盖 */
+        body.dark {
+            --bg-body: #121212;
+            --bg-sidebar: #1e1e2a;
+            --bg-chat: #1e1e2a;
+            --border-light: #2a2a3a;
+            --text-primary: #e0e0e0;
+            --text-secondary: #aaa;
+            --card-active-bg: #2a2a3a;
+            --card-active-border: #3a3a4a;
+            --bubble-user-bg: #2c2c3e;
+            --bubble-user-text: #e0e0e0;
+            --bubble-assistant-bg: #1e1e2a;
+            --bubble-assistant-border: #3a3a4a;
+            --bubble-assistant-text: #e0e0e0;
+            --input-border: #3a3a4a;
+            --button-bg: #3a4c62;
+            --button-hover: #2c3e50;
+            --badge-bg: #2a2a3a;
+            --modal-bg: #2a2a3a;
+            --modal-overlay: rgba(0,0,0,0.7);
+        }
+
         * {
             margin: 0;
             padding: 0;
@@ -14,11 +59,13 @@
 
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-            background: #ffffff;
+            background: var(--bg-body);
             height: 100vh;
             display: flex;
             flex-direction: column;
             padding: 20px;
+            transition: background 0.2s, color 0.2s;
+            color: var(--text-primary);
         }
 
         /* 主容器：左右结构 */
@@ -35,11 +82,12 @@
         /* 角色侧边栏 */
         .role-sidebar {
             width: 280px;
-            background: #ffffff;
+            background: var(--bg-sidebar);
             display: flex;
             flex-direction: column;
             overflow: hidden;
             border: none;
+            transition: background 0.2s;
         }
 
         .sidebar-header {
@@ -49,7 +97,7 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            border-bottom: 1px solid #f0f0f0;
+            border-bottom: 1px solid var(--border-light);
         }
 
         .add-role-btn {
@@ -64,11 +112,11 @@
             align-items: center;
             justify-content: center;
             transition: 0.2s;
-            color: #2c3e50;
+            color: var(--text-primary);
         }
 
         .add-role-btn:hover {
-            background: #f5f5f5;
+            background: var(--card-active-bg);
         }
 
         .role-list {
@@ -88,8 +136,8 @@
         }
 
         .role-card.active {
-            background: #fafafa;
-            border-color: #eaeaea;
+            background: var(--card-active-bg);
+            border-color: var(--card-active-border);
         }
 
         .role-name {
@@ -98,11 +146,12 @@
             margin-bottom: 6px;
             display: flex;
             justify-content: space-between;
+            color: var(--text-primary);
         }
 
         .role-preview {
             font-size: 0.7rem;
-            color: #888;
+            color: var(--text-secondary);
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
@@ -122,27 +171,28 @@
             cursor: pointer;
             padding: 4px 8px;
             border-radius: 12px;
-            background: #f5f5f5;
-            color: #555;
+            background: var(--badge-bg);
+            color: var(--text-secondary);
         }
 
         .role-actions button:hover {
-            background: #eaeaea;
+            background: var(--card-active-border);
         }
 
         /* 聊天区域 */
         .chat-container {
             flex: 1;
-            background: #ffffff;
+            background: var(--bg-chat);
             display: flex;
             flex-direction: column;
             overflow: hidden;
             border: none;
+            transition: background 0.2s;
         }
 
         .chat-header {
             padding: 16px 20px;
-            border-bottom: 1px solid #f0f0f0;
+            border-bottom: 1px solid var(--border-light);
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -155,14 +205,15 @@
             display: flex;
             align-items: center;
             gap: 12px;
+            flex-wrap: wrap;
         }
 
         .current-role-badge {
             font-size: 0.8rem;
-            background: #f5f5f5;
+            background: var(--badge-bg);
             padding: 4px 12px;
             border-radius: 20px;
-            color: #2c3e50;
+            color: var(--text-primary);
         }
 
         /* 模型切换下拉框 */
@@ -173,18 +224,33 @@
             font-size: 0.8rem;
         }
         .model-selector select {
-            background: #f5f5f5;
-            border: 1px solid #e0e0e0;
+            background: var(--badge-bg);
+            border: 1px solid var(--input-border);
             border-radius: 20px;
             padding: 5px 12px;
             font-size: 0.8rem;
             font-family: inherit;
-            color: #2c3e50;
+            color: var(--text-primary);
             cursor: pointer;
             outline: none;
         }
-        .model-selector select:hover {
-            background: #eeeeee;
+
+        /* 夜晚模式切换按钮 */
+        .theme-toggle {
+            background: var(--badge-bg);
+            border: 1px solid var(--input-border);
+            border-radius: 30px;
+            padding: 5px 12px;
+            font-size: 0.8rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            color: var(--text-primary);
+            transition: 0.2s;
+        }
+        .theme-toggle:hover {
+            background: var(--card-active-border);
         }
 
         .messages-area {
@@ -217,40 +283,41 @@
         }
 
         .user-message .message-bubble {
-            background: #f2f2f2;
-            color: #1a1a2e;
+            background: var(--bubble-user-bg);
+            color: var(--bubble-user-text);
         }
 
         .assistant-message .message-bubble {
-            background: #ffffff;
-            border: 1px solid #eaeaea;
-            color: #1a1a2e;
+            background: var(--bubble-assistant-bg);
+            border: 1px solid var(--bubble-assistant-border);
+            color: var(--bubble-assistant-text);
         }
 
         .input-area {
             padding: 16px 20px;
-            border-top: 1px solid #f0f0f0;
+            border-top: 1px solid var(--border-light);
             display: flex;
             gap: 12px;
-            background: #ffffff;
+            background: var(--bg-chat);
         }
 
         #messageInput {
             flex: 1;
             padding: 10px 16px;
-            border: 1px solid #e0e0e0;
+            border: 1px solid var(--input-border);
             border-radius: 30px;
             font-size: 0.9rem;
             outline: none;
-            background: white;
+            background: var(--bg-sidebar);
+            color: var(--text-primary);
         }
 
         #messageInput:focus {
-            border-color: #aaa;
+            border-color: var(--text-secondary);
         }
 
         button {
-            background: #2c3e50;
+            background: var(--button-bg);
             color: white;
             border: none;
             padding: 0 20px;
@@ -261,7 +328,7 @@
         }
 
         button:hover {
-            background: #1e2b38;
+            background: var(--button-hover);
         }
 
         button:disabled {
@@ -271,7 +338,7 @@
 
         .loading {
             text-align: center;
-            color: #888;
+            color: var(--text-secondary);
             padding: 8px;
             font-size: 0.8rem;
         }
@@ -284,18 +351,19 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(0,0,0,0.4);
+            background: var(--modal-overlay);
             justify-content: center;
             align-items: center;
             z-index: 1000;
         }
         .modal-content {
-            background: white;
+            background: var(--modal-bg);
             width: 90%;
             max-width: 480px;
             border-radius: 24px;
             padding: 24px;
             box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            color: var(--text-primary);
         }
         .modal-content h3 {
             margin-bottom: 16px;
@@ -305,10 +373,12 @@
             width: 100%;
             padding: 12px;
             margin-bottom: 16px;
-            border: 1px solid #e0e0e0;
+            border: 1px solid var(--input-border);
             border-radius: 16px;
             font-family: inherit;
             font-size: 0.9rem;
+            background: var(--bg-sidebar);
+            color: var(--text-primary);
         }
         .modal-content textarea {
             min-height: 140px;
@@ -327,7 +397,7 @@
         @media (max-width: 700px) {
             body { padding: 12px; }
             .app-container { flex-direction: column; }
-            .role-sidebar { width: 100%; max-height: 35%; border-bottom: 1px solid #f0f0f0; }
+            .role-sidebar { width: 100%; max-height: 35%; border-bottom: 1px solid var(--border-light); }
             .role-list { display: flex; overflow-x: auto; gap: 12px; padding: 12px; }
             .role-card { min-width: 160px; margin-bottom: 0; }
             .chat-header { flex-direction: column; align-items: flex-start; }
@@ -352,12 +422,15 @@
                     🤖 DeepSeek · 角色扮演
                     <span class="current-role-badge" id="currentRoleBadge">未选择</span>
                 </div>
-                <div class="model-selector">
-                    <span>🧠 模型：</span>
-                    <select id="modelSelect">
-                        <option value="deepseek-chat">deepseek-chat (标准·便宜)</option>
-                        <option value="deepseek-reasoner">deepseek-reasoner (推理·强大)</option>
-                    </select>
+                <div style="display: flex; gap: 12px;">
+                    <div class="model-selector">
+                        <span>🧠 模型：</span>
+                        <select id="modelSelect">
+                            <option value="deepseek-chat">deepseek-chat (标准·便宜)</option>
+                            <option value="deepseek-reasoner">deepseek-reasoner (推理·强大)</option>
+                        </select>
+                    </div>
+                    <button class="theme-toggle" id="themeToggle">🌙 夜晚模式</button>
                 </div>
             </div>
             <div class="messages-area" id="messagesArea">
@@ -387,8 +460,8 @@
 
     <script>
         // ========== 配置区 ==========
-        const WORKER_URL = 'https://still-bread-327a.liaoyilin826.workers.dev/';   // 🔧 替换为你的 Worker 地址
-        const CUSTOM_SECRET = 'xK9mP2vL7qR4nF8t';    // 🔧 替换为你的暗号
+        const WORKER_URL = 'https://你的-worker地址.workers.dev';   // 🔧 替换为你的 Worker 地址
+        const CUSTOM_SECRET = 'my-very-secret-custom-key-2024';    // 🔧 替换为你的暗号
         // ==========================
 
         // DOM 元素
@@ -405,6 +478,7 @@
         const saveRoleBtn = document.getElementById('saveRoleBtn');
         const cancelModalBtn = document.getElementById('cancelModalBtn');
         const modelSelect = document.getElementById('modelSelect');
+        const themeToggle = document.getElementById('themeToggle');
 
         let currentRoleId = null;
         let conversationHistory = [];
@@ -417,6 +491,30 @@
             { id: 'role_2', name: '🔧 赛博技师', systemPrompt: '你是22世纪的赛博朋克技师，名叫“Zack”。说话夹杂科技黑话，喜欢用机械比喻。性格直爽，有点暴躁但技术超群。称呼用户为“老铁”或“客户”。口头禅：“这破电路，看我给它来一梭子！”' },
             { id: 'role_3', name: '🐉 龙族长老', systemPrompt: '你是一头活了上千年的龙族长老，名叫“艾泽拉斯”。威严而神秘，对人类抱有好奇但保持高傲。说话缓慢、深沉，偶尔吐出火星。喜欢用“凡人啊”、“以龙族之名”等句式。' }
         ];
+
+        // ---------- 主题切换 ----------
+        function loadThemePreference() {
+            const savedTheme = localStorage.getItem('deepseek_theme');
+            if (savedTheme === 'dark') {
+                document.body.classList.add('dark');
+                themeToggle.innerHTML = '☀️ 日间模式';
+            } else {
+                document.body.classList.remove('dark');
+                themeToggle.innerHTML = '🌙 夜晚模式';
+            }
+        }
+
+        function toggleTheme() {
+            if (document.body.classList.contains('dark')) {
+                document.body.classList.remove('dark');
+                localStorage.setItem('deepseek_theme', 'light');
+                themeToggle.innerHTML = '🌙 夜晚模式';
+            } else {
+                document.body.classList.add('dark');
+                localStorage.setItem('deepseek_theme', 'dark');
+                themeToggle.innerHTML = '☀️ 日间模式';
+            }
+        }
 
         // 加载模型偏好
         function loadModelPreference() {
@@ -437,7 +535,6 @@
         function onModelChange() {
             currentModel = modelSelect.value;
             saveModelPreference();
-            // 可选：在聊天区域提示模型已切换
             addMessage('assistant', `⚠️ 模型已切换为「${currentModel === 'deepseek-chat' ? 'deepseek-chat (标准对话)' : 'deepseek-reasoner (推理模型)'}」。后续对话将使用新模型。`);
         }
 
@@ -551,7 +648,7 @@
             }
             conversationHistory.push({ role: "user", content: userMessage });
             const requestBody = {
-                model: currentModel,   // 使用当前选择的模型
+                model: currentModel,
                 messages: conversationHistory,
                 stream: false
             };
@@ -662,6 +759,7 @@
             loadRoles();
             loadCurrentRoleId();
             loadModelPreference();
+            loadThemePreference();
             if (!getRoleById(currentRoleId) && roles.length) currentRoleId = roles[0].id;
             const cur = getRoleById(currentRoleId);
             conversationHistory = cur ? [{ role: "system", content: cur.systemPrompt }] : [{ role: "system", content: "你是一个乐于助人的AI助手。" }];
@@ -678,6 +776,7 @@
         cancelModalBtn.addEventListener('click', closeModal);
         roleModal.addEventListener('click', (e) => { if (e.target === roleModal) closeModal(); });
         modelSelect.addEventListener('change', onModelChange);
+        themeToggle.addEventListener('click', toggleTheme);
 
         init();
     </script>
