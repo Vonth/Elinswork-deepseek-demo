@@ -291,6 +291,20 @@
             justify-content: center;
             touch-action: manipulation;
         }
+        /* 新增侧边栏切换按钮 */
+        .sidebar-toggle-btn {
+            background: var(--badge-bg);
+            border: 1px solid var(--input-border);
+            border-radius: 30px;
+            width: 44px;
+            height: 44px;
+            font-size: 1.2rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            touch-action: manipulation;
+        }
         .color-dropdown {
             display: none;
             position: absolute;
@@ -499,7 +513,7 @@
             max-height: 200px;
             font-family: inherit;
         }
-        button, .action-btn, .add-role-btn, .add-conv-btn, .role-actions button, .conv-actions button, .color-btn, .theme-toggle {
+        button, .action-btn, .add-role-btn, .add-conv-btn, .role-actions button, .conv-actions button, .color-btn, .theme-toggle, .sidebar-toggle-btn {
             touch-action: manipulation;
         }
         #sendBtn {
@@ -567,40 +581,10 @@
         .regen-content { font-size: 0.85rem; white-space: pre-wrap; }
         .regen-reasoning { font-size: 0.75rem; color: var(--text-reasoning); margin-top: 6px; padding-top: 6px; border-top: 1px dashed var(--border-light); }
 
-        /* 浮动折叠按钮 */
-        .float-collapse-btn {
-            position: fixed;
-            width: 56px;
-            height: 56px;
-            border-radius: 50%;
-            background: var(--button-bg);
-            color: white;
-            border: none;
-            font-size: 24px;
-            cursor: pointer;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-            z-index: 1001;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: 0.2s;
-            touch-action: manipulation;
-        }
-        .float-collapse-btn::after {
-            content: '';
-            position: absolute;
-            top: -24px;
-            left: -24px;
-            right: -24px;
-            bottom: -24px;
-            border-radius: 50%;
-        }
-        .float-collapse-btn:active { transform: scale(0.96); }
-
+        /* 移除浮动按钮样式，不再需要 */
         @media (max-width: 700px) {
             body { padding: 12px; }
             .role-sidebar { width: 260px; }
-            .float-collapse-btn { width: 48px; height: 48px; font-size: 20px; bottom: 15px; left: 15px; }
             .user-message { max-width: 90%; }
             .input-area { margin: 0 12px 12px 12px; padding: 12px 16px; }
             .action-btn { padding: 8px 12px; font-size: 1rem; }
@@ -645,6 +629,8 @@
                         <div class="color-option" data-color="gray" style="background: #f0f0f0;"></div>
                     </div>
                 </div>
+                <!-- 新增侧边栏切换按钮 -->
+                <button class="sidebar-toggle-btn" id="sidebarToggleBtn">🎭</button>
                 <button class="theme-toggle" id="themeToggle">🌙</button>
             </div>
         </div>
@@ -657,7 +643,6 @@
         </div>
     </div>
 </div>
-<button class="float-collapse-btn" id="floatCollapseBtn">🎭</button>
 
 <!-- 模态框 -->
 <div id="roleModal" class="modal"><div class="modal-content"><h3 id="modalTitle">编辑角色</h3><input type="text" id="roleName" placeholder="角色名称"><textarea id="rolePrompt" placeholder="系统提示词（人设）..."></textarea><div class="modal-buttons"><button id="saveRoleBtn">保存</button><button id="cancelModalBtn">取消</button></div></div></div>
@@ -669,10 +654,10 @@
         WORKER_URL: 'https://still-bread-327a.liaoyilin826.workers.dev/',
         CUSTOM_SECRET: 'xK9mP2vL7qR4nF8t',
         MAX_REGENERATIONS: 5,
-        PAGE_SIZE: 20   // 每页显示消息数量
+        PAGE_SIZE: 20
     };
 
-    // 分页状态（必须在 UIManager 之前定义）
+    // 分页状态
     const Pagination = {
         currentPage: 1
     };
@@ -712,7 +697,6 @@
             if (!this.roles || this.roles.length === 0) {
                 this.roles = [JSON.parse(JSON.stringify(this.defaultRole))];
             }
-            
             for (let role of this.roles) {
                 if (!role.conversations || role.conversations.length === 0) {
                     role.conversations = [{ 
@@ -721,7 +705,6 @@
                         messages: [] 
                     }];
                 }
-                
                 for (let conv of role.conversations) {
                     if (!conv.messages) conv.messages = [];
                     if (conv.messages.length === 0) {
@@ -735,7 +718,6 @@
                             timestamp: new Date().toISOString()
                         });
                     }
-                    
                     for (let msg of conv.messages) {
                         if (msg.role === 'assistant') {
                             if (!msg.regenerations) msg.regenerations = [];
@@ -770,24 +752,18 @@
                     this.currentConversationId = data.currentConversationId || null;
                     this.currentModel = data.currentModel || 'deepseek-chat';
                     modelSelect.value = this.currentModel;
-                } catch(e) {
-                    console.error('Error loading data:', e);
-                }
+                } catch(e) { console.error(e); }
             }
-            
             this.ensureDefaultRoles();
-            
             if (!this.roles.find(r => r.id === this.currentRoleId) && this.roles.length) {
                 this.currentRoleId = this.roles[0].id;
             }
-            
             if (this.currentRoleId) {
                 const role = this.getCurrentRole();
                 if (role && (!this.currentConversationId || !role.conversations.find(c => c.id === this.currentConversationId))) {
                     this.currentConversationId = role.conversations[0]?.id || null;
                 }
             }
-            
             this.saveData();
         },
         
@@ -805,11 +781,11 @@
             if (saved === 'true') {
                 this.sidebarOpen = true;
                 roleSidebar.classList.add('open');
-                floatCollapseBtn.innerHTML = '✕';
+                sidebarToggleBtn.innerHTML = '✕';
             } else {
                 this.sidebarOpen = false;
                 roleSidebar.classList.remove('open');
-                floatCollapseBtn.innerHTML = '🎭';
+                sidebarToggleBtn.innerHTML = '🎭';
             }
         },
         
@@ -817,10 +793,10 @@
             this.sidebarOpen = !this.sidebarOpen;
             if (this.sidebarOpen) {
                 roleSidebar.classList.add('open');
-                floatCollapseBtn.innerHTML = '✕';
+                sidebarToggleBtn.innerHTML = '✕';
             } else {
                 roleSidebar.classList.remove('open');
-                floatCollapseBtn.innerHTML = '🎭';
+                sidebarToggleBtn.innerHTML = '🎭';
             }
             localStorage.setItem('sidebar_open', this.sidebarOpen);
         },
@@ -863,19 +839,17 @@
         confirmRenameBtn: document.getElementById('confirmRenameBtn'),
         cancelRenameBtn: document.getElementById('cancelRenameBtn'),
         roleSidebar: document.getElementById('roleSidebar'),
-        floatCollapseBtn: document.getElementById('floatCollapseBtn'),
         colorPickerBtn: document.getElementById('colorPickerBtn'),
-        colorDropdown: document.getElementById('colorDropdown')
+        colorDropdown: document.getElementById('colorDropdown'),
+        sidebarToggleBtn: document.getElementById('sidebarToggleBtn')
     };
 
     // ========== UI 管理模块 ==========
     const UIManager = {
-        // 重置分页到第一页
         resetPagination() {
             Pagination.currentPage = 1;
         },
         
-        // 辅助：调整页码避免越界
         adjustPaginationAfterDelete(totalMessages) {
             const totalPages = Math.ceil(totalMessages / Config.PAGE_SIZE);
             if (Pagination.currentPage > totalPages && totalPages > 0) {
@@ -891,61 +865,45 @@
                 const roleCard = document.createElement('div');
                 roleCard.className = `role-card ${DataManager.currentRoleId === role.id ? 'active' : ''}`;
                 roleCard.innerHTML = `<div class="role-name">${escapeHtml(role.name)}<div class="role-actions"><button class="edit-role-btn" data-id="${role.id}">编辑</button><button class="delete-role-btn" data-id="${role.id}">删除</button></div></div><div class="role-preview">${escapeHtml(role.systemPrompt.substring(0, 45))}...</div>`;
-                
                 roleCard.addEventListener('click', (e) => {
-                    if (e.target.tagName !== 'BUTTON') {
-                        this.switchRole(role.id);
-                    }
+                    if (e.target.tagName !== 'BUTTON') this.switchRole(role.id);
                 });
-                
                 roleCard.querySelector('.edit-role-btn').addEventListener('click', (e) => {
                     e.stopPropagation();
                     this.openEditRoleModal(role.id);
                 });
-                
                 roleCard.querySelector('.delete-role-btn').addEventListener('click', (e) => {
                     e.stopPropagation();
                     this.deleteRole(role.id);
                 });
-                
                 const convSection = document.createElement('div');
                 convSection.className = 'conversation-section';
                 convSection.innerHTML = `<div class="section-title">💬 对话历史<button class="add-conv-btn" data-role="${role.id}">+ 新建</button></div><div class="conv-list" id="conv-list-${role.id}"></div>`;
-                
                 roleCard.appendChild(convSection);
                 DOM.roleListDiv.appendChild(roleCard);
-                
                 const convContainer = convSection.querySelector(`.conv-list`);
                 for (let conv of role.conversations) {
                     const convItem = document.createElement('div');
                     convItem.className = `conv-item ${DataManager.currentRoleId === role.id && DataManager.currentConversationId === conv.id ? 'active' : ''}`;
                     convItem.innerHTML = `<span class="conv-name">${escapeHtml(conv.name)}</span><div class="conv-actions"><button class="rename-conv" data-role="${role.id}" data-conv="${conv.id}">✏️</button><button class="delete-conv" data-role="${role.id}" data-conv="${conv.id}">🗑️</button></div>`;
-                    
                     convItem.addEventListener('click', (e) => {
-                        if (e.target.tagName !== 'BUTTON') {
-                            this.switchConversation(role.id, conv.id);
-                        }
+                        if (e.target.tagName !== 'BUTTON') this.switchConversation(role.id, conv.id);
                     });
-                    
                     convItem.querySelector('.rename-conv').addEventListener('click', (e) => {
                         e.stopPropagation();
                         this.openRenameModal(role.id, conv.id);
                     });
-                    
                     convItem.querySelector('.delete-conv').addEventListener('click', (e) => {
                         e.stopPropagation();
                         this.deleteConversation(role.id, conv.id);
                     });
-                    
                     convContainer.appendChild(convItem);
                 }
-                
                 convSection.querySelector('.add-conv-btn').addEventListener('click', (e) => {
                     e.stopPropagation();
                     this.addConversation(role.id);
                 });
             }
-            
             const curRole = DataManager.getCurrentRole();
             DOM.currentRoleBadge.innerText = curRole ? curRole.name : '无角色';
         },
@@ -962,9 +920,7 @@
         },
         
         switchConversation(roleId, convId) {
-            if (DataManager.currentRoleId !== roleId) {
-                DataManager.currentRoleId = roleId;
-            }
+            if (DataManager.currentRoleId !== roleId) DataManager.currentRoleId = roleId;
             DataManager.currentConversationId = convId;
             DataManager.saveData();
             this.resetPagination();
@@ -1000,7 +956,6 @@
         
         openEditRoleModal(roleId) {
             if (roleId === null) {
-                // 新建角色模式
                 DOM.modalTitle.textContent = '新建角色';
                 DOM.roleNameInput.value = '';
                 DOM.rolePromptInput.value = '';
@@ -1107,9 +1062,7 @@
                 DataManager.currentRoleId = DataManager.roles[0].id;
             }
             this.renderSidebar();
-            if (DataManager.currentRoleId) {
-                this.loadConversationToUI();
-            }
+            if (DataManager.currentRoleId) this.loadConversationToUI();
             this.closeModal();
         },
         
@@ -1192,7 +1145,7 @@
             const historyMessages = conv.messages.slice(0, userIndex + 1);
             const systemMsg = { role: "system", content: role.systemPrompt };
             const apiMessages = [systemMsg];
-            for (let msg of historyMessages) { if (msg.role !== 'system') apiMessages.push({ role: msg.role, content: msg.content }); }
+            for (let msg of historyMessages) if (msg.role !== 'system') apiMessages.push({ role: msg.role, content: msg.content });
             const requestBody = { model: DataManager.currentModel, messages: apiMessages, stream: false };
             const loadingDiv = document.createElement('div'); loadingDiv.className = 'loading'; loadingDiv.innerText = '重新生成中...'; DOM.messagesArea.appendChild(loadingDiv); DOM.messagesArea.scrollTop = DOM.messagesArea.scrollHeight;
             try {
@@ -1261,7 +1214,6 @@
             const conv = DataManager.getCurrentConversation(); if (!conv) return;
             if (userIndex + 1 < conv.messages.length && conv.messages[userIndex+1].role === 'assistant') conv.messages.splice(userIndex, 2);
             else conv.messages.splice(userIndex, 1);
-            // 调整页码避免越界
             this.adjustPaginationAfterDelete(conv.messages.length);
             DataManager.saveData(); this.loadConversationToUI();
         },
@@ -1282,7 +1234,6 @@
             const requestBody = { model: DataManager.currentModel, messages: apiMessages, stream: false };
             conv.messages.push({ role: 'user', content: userMessage, timestamp: new Date().toISOString() });
             DataManager.saveData(); 
-            // 新消息后重置分页到最后一页，以便看到最新消息
             const totalMessages = conv.messages.length;
             const totalPages = Math.ceil(totalMessages / Config.PAGE_SIZE);
             Pagination.currentPage = totalPages;
@@ -1297,14 +1248,12 @@
                 if (DataManager.currentModel === 'deepseek-reasoner' && data.choices[0].message.reasoning_content) reasoning = data.choices[0].message.reasoning_content;
                 conv.messages.push({ role: 'assistant', content: assistantReply, reasoning: reasoning, regenerations: [], currentVersion: 0, reasoningCollapsed: false, timestamp: new Date().toISOString() });
                 DataManager.saveData(); 
-                // 再次调整页码到最后一页
                 const newTotal = conv.messages.length;
                 const newPages = Math.ceil(newTotal / Config.PAGE_SIZE);
                 Pagination.currentPage = newPages;
                 this.loadConversationToUI();
             } catch (err) {
                 conv.messages.pop(); DataManager.saveData(); 
-                // 恢复页码
                 const afterPopTotal = conv.messages.length;
                 const afterPopPages = Math.ceil(afterPopTotal / Config.PAGE_SIZE);
                 Pagination.currentPage = afterPopPages > 0 ? afterPopPages : 1;
@@ -1320,19 +1269,13 @@
                 DOM.messagesArea.innerHTML = '<div class="assistant-message">选择一个会话开始对话～</div>';
                 return;
             }
-            
             const messages = conv.messages;
             const totalMessages = messages.length;
             const totalPages = Math.ceil(totalMessages / Config.PAGE_SIZE);
-            // 确保当前页码有效
             if (Pagination.currentPage < 1) Pagination.currentPage = 1;
             if (Pagination.currentPage > totalPages && totalPages > 0) Pagination.currentPage = totalPages;
-            
             const startIndex = (Pagination.currentPage - 1) * Config.PAGE_SIZE;
             const endIndex = Math.min(startIndex + Config.PAGE_SIZE, totalMessages);
-            const paginatedMessages = messages.slice(startIndex, endIndex);
-            
-            // 渲染消息
             for (let i = startIndex; i < endIndex; i++) {
                 const msg = messages[i];
                 const wrapper = document.createElement('div'); wrapper.className = 'message-wrapper';
@@ -1341,7 +1284,6 @@
                     if (msg.timestamp) {
                         const timeDiv = document.createElement('div'); timeDiv.className = 'message-timestamp'; timeDiv.innerText = new Date(msg.timestamp).toLocaleTimeString(); wrapper.appendChild(timeDiv);
                     }
-                    // 判断是否为最后一条用户消息（考虑分页情况，但操作按钮只在最后一条消息显示，不区分分页）
                     const isLastUser = (i === messages.length - 1 || (i+1 < messages.length && messages[i+1].role === 'assistant' && i === messages.length-2));
                     if (isLastUser) {
                         const actions = document.createElement('div'); actions.className = 'user-actions';
@@ -1389,19 +1331,13 @@
                 }
                 DOM.messagesArea.appendChild(wrapper);
             }
-            
-            // 渲染分页控件
-            if (totalPages > 1) {
-                this.renderPaginationControls(totalPages);
-            }
-            
+            if (totalPages > 1) this.renderPaginationControls(totalPages);
             DOM.messagesArea.scrollTop = DOM.messagesArea.scrollHeight;
         },
         
         renderPaginationControls(totalPages) {
             const paginationDiv = document.createElement('div');
             paginationDiv.className = 'pagination-controls';
-            
             const prevBtn = document.createElement('button');
             prevBtn.className = 'pagination-btn';
             prevBtn.innerHTML = '上一页';
@@ -1413,12 +1349,10 @@
                 }
             };
             paginationDiv.appendChild(prevBtn);
-            
             const pageInfo = document.createElement('span');
             pageInfo.className = 'page-info';
             pageInfo.innerText = `${Pagination.currentPage}/${totalPages}`;
             paginationDiv.appendChild(pageInfo);
-            
             const nextBtn = document.createElement('button');
             nextBtn.className = 'pagination-btn';
             nextBtn.innerHTML = '下一页';
@@ -1430,102 +1364,9 @@
                 }
             };
             paginationDiv.appendChild(nextBtn);
-            
             DOM.messagesArea.appendChild(paginationDiv);
         }
     };
-
-    // ========== 拖拽与点击优化 ==========
-    let isDragging = false;
-    let hasMoved = false;
-    let dragStartX, dragStartY, btnStartLeft, btnStartTop;
-    const dragThreshold = 5;
-
-    function onDragStart(e) {
-        isDragging = true;
-        hasMoved = false;
-        const btn = DOM.floatCollapseBtn;
-        if (e.type === 'mousedown') {
-            dragStartX = e.clientX;
-            dragStartY = e.clientY;
-        } else {
-            e.preventDefault();
-            dragStartX = e.touches[0].clientX;
-            dragStartY = e.touches[0].clientY;
-        }
-        btnStartLeft = parseInt(btn.style.left) || 20;
-        btnStartTop = parseInt(btn.style.top) || (window.innerHeight - 68);
-        btn.style.transition = 'none';
-    }
-
-    function onDragMove(e) {
-        if (!isDragging) return;
-        let clientX, clientY;
-        if (e.type === 'mousemove') {
-            clientX = e.clientX;
-            clientY = e.clientY;
-        } else {
-            clientX = e.touches[0].clientX;
-            clientY = e.touches[0].clientY;
-        }
-        const deltaX = clientX - dragStartX;
-        const deltaY = clientY - dragStartY;
-        if (!hasMoved && (Math.abs(deltaX) > dragThreshold || Math.abs(deltaY) > dragThreshold)) {
-            hasMoved = true;
-        }
-        if (hasMoved) {
-            e.preventDefault();
-            const newLeft = Math.min(Math.max(btnStartLeft + deltaX, 10), window.innerWidth - 58);
-            const newTop = Math.min(Math.max(btnStartTop + deltaY, 10), window.innerHeight - 58);
-            DOM.floatCollapseBtn.style.left = newLeft + 'px';
-            DOM.floatCollapseBtn.style.top = newTop + 'px';
-        }
-    }
-
-    function onDragEnd() {
-        if (isDragging && hasMoved) {
-            const btn = DOM.floatCollapseBtn;
-            localStorage.setItem('float_button_position', JSON.stringify({ left: btn.style.left, top: btn.style.top }));
-        }
-        isDragging = false;
-        hasMoved = false;
-        DOM.floatCollapseBtn.style.transition = '';
-    }
-
-    function loadButtonPosition() {
-        const saved = localStorage.getItem('float_button_position');
-        if (saved) {
-            try {
-                const pos = JSON.parse(saved);
-                DOM.floatCollapseBtn.style.left = pos.left || '20px';
-                DOM.floatCollapseBtn.style.top = pos.top || (window.innerHeight - 68) + 'px';
-            } catch(e) { resetButtonPosition(); }
-        } else {
-            resetButtonPosition();
-        }
-    }
-
-    function resetButtonPosition() {
-        DOM.floatCollapseBtn.style.left = '20px';
-        DOM.floatCollapseBtn.style.top = (window.innerHeight - 68) + 'px';
-    }
-
-    // 绑定事件
-    function initDraggableButton() {
-        loadButtonPosition();
-        DOM.floatCollapseBtn.addEventListener('mousedown', onDragStart);
-        DOM.floatCollapseBtn.addEventListener('touchstart', onDragStart, { passive: false });
-        document.addEventListener('mousemove', onDragMove);
-        document.addEventListener('touchmove', onDragMove, { passive: false });
-        document.addEventListener('mouseup', onDragEnd);
-        document.addEventListener('touchend', onDragEnd);
-        // 点击事件：只有当没有发生拖拽移动时才触发折叠/展开
-        DOM.floatCollapseBtn.addEventListener('click', (e) => {
-            if (!hasMoved) {
-                DataManager.toggleSidebar();
-            }
-        });
-    }
 
     // ========== 事件绑定 ==========
     DOM.messageInput.addEventListener('input', () => UIManager.adjustTextareaHeight());
@@ -1545,6 +1386,7 @@
     DOM.confirmRenameBtn.addEventListener('click', () => UIManager.renameConversation());
     DOM.cancelRenameBtn.addEventListener('click', () => DOM.renameConvModal.style.display = 'none');
     DOM.renameConvModal.addEventListener('click', (e) => { if (e.target === DOM.renameConvModal) DOM.renameConvModal.style.display = 'none'; });
+    DOM.sidebarToggleBtn.addEventListener('click', () => DataManager.toggleSidebar());
 
     // ========== 初始化 ==========
     DataManager.loadData();
@@ -1553,7 +1395,6 @@
     DataManager.loadUserColor();
     UIManager.renderSidebar();
     UIManager.loadConversationToUI();
-    initDraggableButton();
 </script>
 </body>
 </html>
