@@ -618,6 +618,8 @@
                         <option value="deepseek-reasoner">deepseek-reasoner (推理)</option>
                     </select>
                 </div>
+                <button class="theme-toggle" id="themeToggle">🌙</button>
+                <button class="sidebar-toggle-btn" id="sidebarToggleBtn">🎭</button>
                 <div class="color-picker">
                     <button class="color-btn" id="colorPickerBtn">🎨</button>
                     <div class="color-dropdown" id="colorDropdown">
@@ -629,9 +631,6 @@
                         <div class="color-option" data-color="gray" style="background: #f0f0f0;"></div>
                     </div>
                 </div>
-                <!-- 新增侧边栏切换按钮 -->
-                <button class="sidebar-toggle-btn" id="sidebarToggleBtn">🎭</button>
-                <button class="theme-toggle" id="themeToggle">🌙</button>
             </div>
         </div>
         <div class="messages-area" id="messagesArea">
@@ -1387,6 +1386,15 @@
     DOM.cancelRenameBtn.addEventListener('click', () => DOM.renameConvModal.style.display = 'none');
     DOM.renameConvModal.addEventListener('click', (e) => { if (e.target === DOM.renameConvModal) DOM.renameConvModal.style.display = 'none'; });
     DOM.sidebarToggleBtn.addEventListener('click', () => DataManager.toggleSidebar());
+    
+    // 点击外部区域关闭角色卡界面
+    document.addEventListener('click', (e) => {
+        if (DataManager.sidebarOpen && 
+            !DOM.roleSidebar.contains(e.target) && 
+            !DOM.sidebarToggleBtn.contains(e.target)) {
+            DataManager.toggleSidebar();
+        }
+    });
 
     // ========== 初始化 ==========
     DataManager.loadData();
