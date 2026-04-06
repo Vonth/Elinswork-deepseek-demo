@@ -337,6 +337,7 @@
             display: flex;
             gap: 12px;
             background: var(--bg-chat);
+            align-items: flex-end;
         }
         #messageInput {
             flex: 1;
@@ -347,6 +348,10 @@
             outline: none;
             background: var(--bg-sidebar);
             color: var(--text-primary);
+            resize: none;
+            min-height: 40px;
+            max-height: 200px;
+            overflow-y: auto;
         }
         button {
             background: var(--button-bg);
@@ -356,6 +361,15 @@
             border-radius: 30px;
             font-size: 0.9rem;
             cursor: pointer;
+        }
+        #sendBtn {
+            width: 40px;
+            height: 40px;
+            padding: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
         }
         button:disabled {
             opacity: 0.6;
@@ -439,40 +453,35 @@
         }
 
         /* 消息操作按钮 */
-        .message-actions {
+        .message-wrapper.user .message-actions {
             display: flex;
             gap: 8px;
             margin-top: 8px;
             flex-wrap: wrap;
+            justify-content: flex-end;
+        }
+        .message-wrapper.assistant .message-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 8px;
+            flex-wrap: wrap;
+            justify-content: flex-start;
         }
         .action-btn {
             padding: 4px 8px;
             border: none;
             border-radius: 4px;
-            font-size: 12px;
+            font-size: 14px;
             cursor: pointer;
             transition: all 0.2s;
             white-space: nowrap;
-        }
-        .edit-btn {
-            background: #4CAF50;
-            color: white;
-        }
-        .delete-btn {
-            background: #f44336;
-            color: white;
-        }
-        .regenerate-btn {
-            background: #2196F3;
-            color: white;
-        }
-        .history-btn {
-            background: #FF9800;
-            color: white;
+            background: transparent;
+            color: var(--text-secondary);
         }
         .action-btn:hover {
             opacity: 0.8;
             transform: translateY(-1px);
+            background: rgba(0, 0, 0, 0.05);
         }
 
         /* 模态窗口 */
@@ -609,8 +618,8 @@
             <div class="assistant-message">请从左侧选择一个角色和会话开始～</div>
         </div>
         <div class="input-area">
-            <input type="text" id="messageInput" placeholder="输入消息..." autocomplete="off">
-            <button id="sendBtn">发送</button>
+            <textarea id="messageInput" placeholder="输入消息..." autocomplete="off" rows="1"></textarea>
+            <button id="sendBtn">📤</button>
         </div>
     </div>
 </div>
@@ -653,6 +662,21 @@
     const messagesArea = document.getElementById('messagesArea');
     const messageInput = document.getElementById('messageInput');
     const sendBtn = document.getElementById('sendBtn');
+    
+    // 自动调整输入框高度
+    function adjustTextareaHeight() {
+        messageInput.style.height = 'auto';
+        messageInput.style.height = Math.min(messageInput.scrollHeight, 200) + 'px';
+    }
+    
+    // 监听输入事件
+    messageInput.addEventListener('input', adjustTextareaHeight);
+    messageInput.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            sendMessage();
+        }
+    });
     const roleListDiv = document.getElementById('roleList');
     const currentRoleBadge = document.getElementById('currentRoleBadge');
     const addRoleBtn = document.getElementById('addRoleBtn');
@@ -871,7 +895,7 @@
 
     function addMessageToUI(role, content, reasoning = null, isLast = false, messageIndex = -1) {
         const wrapper = document.createElement('div');
-        wrapper.className = 'message-wrapper';
+        wrapper.className = `message-wrapper ${role === 'user' ? 'user' : 'assistant'}`;
         wrapper.dataset.messageIndex = messageIndex;
         
         if (role === 'user') {
@@ -1198,10 +1222,8 @@
         const text = messageInput.value.trim();
         if (!text) return;
         messageInput.value = '';
+        adjustTextareaHeight(); // 重置输入框高度
         await sendMessage(text);
-    });
-    messageInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter' && !sendBtn.disabled) sendBtn.click();
     });
     addRoleBtn.addEventListener('click', () => openEditRoleModal(null));
     saveRoleBtn.addEventListener('click', saveRole);
