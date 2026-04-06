@@ -61,37 +61,37 @@
 
         .app-container {
             display: flex;
-            gap: 20px;
             flex: 1;
             min-height: 0;
             width: 100%;
             max-width: 1400px;
             margin: 0 auto;
+            position: relative;
         }
 
-        /* 角色侧边栏 - 可折叠 */
+        /* 角色面板 - 二级界面 */
         .role-sidebar {
-            width: 280px;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 300px;
+            height: 100%;
             background: var(--bg-sidebar);
             display: flex;
             flex-direction: column;
             overflow: hidden;
             border: none;
-            transition: width 0.25s ease, padding 0.25s ease;
-            position: relative;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+            z-index: 1000;
+            transform: translateX(-100%);
+            transition: transform 0.3s ease;
         }
-        .role-sidebar.collapsed {
-            width: 32px;
-            min-width: 32px;
+        .role-sidebar.open {
+            transform: translateX(0);
         }
         .sidebar-content {
             flex: 1;
             overflow-y: auto;
-            transition: opacity 0.2s;
-        }
-        .collapsed .sidebar-content {
-            opacity: 0;
-            pointer-events: none;
         }
         .sidebar-header {
             padding: 20px 16px;
@@ -101,13 +101,6 @@
             justify-content: space-between;
             align-items: center;
             border-bottom: 1px solid var(--border-light);
-        }
-        .collapsed .sidebar-header {
-            justify-content: center;
-            padding: 20px 0;
-        }
-        .collapsed .sidebar-header span:first-child {
-            display: none;
         }
         .add-role-btn {
             background: none;
@@ -122,9 +115,6 @@
             justify-content: center;
             transition: 0.2s;
             color: var(--text-primary);
-        }
-        .collapsed .add-role-btn {
-            margin: 0 auto;
         }
         .role-list {
             padding: 12px;
@@ -242,6 +232,7 @@
             flex-direction: column;
             overflow: hidden;
             border: none;
+            transition: margin-left 0.3s ease;
         }
         .chat-header {
             padding: 16px 20px;
@@ -420,8 +411,6 @@
         /* 浮动折叠按钮 */
         .float-collapse-btn {
             position: fixed;
-            bottom: 20px;
-            left: 20px;
             width: 48px;
             height: 48px;
             border-radius: 50%;
@@ -429,13 +418,20 @@
             color: white;
             border: none;
             font-size: 20px;
-            cursor: pointer;
+            cursor: grab;
             box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-            z-index: 100;
+            z-index: 1001;
             display: flex;
             align-items: center;
             justify-content: center;
             transition: all 0.2s;
+            user-select: none;
+        }
+        .float-collapse-btn:active {
+            cursor: grabbing;
+        }
+        .role-sidebar.open + .float-collapse-btn {
+            z-index: 1001;
         }
         .float-collapse-btn:hover {
             background: var(--button-hover);
@@ -532,7 +528,7 @@
 <script>
     // ========== 配置区 ==========
     const WORKER_URL = 'https://still-bread-327a.liaoyilin826.workers.dev/';
-    const CUSTOM_SECRET = 'xK9mP2vL7qR4nF8t';
+    const CUSTOM_SECRET = 'my-very-secret-custom-key-2024';
     // ==========================
 
     // DOM 元素
@@ -629,30 +625,30 @@
         return role.conversations.find(c => c.id === currentConversationId);
     }
 
-    // 折叠侧边栏（浮动按钮版）
-    let sidebarCollapsed = false;
+    // 角色面板展开收起
+    let sidebarOpen = false;
     function loadSidebarState() {
-        const saved = localStorage.getItem('sidebar_collapsed');
+        const saved = localStorage.getItem('sidebar_open');
         if (saved === 'true') {
-            sidebarCollapsed = true;
-            roleSidebar.classList.add('collapsed');
-            floatCollapseBtn.innerHTML = '▶';
+            sidebarOpen = true;
+            roleSidebar.classList.add('open');
+            floatCollapseBtn.innerHTML = '✕';
         } else {
-            sidebarCollapsed = false;
-            roleSidebar.classList.remove('collapsed');
-            floatCollapseBtn.innerHTML = '◀';
+            sidebarOpen = false;
+            roleSidebar.classList.remove('open');
+            floatCollapseBtn.innerHTML = '🎭';
         }
     }
     function toggleSidebar() {
-        sidebarCollapsed = !sidebarCollapsed;
-        if (sidebarCollapsed) {
-            roleSidebar.classList.add('collapsed');
-            floatCollapseBtn.innerHTML = '▶';
+        sidebarOpen = !sidebarOpen;
+        if (sidebarOpen) {
+            roleSidebar.classList.add('open');
+            floatCollapseBtn.innerHTML = '✕';
         } else {
-            roleSidebar.classList.remove('collapsed');
-            floatCollapseBtn.innerHTML = '◀';
+            roleSidebar.classList.remove('open');
+            floatCollapseBtn.innerHTML = '🎭';
         }
-        localStorage.setItem('sidebar_collapsed', sidebarCollapsed);
+        localStorage.setItem('sidebar_open', sidebarOpen);
     }
 
     // 渲染侧边栏
@@ -1019,12 +1015,118 @@
         });
     }
 
+    // 拖拽功能
+    let isDragging = false;
+    let startX, startY, startLeft, startTop;
+
+    function initDraggableButton() {
+        const btn = document.getElementById('floatCollapseBtn');
+        
+        // 加载保存的位置
+        loadButtonPosition();
+        
+        btn.addEventListener('mousedown', startDrag);
+        btn.addEventListener('touchstart', startDrag, { passive: false });
+        
+        document.addEventListener('mousemove', drag);
+        document.addEventListener('touchmove', drag, { passive: false });
+        
+        document.addEventListener('mouseup', endDrag);
+        document.addEventListener('touchend', endDrag);
+    }
+
+    function startDrag(e) {
+        isDragging = true;
+        const btn = document.getElementById('floatCollapseBtn');
+        
+        if (e.type === 'mousedown') {
+            startX = e.clientX;
+            startY = e.clientY;
+        } else if (e.type === 'touchstart') {
+            e.preventDefault();
+            startX = e.touches[0].clientX;
+            startY = e.touches[0].clientY;
+        }
+        
+        startLeft = parseInt(btn.style.left) || 20;
+        startTop = parseInt(btn.style.top) || (window.innerHeight - 68);
+    }
+
+    function drag(e) {
+        if (!isDragging) return;
+        
+        e.preventDefault();
+        const btn = document.getElementById('floatCollapseBtn');
+        let clientX, clientY;
+        
+        if (e.type === 'mousemove') {
+            clientX = e.clientX;
+            clientY = e.clientY;
+        } else if (e.type === 'touchmove') {
+            clientX = e.touches[0].clientX;
+            clientY = e.touches[0].clientY;
+        }
+        
+        const deltaX = clientX - startX;
+        const deltaY = clientY - startY;
+        
+        let newLeft = startLeft + deltaX;
+        let newTop = startTop + deltaY;
+        
+        // 限制在视窗内
+        newLeft = Math.max(10, Math.min(newLeft, window.innerWidth - 58));
+        newTop = Math.max(10, Math.min(newTop, window.innerHeight - 58));
+        
+        btn.style.left = newLeft + 'px';
+        btn.style.top = newTop + 'px';
+    }
+
+    function endDrag() {
+        if (isDragging) {
+            isDragging = false;
+            saveButtonPosition();
+        }
+    }
+
+    function saveButtonPosition() {
+        const btn = document.getElementById('floatCollapseBtn');
+        const position = {
+            left: btn.style.left,
+            top: btn.style.top
+        };
+        localStorage.setItem('float_button_position', JSON.stringify(position));
+    }
+
+    function loadButtonPosition() {
+        const saved = localStorage.getItem('float_button_position');
+        if (saved) {
+            try {
+                const position = JSON.parse(saved);
+                const btn = document.getElementById('floatCollapseBtn');
+                btn.style.left = position.left || '20px';
+                btn.style.top = position.top || (window.innerHeight - 68) + 'px';
+            } catch (e) {
+                console.error('Failed to load button position:', e);
+                resetButtonPosition();
+            }
+        } else {
+            resetButtonPosition();
+        }
+    }
+
+    function resetButtonPosition() {
+        const btn = document.getElementById('floatCollapseBtn');
+        btn.style.left = '20px';
+        btn.style.top = (window.innerHeight - 68) + 'px';
+    }
+
     // 初始化
     loadData();
     loadTheme();
     loadSidebarState();
     renderSidebar();
     loadConversationToUI();
+    initDraggableButton();
 </script>
 </body>
 </html>
