@@ -438,6 +438,124 @@
             transform: scale(1.05);
         }
 
+        /* 消息操作按钮 */
+        .message-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 8px;
+            flex-wrap: wrap;
+        }
+        .action-btn {
+            padding: 4px 8px;
+            border: none;
+            border-radius: 4px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+        .edit-btn {
+            background: #4CAF50;
+            color: white;
+        }
+        .delete-btn {
+            background: #f44336;
+            color: white;
+        }
+        .regenerate-btn {
+            background: #2196F3;
+            color: white;
+        }
+        .history-btn {
+            background: #FF9800;
+            color: white;
+        }
+        .action-btn:hover {
+            opacity: 0.8;
+            transform: translateY(-1px);
+        }
+
+        /* 模态窗口 */
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 2000;
+        }
+        .modal-content {
+            background: var(--bg-main);
+            border-radius: 8px;
+            width: 90%;
+            max-width: 600px;
+            max-height: 80vh;
+            overflow: hidden;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+        }
+        .modal-header {
+            padding: 16px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .modal-header h2 {
+            margin: 0;
+            font-size: 18px;
+            color: var(--text-primary);
+        }
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 20px;
+            cursor: pointer;
+            color: var(--text-secondary);
+        }
+        .modal-body {
+            padding: 16px;
+            max-height: 60vh;
+            overflow-y: auto;
+        }
+
+        /* 生成历史记录 */
+        .regeneration-history {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .regeneration-history h3 {
+            margin: 0 0 8px 0;
+            color: var(--text-primary);
+        }
+        .regen-item {
+            padding: 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            background: var(--bg-secondary);
+        }
+        .regen-time {
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
+        }
+        .regen-content {
+            margin-bottom: 8px;
+            line-height: 1.4;
+        }
+        .regen-reasoning {
+            font-size: 12px;
+            color: var(--text-secondary);
+            font-style: italic;
+            margin-top: 8px;
+            padding-top: 8px;
+            border-top: 1px dashed var(--border-color);
+        }
+
         @media (max-width: 700px) {
             body { padding: 12px; }
             .app-container { gap: 12px; }
@@ -528,7 +646,7 @@
 <script>
     // ========== 配置区 ==========
     const WORKER_URL = 'https://still-bread-327a.liaoyilin826.workers.dev/';
-    const CUSTOM_SECRET = 'my-very-secret-custom-key-2024';
+    const CUSTOM_SECRET = 'sk-9650ba7fe4e24bb8a600902e30da3ef8';
     // ==========================
 
     // DOM 元素
@@ -751,14 +869,36 @@
         loadConversationToUI();
     }
 
-    function addMessageToUI(role, content, reasoning = null) {
+    function addMessageToUI(role, content, reasoning = null, isLast = false, messageIndex = -1) {
         const wrapper = document.createElement('div');
         wrapper.className = 'message-wrapper';
+        wrapper.dataset.messageIndex = messageIndex;
+        
         if (role === 'user') {
             const userDiv = document.createElement('div');
             userDiv.className = 'user-message';
             userDiv.innerText = content;
             wrapper.appendChild(userDiv);
+            
+            // 仅为最后一条用户消息添加操作按钮
+            if (isLast) {
+                const userActions = document.createElement('div');
+                userActions.className = 'message-actions';
+                
+                const editBtn = document.createElement('button');
+                editBtn.className = 'action-btn edit-btn';
+                editBtn.innerHTML = '✏️ 编辑';
+                editBtn.addEventListener('click', () => editLastUserMessage(content));
+                
+                const deleteBtn = document.createElement('button');
+                deleteBtn.className = 'action-btn delete-btn';
+                deleteBtn.innerHTML = '🗑️ 删除';
+                deleteBtn.addEventListener('click', deleteLastUserMessage);
+                
+                userActions.appendChild(editBtn);
+                userActions.appendChild(deleteBtn);
+                wrapper.appendChild(userActions);
+            }
         } else {
             if (reasoning) {
                 const reasoningDiv = document.createElement('div');
@@ -770,6 +910,26 @@
             mainDiv.className = 'main-content';
             mainDiv.innerText = content;
             wrapper.appendChild(mainDiv);
+            
+            // 为助手消息添加重新生成按钮（如果是最后一条）
+            if (isLast) {
+                const assistantActions = document.createElement('div');
+                assistantActions.className = 'message-actions';
+                
+                const regenerateBtn = document.createElement('button');
+                regenerateBtn.className = 'action-btn regenerate-btn';
+                regenerateBtn.innerHTML = '🔄 重新生成';
+                regenerateBtn.addEventListener('click', regenerateLastResponse);
+                
+                const historyBtn = document.createElement('button');
+                historyBtn.className = 'action-btn history-btn';
+                historyBtn.innerHTML = '📋 历史记录';
+                historyBtn.addEventListener('click', () => showRegenerationHistory(messageIndex));
+                
+                assistantActions.appendChild(regenerateBtn);
+                assistantActions.appendChild(historyBtn);
+                wrapper.appendChild(assistantActions);
+            }
         }
         messagesArea.appendChild(wrapper);
         messagesArea.scrollTop = messagesArea.scrollHeight;
@@ -779,15 +939,18 @@
         messagesArea.innerHTML = '';
         const conv = getCurrentConversation();
         if (conv && conv.messages) {
-            for (let msg of conv.messages) {
-                addMessageToUI(msg.role, msg.content, msg.reasoning || null);
+            const messages = conv.messages;
+            for (let i = 0; i < messages.length; i++) {
+                const msg = messages[i];
+                const isLast = (i === messages.length - 1);
+                addMessageToUI(msg.role, msg.content, msg.reasoning || null, isLast, i);
             }
         } else {
             addMessageToUI('assistant', '选择一个会话开始对话～');
         }
     }
 
-    async function sendMessage(userMessage) {
+    async function sendMessage(userMessage, isRegenerate = false, regenerateIndex = 0) {
         const role = getCurrentRole();
         if (!role) { addMessageToUI('assistant', '请先选择一个角色'); return; }
         let conv = getCurrentConversation();
@@ -796,6 +959,12 @@
             conv = getCurrentConversation();
         }
         let messages = conv.messages.filter(m => m.role !== 'system');
+        
+        // 如果是重新生成，移除最后一条助手消息
+        if (isRegenerate && messages.length >= 2) {
+            messages = messages.slice(0, -1);
+        }
+        
         const systemMsg = { role: "system", content: role.systemPrompt };
         const apiMessages = [systemMsg, ...messages, { role: "user", content: userMessage }];
         const requestBody = {
@@ -803,12 +972,17 @@
             messages: apiMessages,
             stream: false
         };
-        addMessageToUI('user', userMessage);
+        
+        // 仅在不是重新生成时添加用户消息
+        if (!isRegenerate) {
+            addMessageToUI('user', userMessage);
+        }
+        
         const loadingId = 'loading_' + Date.now();
         const loadingDiv = document.createElement('div');
         loadingDiv.className = 'loading';
         loadingDiv.id = loadingId;
-        loadingDiv.innerText = 'AI 思考中...';
+        loadingDiv.innerText = isRegenerate ? '重新生成中...' : 'AI 思考中...';
         messagesArea.appendChild(loadingDiv);
         messagesArea.scrollTop = messagesArea.scrollHeight;
 
@@ -825,14 +999,47 @@
             if (currentModel === 'deepseek-reasoner' && data.choices[0].message.reasoning_content) {
                 reasoning = data.choices[0].message.reasoning_content;
             }
-            const updatedMessages = [...messages, 
-                { role: "user", content: userMessage, reasoning: null },
-                { role: "assistant", content: assistantReply, reasoning: reasoning }
-            ];
+            
+            // 构建助手消息对象，包含生成记录
+            const assistantMessage = {
+                role: "assistant", 
+                content: assistantReply, 
+                reasoning: reasoning,
+                regenerations: [],
+                regenerateCount: 0
+            };
+            
+            // 如果是重新生成，更新最后一条助手消息
+            let updatedMessages;
+            if (isRegenerate && messages.length >= 1) {
+                const lastMessage = messages[messages.length - 1];
+                if (lastMessage.role === 'assistant') {
+                    // 保存当前回复到历史记录
+                    lastMessage.regenerations.push({
+                        content: lastMessage.content,
+                        reasoning: lastMessage.reasoning,
+                        timestamp: Date.now()
+                    });
+                    lastMessage.regenerateCount += 1;
+                    lastMessage.content = assistantReply;
+                    lastMessage.reasoning = reasoning;
+                    updatedMessages = messages;
+                } else {
+                    updatedMessages = [...messages, assistantMessage];
+                }
+            } else {
+                updatedMessages = [...messages, 
+                    { role: "user", content: userMessage, reasoning: null },
+                    assistantMessage
+                ];
+            }
+            
             conv.messages = updatedMessages;
             saveData();
             document.getElementById(loadingId)?.remove();
-            addMessageToUI('assistant', assistantReply, reasoning);
+            
+            // 重新渲染整个对话
+            loadConversationToUI();
         } catch (err) {
             document.getElementById(loadingId)?.remove();
             addMessageToUI('assistant', `❌ 请求失败: ${err.message}\n请检查 Worker 地址或暗号。`);
@@ -1118,6 +1325,130 @@
         const btn = document.getElementById('floatCollapseBtn');
         btn.style.left = '20px';
         btn.style.top = (window.innerHeight - 68) + 'px';
+    }
+
+    // 编辑最后一条用户消息
+    function editLastUserMessage(currentContent) {
+        const newContent = prompt('编辑你的消息:', currentContent);
+        if (newContent !== null && newContent.trim() !== '') {
+            const conv = getCurrentConversation();
+            if (conv && conv.messages) {
+                // 找到最后一条用户消息
+                for (let i = conv.messages.length - 1; i >= 0; i--) {
+                    if (conv.messages[i].role === 'user') {
+                        conv.messages[i].content = newContent.trim();
+                        saveData();
+                        loadConversationToUI();
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    // 删除最后一条用户消息
+    function deleteLastUserMessage() {
+        if (confirm('确定要删除最后一条消息吗？')) {
+            const conv = getCurrentConversation();
+            if (conv && conv.messages) {
+                // 找到最后一条用户消息并删除
+                for (let i = conv.messages.length - 1; i >= 0; i--) {
+                    if (conv.messages[i].role === 'user') {
+                        conv.messages.splice(i, 1);
+                        // 同时删除后续的助手消息
+                        if (i < conv.messages.length && conv.messages[i].role === 'assistant') {
+                            conv.messages.splice(i, 1);
+                        }
+                        saveData();
+                        loadConversationToUI();
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    // 重新生成最后一条回复
+    async function regenerateLastResponse() {
+        const conv = getCurrentConversation();
+        if (conv && conv.messages) {
+            // 找到最后一条助手消息
+            let assistantMessageIndex = -1;
+            let userMessageIndex = -1;
+            
+            for (let i = conv.messages.length - 1; i >= 0; i--) {
+                if (conv.messages[i].role === 'assistant') {
+                    assistantMessageIndex = i;
+                    // 检查重新生成次数
+                    const assistantMessage = conv.messages[i];
+                    if (assistantMessage.regenerateCount >= 4) { // 0-4共5次
+                        alert('已达到最大重新生成次数（5次）');
+                        return;
+                    }
+                } else if (conv.messages[i].role === 'user') {
+                    userMessageIndex = i;
+                    break;
+                }
+            }
+            
+            if (userMessageIndex !== -1) {
+                const userMessage = conv.messages[userMessageIndex].content;
+                await sendMessage(userMessage, true);
+            }
+        }
+    }
+
+    // 显示重新生成历史记录
+    function showRegenerationHistory(messageIndex) {
+        const conv = getCurrentConversation();
+        if (conv && conv.messages && messageIndex >= 0 && messageIndex < conv.messages.length) {
+            const message = conv.messages[messageIndex];
+            if (message.role === 'assistant' && message.regenerations && message.regenerations.length > 0) {
+                let historyHTML = '<div class="regeneration-history">';
+                historyHTML += '<h3>生成历史记录</h3>';
+                
+                message.regenerations.forEach((regen, index) => {
+                    const date = new Date(regen.timestamp);
+                    const time = date.toLocaleTimeString();
+                    historyHTML += `<div class="regen-item">
+                        <div class="regen-time">${time} (第${index + 1}次)</div>
+                        <div class="regen-content">${regen.content}</div>
+                        ${regen.reasoning ? `<div class="regen-reasoning">${regen.reasoning}</div>` : ''}
+                    </div>`;
+                });
+                
+                historyHTML += '</div>';
+                
+                // 创建弹出窗口
+                const modal = document.createElement('div');
+                modal.className = 'modal';
+                modal.innerHTML = `
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h2>生成历史</h2>
+                            <button class="modal-close">✕</button>
+                        </div>
+                        <div class="modal-body">${historyHTML}</div>
+                    </div>
+                `;
+                
+                document.body.appendChild(modal);
+                
+                // 关闭按钮事件
+                modal.querySelector('.modal-close').addEventListener('click', () => {
+                    modal.remove();
+                });
+                
+                // 点击外部关闭
+                modal.addEventListener('click', (e) => {
+                    if (e.target === modal) {
+                        modal.remove();
+                    }
+                });
+            } else {
+                alert('没有生成历史记录');
+            }
+        }
     }
 
     // 初始化
