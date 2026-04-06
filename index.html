@@ -880,25 +880,25 @@
             userDiv.innerText = content;
             wrapper.appendChild(userDiv);
             
-            // 仅为最后一条用户消息添加操作按钮
-            if (isLast) {
-                const userActions = document.createElement('div');
-                userActions.className = 'message-actions';
-                
-                const editBtn = document.createElement('button');
-                editBtn.className = 'action-btn edit-btn';
-                editBtn.innerHTML = '✏️ 编辑';
-                editBtn.addEventListener('click', () => editLastUserMessage(content));
-                
-                const deleteBtn = document.createElement('button');
-                deleteBtn.className = 'action-btn delete-btn';
-                deleteBtn.innerHTML = '🗑️ 删除';
-                deleteBtn.addEventListener('click', deleteLastUserMessage);
-                
-                userActions.appendChild(editBtn);
-                userActions.appendChild(deleteBtn);
-                wrapper.appendChild(userActions);
-            }
+            // 为用户消息添加操作按钮
+            const userActions = document.createElement('div');
+            userActions.className = 'message-actions';
+            
+            const editBtn = document.createElement('button');
+            editBtn.className = 'action-btn edit-btn';
+            editBtn.innerHTML = '✏️';
+            editBtn.title = '编辑';
+            editBtn.addEventListener('click', () => editLastUserMessage(content));
+            
+            const deleteBtn = document.createElement('button');
+            deleteBtn.className = 'action-btn delete-btn';
+            deleteBtn.innerHTML = '🗑️';
+            deleteBtn.title = '删除';
+            deleteBtn.addEventListener('click', deleteLastUserMessage);
+            
+            userActions.appendChild(editBtn);
+            userActions.appendChild(deleteBtn);
+            wrapper.appendChild(userActions);
         } else {
             if (reasoning) {
                 const reasoningDiv = document.createElement('div');
@@ -918,12 +918,14 @@
                 
                 const regenerateBtn = document.createElement('button');
                 regenerateBtn.className = 'action-btn regenerate-btn';
-                regenerateBtn.innerHTML = '🔄 重新生成';
+                regenerateBtn.innerHTML = '🔄';
+                regenerateBtn.title = '重新生成';
                 regenerateBtn.addEventListener('click', regenerateLastResponse);
                 
                 const historyBtn = document.createElement('button');
                 historyBtn.className = 'action-btn history-btn';
-                historyBtn.innerHTML = '📋 历史记录';
+                historyBtn.innerHTML = '📋';
+                historyBtn.title = '历史记录';
                 historyBtn.addEventListener('click', () => showRegenerationHistory(messageIndex));
                 
                 assistantActions.appendChild(regenerateBtn);
