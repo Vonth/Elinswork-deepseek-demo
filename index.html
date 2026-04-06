@@ -13,7 +13,7 @@
             --border-light: #f0f0f0;
             --text-primary: #1a1a2e;
             --text-secondary: #555;
-            --text-reasoning: #888;
+            --text-reasoning: #666;
             --card-active-bg: #fafafa;
             --card-active-border: #eaeaea;
             --input-border: #e0e0e0;
@@ -22,6 +22,16 @@
             --badge-bg: #f5f5f5;
             --modal-bg: white;
             --modal-overlay: rgba(0,0,0,0.4);
+            /* 用户消息框默认颜色（蓝色） */
+            --user-msg-bg: #e1e9fa;
+            --user-msg-text: #1a1a2e;
+            /* 滚动条颜色 */
+            --scrollbar-thumb: #cbd5e1;
+            --scrollbar-track: #f1f1f1;
+            /* 深度思考竖线颜色 */
+            --reasoning-border: #ccc;
+            /* 输入区背景色 */
+            --input-area-bg: #ffffff;
         }
 
         body.dark {
@@ -40,6 +50,49 @@
             --badge-bg: #2a2a3a;
             --modal-bg: #2a2a3a;
             --modal-overlay: rgba(0,0,0,0.7);
+            --user-msg-text: #e0e0e0;
+            --scrollbar-thumb: #4a4a5a;
+            --scrollbar-track: #2a2a3a;
+            --reasoning-border: #555;
+            --input-area-bg: #1e1e2a;
+        }
+
+        /* 预设用户消息颜色主题 */
+        body.user-color-blue {
+            --user-msg-bg: #e1e9fa;
+        }
+        body.dark.user-color-blue {
+            --user-msg-bg: #2a3a5a;
+        }
+        body.user-color-green {
+            --user-msg-bg: #e0f2e9;
+        }
+        body.dark.user-color-green {
+            --user-msg-bg: #2a4a3a;
+        }
+        body.user-color-orange {
+            --user-msg-bg: #ffe0cc;
+        }
+        body.dark.user-color-orange {
+            --user-msg-bg: #5a3a2a;
+        }
+        body.user-color-purple {
+            --user-msg-bg: #f0e6ff;
+        }
+        body.dark.user-color-purple {
+            --user-msg-bg: #3a2a5a;
+        }
+        body.user-color-pink {
+            --user-msg-bg: #ffe6f0;
+        }
+        body.dark.user-color-pink {
+            --user-msg-bg: #5a2a3a;
+        }
+        body.user-color-gray {
+            --user-msg-bg: #f0f0f0;
+        }
+        body.dark.user-color-gray {
+            --user-msg-bg: #3a3a4a;
         }
 
         * {
@@ -59,6 +112,23 @@
             color: var(--text-primary);
         }
 
+        /* 自定义滚动条 */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: var(--scrollbar-track);
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: var(--scrollbar-thumb);
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--text-secondary);
+        }
+
         .app-container {
             display: flex;
             flex: 1;
@@ -69,7 +139,7 @@
             position: relative;
         }
 
-        /* 角色面板 - 二级界面 */
+        /* 角色面板 - 圆润化 */
         .role-sidebar {
             position: absolute;
             top: 0;
@@ -85,6 +155,7 @@
             z-index: 1000;
             transform: translateX(-100%);
             transition: transform 0.3s ease;
+            border-radius: 20px;
         }
         .role-sidebar.open {
             transform: translateX(0);
@@ -121,7 +192,7 @@
         }
         .role-card {
             background: transparent;
-            border-radius: 12px;
+            border-radius: 16px;  /* 增大圆角 */
             padding: 12px;
             margin-bottom: 8px;
             cursor: pointer;
@@ -233,6 +304,7 @@
             overflow: hidden;
             border: none;
             transition: margin-left 0.3s ease;
+            border-radius: 20px;
         }
         .chat-header {
             padding: 16px 20px;
@@ -288,6 +360,56 @@
             color: var(--text-primary);
             transition: 0.2s;
         }
+        /* 颜色选择器下拉 */
+        .color-picker {
+            position: relative;
+            display: inline-block;
+        }
+        .color-btn {
+            background: var(--badge-bg);
+            border: 1px solid var(--input-border);
+            border-radius: 30px;
+            width: 36px;
+            height: 36px;
+            font-size: 1.2rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-primary);
+        }
+        .color-dropdown {
+            display: none;
+            position: absolute;
+            top: 40px;
+            right: 0;
+            background: var(--modal-bg);
+            border: 1px solid var(--border-light);
+            border-radius: 20px;
+            padding: 8px;
+            z-index: 100;
+            gap: 8px;
+            flex-wrap: wrap;
+            width: 180px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        .color-dropdown.show {
+            display: flex;
+        }
+        .color-option {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            cursor: pointer;
+            border: 2px solid transparent;
+            transition: 0.2s;
+        }
+        .color-option:hover {
+            transform: scale(1.1);
+        }
+        .color-option.active {
+            border-color: var(--text-primary);
+        }
         .messages-area {
             flex: 1;
             overflow-y: auto;
@@ -300,44 +422,116 @@
             display: flex;
             flex-direction: column;
             width: 100%;
+            margin-bottom: 12px;
         }
+        /* 用户消息：有背景气泡，右对齐 */
         .user-message {
             text-align: right;
-            color: var(--text-primary);
+            color: var(--user-msg-text);
             font-size: 1rem;
             line-height: 1.4;
-            padding: 4px 0;
+            padding: 12px 16px;
+            background: var(--user-msg-bg);
+            border-radius: 18px 18px 4px 18px;
+            max-width: 85%;
+            margin-left: auto;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
         }
+        /* 用户消息操作区 - 右对齐，间距缩小 */
+        .user-actions {
+            display: flex;
+            gap: 6px;  /* 缩小间距 */
+            justify-content: flex-end;
+            margin-top: 6px;
+        }
+        /* AI 消息：无气泡，纯文本左对齐 */
         .assistant-message {
             text-align: left;
             color: var(--text-primary);
             font-size: 1rem;
             line-height: 1.4;
             padding: 4px 0;
+            background: transparent;
+            box-shadow: none;
+            max-width: 100%;
         }
+        /* 深度思考内容：左侧竖线浅灰色 */
         .reasoning-content {
             font-size: 0.8rem;
             color: var(--text-reasoning);
-            background: transparent;
-            padding: 8px 0 4px 0;
-            margin-bottom: 8px;
-            border-left: 2px solid var(--border-light);
-            padding-left: 12px;
+            background: var(--bg-sidebar);
+            padding: 10px 12px;
+            margin: 8px 0;
+            border-left: 3px solid var(--reasoning-border);
+            border-radius: 0 12px 12px 0;
             white-space: pre-wrap;
             word-break: break-word;
+            opacity: 0.85;
         }
+        /* AI 主内容 */
         .main-content {
             font-size: 1rem;
+            color: var(--text-primary);
+            background: transparent;
+            padding: 0;
             white-space: pre-wrap;
             word-break: break-word;
         }
+        /* 助手消息操作区 - 左对齐，间距缩小 */
+        .assistant-actions {
+            display: flex;
+            gap: 6px;
+            justify-content: flex-start;
+            align-items: center;
+            margin-top: 8px;
+            flex-wrap: wrap;
+        }
+        .version-control {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            background: var(--badge-bg);
+            padding: 2px 6px;
+            border-radius: 20px;
+        }
+        .version-control button {
+            background: none;
+            border: none;
+            font-size: 0.8rem;
+            cursor: pointer;
+            padding: 2px 4px;
+            color: var(--text-primary);
+            border-radius: 12px;
+        }
+        .version-control span {
+            font-size: 0.7rem;
+            min-width: 36px;
+            text-align: center;
+        }
+        .action-btn {
+            background: none;
+            border: none;
+            font-size: 0.9rem;  /* 稍小图标 */
+            cursor: pointer;
+            padding: 4px 6px;   /* 缩小内边距 */
+            border-radius: 20px;
+            color: var(--text-secondary);
+            transition: 0.2s;
+        }
+        .action-btn:hover {
+            background: var(--badge-bg);
+        }
+        /* 底部输入区 - 圆角方块，与消息气泡左右边线对齐 */
         .input-area {
             padding: 16px 20px;
             border-top: 1px solid var(--border-light);
             display: flex;
             gap: 12px;
-            background: var(--bg-chat);
+            background: var(--input-area-bg);
             align-items: flex-end;
+            border-radius: 20px;
+            margin: 0 20px 20px 20px;  /* 与消息区域左右边距对齐 */
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
         }
         #messageInput {
             flex: 1;
@@ -352,6 +546,7 @@
             min-height: 40px;
             max-height: 200px;
             overflow-y: auto;
+            font-family: inherit;
         }
         button {
             background: var(--button-bg);
@@ -369,7 +564,7 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 16px;
+            font-size: 18px;
         }
         button:disabled {
             opacity: 0.6;
@@ -381,6 +576,8 @@
             padding: 8px;
             font-size: 0.8rem;
         }
+
+        /* 统一模态框样式 - 加宽 */
         .modal {
             display: none;
             position: fixed;
@@ -391,15 +588,20 @@
             background: var(--modal-overlay);
             justify-content: center;
             align-items: center;
-            z-index: 1000;
+            z-index: 2000;
         }
         .modal-content {
             background: var(--modal-bg);
             width: 90%;
-            max-width: 600px;
+            max-width: 700px;
             border-radius: 24px;
             padding: 24px;
             color: var(--text-primary);
+            box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+        }
+        .modal-content h3 {
+            margin-bottom: 16px;
+            font-weight: 500;
         }
         .modal-content input, .modal-content textarea {
             width: 100%;
@@ -421,6 +623,59 @@
             gap: 12px;
             justify-content: flex-end;
         }
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+        .modal-header h2 {
+            font-size: 1.2rem;
+            margin: 0;
+        }
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: var(--text-secondary);
+        }
+        .modal-body {
+            max-height: 60vh;
+            overflow-y: auto;
+        }
+        .regeneration-history {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .regen-item {
+            padding: 12px;
+            border: 1px solid var(--border-light);
+            border-radius: 12px;
+            background: var(--bg-sidebar);
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        .regen-item:hover {
+            background: var(--card-active-bg);
+        }
+        .regen-time {
+            font-size: 0.7rem;
+            color: var(--text-secondary);
+            margin-bottom: 6px;
+        }
+        .regen-content {
+            font-size: 0.85rem;
+            white-space: pre-wrap;
+        }
+        .regen-reasoning {
+            font-size: 0.75rem;
+            color: var(--text-reasoning);
+            margin-top: 6px;
+            padding-top: 6px;
+            border-top: 1px dashed var(--border-light);
+        }
 
         /* 浮动折叠按钮 */
         .float-collapse-btn {
@@ -432,7 +687,7 @@
             color: white;
             border: none;
             font-size: 20px;
-            cursor: grab;
+            cursor: pointer;
             box-shadow: 0 2px 8px rgba(0,0,0,0.2);
             z-index: 1001;
             display: flex;
@@ -440,136 +695,17 @@
             justify-content: center;
             transition: all 0.2s;
             user-select: none;
-        }
-        .float-collapse-btn:active {
-            cursor: grabbing;
-        }
-        .role-sidebar.open + .float-collapse-btn {
-            z-index: 1001;
+            touch-action: none;
         }
         .float-collapse-btn:hover {
             background: var(--button-hover);
             transform: scale(1.05);
         }
 
-        /* 消息操作按钮 */
-        .message-wrapper.user .message-actions {
-            display: flex;
-            gap: 8px;
-            margin-top: 8px;
-            flex-wrap: wrap;
-            justify-content: flex-end;
-        }
-        .message-wrapper.assistant .message-actions {
-            display: flex;
-            gap: 8px;
-            margin-top: 8px;
-            flex-wrap: wrap;
-            justify-content: flex-start;
-        }
-        .action-btn {
-            padding: 4px 8px;
-            border: none;
-            border-radius: 4px;
-            font-size: 14px;
-            cursor: pointer;
-            transition: all 0.2s;
-            white-space: nowrap;
-            background: transparent;
-            color: var(--text-secondary);
-        }
-        .action-btn:hover {
-            opacity: 0.8;
-            transform: translateY(-1px);
-            background: rgba(0, 0, 0, 0.05);
-        }
-
-        /* 模态窗口 */
-        .modal {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.5);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 2000;
-        }
-        .modal-content {
-            background: var(--bg-main);
-            border-radius: 8px;
-            width: 90%;
-            max-width: 600px;
-            max-height: 80vh;
-            overflow: hidden;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
-        }
-        .modal-header {
-            padding: 16px;
-            border-bottom: 1px solid var(--border-color);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        .modal-header h2 {
-            margin: 0;
-            font-size: 18px;
-            color: var(--text-primary);
-        }
-        .modal-close {
-            background: none;
-            border: none;
-            font-size: 20px;
-            cursor: pointer;
-            color: var(--text-secondary);
-        }
-        .modal-body {
-            padding: 16px;
-            max-height: 60vh;
-            overflow-y: auto;
-        }
-
-        /* 生成历史记录 */
-        .regeneration-history {
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-        }
-        .regeneration-history h3 {
-            margin: 0 0 8px 0;
-            color: var(--text-primary);
-        }
-        .regen-item {
-            padding: 12px;
-            border: 1px solid var(--border-color);
-            border-radius: 6px;
-            background: var(--bg-secondary);
-        }
-        .regen-time {
-            font-size: 12px;
-            color: var(--text-secondary);
-            margin-bottom: 8px;
-        }
-        .regen-content {
-            margin-bottom: 8px;
-            line-height: 1.4;
-        }
-        .regen-reasoning {
-            font-size: 12px;
-            color: var(--text-secondary);
-            font-style: italic;
-            margin-top: 8px;
-            padding-top: 8px;
-            border-top: 1px dashed var(--border-color);
-        }
-
         @media (max-width: 700px) {
             body { padding: 12px; }
             .app-container { gap: 12px; }
-            .role-sidebar { width: 260px; }
-            .role-sidebar.collapsed { width: 32px; }
+            .role-sidebar { width: 260px; border-radius: 16px; }
             .conv-list { max-height: 120px; }
             .float-collapse-btn {
                 width: 44px;
@@ -581,6 +717,17 @@
             .theme-toggle {
                 width: 34px;
                 height: 34px;
+            }
+            .user-message {
+                max-width: 90%;
+            }
+            .modal-content {
+                max-width: 95%;
+                padding: 16px;
+            }
+            .input-area {
+                margin: 0 12px 12px 12px;
+                padding: 12px 16px;
             }
         }
     </style>
@@ -603,13 +750,24 @@
                 🤖 DeepSeek · 角色扮演
                 <span class="current-role-badge" id="currentRoleBadge">未选择</span>
             </div>
-            <div style="display: flex; gap: 12px;">
+            <div style="display: flex; gap: 12px; align-items: center;">
                 <div class="model-selector">
                     <span>🧠</span>
                     <select id="modelSelect">
                         <option value="deepseek-chat">deepseek-chat (标准)</option>
                         <option value="deepseek-reasoner">deepseek-reasoner (推理)</option>
                     </select>
+                </div>
+                <div class="color-picker">
+                    <button class="color-btn" id="colorPickerBtn">🎨</button>
+                    <div class="color-dropdown" id="colorDropdown">
+                        <div class="color-option" data-color="blue" style="background: #e1e9fa; border: 1px solid #aaa;"></div>
+                        <div class="color-option" data-color="green" style="background: #e0f2e9;"></div>
+                        <div class="color-option" data-color="orange" style="background: #ffe0cc;"></div>
+                        <div class="color-option" data-color="purple" style="background: #f0e6ff;"></div>
+                        <div class="color-option" data-color="pink" style="background: #ffe6f0;"></div>
+                        <div class="color-option" data-color="gray" style="background: #f0f0f0;"></div>
+                    </div>
                 </div>
                 <button class="theme-toggle" id="themeToggle">🌙</button>
             </div>
@@ -625,7 +783,7 @@
 </div>
 
 <!-- 浮动折叠按钮 -->
-<button class="float-collapse-btn" id="floatCollapseBtn">◀</button>
+<button class="float-collapse-btn" id="floatCollapseBtn">🎭</button>
 
 <!-- 编辑角色弹窗 -->
 <div id="roleModal" class="modal">
@@ -662,21 +820,6 @@
     const messagesArea = document.getElementById('messagesArea');
     const messageInput = document.getElementById('messageInput');
     const sendBtn = document.getElementById('sendBtn');
-    
-    // 自动调整输入框高度
-    function adjustTextareaHeight() {
-        messageInput.style.height = 'auto';
-        messageInput.style.height = Math.min(messageInput.scrollHeight, 200) + 'px';
-    }
-    
-    // 监听输入事件
-    messageInput.addEventListener('input', adjustTextareaHeight);
-    messageInput.addEventListener('keydown', function(e) {
-        if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault();
-            sendMessage();
-        }
-    });
     const roleListDiv = document.getElementById('roleList');
     const currentRoleBadge = document.getElementById('currentRoleBadge');
     const addRoleBtn = document.getElementById('addRoleBtn');
@@ -694,6 +837,8 @@
     const cancelRenameBtn = document.getElementById('cancelRenameBtn');
     const roleSidebar = document.getElementById('roleSidebar');
     const floatCollapseBtn = document.getElementById('floatCollapseBtn');
+    const colorPickerBtn = document.getElementById('colorPickerBtn');
+    const colorDropdown = document.getElementById('colorDropdown');
 
     // 数据结构
     let roles = [];
@@ -722,8 +867,20 @@
                 role.conversations = [{
                     id: generateId(),
                     name: '新对话',
-                    messages: [{ role: 'assistant', content: `你好！我是${role.name}，开始对话吧～`, reasoning: null }]
+                    messages: []
                 }];
+            }
+            for (let conv of role.conversations) {
+                if (!conv.messages) conv.messages = [];
+                if (conv.messages.length === 0) {
+                    conv.messages.push({ role: 'assistant', content: `你好！我是${role.name}，开始对话吧～`, reasoning: null, regenerations: [], currentVersion: 0 });
+                }
+                for (let msg of conv.messages) {
+                    if (msg.role === 'assistant') {
+                        if (!msg.regenerations) msg.regenerations = [];
+                        if (msg.currentVersion === undefined) msg.currentVersion = 0;
+                    }
+                }
             }
         }
         saveData();
@@ -793,7 +950,22 @@
         localStorage.setItem('sidebar_open', sidebarOpen);
     }
 
-    // 渲染侧边栏
+    // 用户消息颜色主题
+    function loadUserColor() {
+        const savedColor = localStorage.getItem('user_msg_color') || 'blue';
+        document.body.classList.remove('user-color-blue', 'user-color-green', 'user-color-orange', 'user-color-purple', 'user-color-pink', 'user-color-gray');
+        document.body.classList.add(`user-color-${savedColor}`);
+        document.querySelectorAll('.color-option').forEach(opt => {
+            opt.classList.remove('active');
+            if (opt.dataset.color === savedColor) opt.classList.add('active');
+        });
+    }
+    function setUserColor(color) {
+        localStorage.setItem('user_msg_color', color);
+        loadUserColor();
+    }
+
+    // 渲染侧边栏 (略，与原相同)
     function renderSidebar() {
         roleListDiv.innerHTML = '';
         for (let role of roles) {
@@ -893,125 +1065,174 @@
         loadConversationToUI();
     }
 
-    function addMessageToUI(role, content, reasoning = null, isLast = false, messageIndex = -1) {
-        const wrapper = document.createElement('div');
-        wrapper.className = `message-wrapper ${role === 'user' ? 'user' : 'assistant'}`;
-        wrapper.dataset.messageIndex = messageIndex;
-        
-        if (role === 'user') {
-            const userDiv = document.createElement('div');
-            userDiv.className = 'user-message';
-            userDiv.innerText = content;
-            wrapper.appendChild(userDiv);
-            
-            // 为用户消息添加操作按钮
-            const userActions = document.createElement('div');
-            userActions.className = 'message-actions';
-            
-            const editBtn = document.createElement('button');
-            editBtn.className = 'action-btn edit-btn';
-            editBtn.innerHTML = '✏️';
-            editBtn.title = '编辑';
-            editBtn.addEventListener('click', () => editLastUserMessage(content));
-            
-            const deleteBtn = document.createElement('button');
-            deleteBtn.className = 'action-btn delete-btn';
-            deleteBtn.innerHTML = '🗑️';
-            deleteBtn.title = '删除';
-            deleteBtn.addEventListener('click', deleteLastUserMessage);
-            
-            userActions.appendChild(editBtn);
-            userActions.appendChild(deleteBtn);
-            wrapper.appendChild(userActions);
-        } else {
-            if (reasoning) {
-                const reasoningDiv = document.createElement('div');
-                reasoningDiv.className = 'reasoning-content';
-                reasoningDiv.innerText = reasoning;
-                wrapper.appendChild(reasoningDiv);
-            }
-            const mainDiv = document.createElement('div');
-            mainDiv.className = 'main-content';
-            mainDiv.innerText = content;
-            wrapper.appendChild(mainDiv);
-            
-            // 为助手消息添加重新生成按钮（如果是最后一条）
-            if (isLast) {
-                const assistantActions = document.createElement('div');
-                assistantActions.className = 'message-actions';
-                
-                const regenerateBtn = document.createElement('button');
-                regenerateBtn.className = 'action-btn regenerate-btn';
-                regenerateBtn.innerHTML = '🔄';
-                regenerateBtn.title = '重新生成';
-                regenerateBtn.addEventListener('click', regenerateLastResponse);
-                
-                const historyBtn = document.createElement('button');
-                historyBtn.className = 'action-btn history-btn';
-                historyBtn.innerHTML = '📋';
-                historyBtn.title = '历史记录';
-                historyBtn.addEventListener('click', () => showRegenerationHistory(messageIndex));
-                
-                assistantActions.appendChild(regenerateBtn);
-                assistantActions.appendChild(historyBtn);
-                wrapper.appendChild(assistantActions);
-            }
-        }
-        messagesArea.appendChild(wrapper);
-        messagesArea.scrollTop = messagesArea.scrollHeight;
-    }
-
+    // 渲染聊天界面（带版本切换控件）
     function loadConversationToUI() {
         messagesArea.innerHTML = '';
         const conv = getCurrentConversation();
-        if (conv && conv.messages) {
-            const messages = conv.messages;
-            for (let i = 0; i < messages.length; i++) {
-                const msg = messages[i];
-                const isLast = (i === messages.length - 1);
-                addMessageToUI(msg.role, msg.content, msg.reasoning || null, isLast, i);
-            }
-        } else {
-            addMessageToUI('assistant', '选择一个会话开始对话～');
+        if (!conv || !conv.messages || conv.messages.length === 0) {
+            messagesArea.innerHTML = '<div class="assistant-message">选择一个会话开始对话～</div>';
+            return;
         }
+        const messages = conv.messages;
+        for (let i = 0; i < messages.length; i++) {
+            const msg = messages[i];
+            const wrapper = document.createElement('div');
+            wrapper.className = 'message-wrapper';
+            if (msg.role === 'user') {
+                const userDiv = document.createElement('div');
+                userDiv.className = 'user-message';
+                userDiv.innerText = msg.content;
+                wrapper.appendChild(userDiv);
+                // 只有最后一条用户消息显示操作按钮
+                const isLastUser = (i === messages.length - 1 || (i+1 < messages.length && messages[i+1].role === 'assistant' && i === messages.length-2));
+                if (isLastUser) {
+                    const actionsDiv = document.createElement('div');
+                    actionsDiv.className = 'user-actions';
+                    const editBtn = document.createElement('button');
+                    editBtn.className = 'action-btn';
+                    editBtn.innerHTML = '✏️';
+                    editBtn.title = '编辑并重新生成';
+                    editBtn.onclick = () => editLastUserMessageAndRegenerate(i);
+                    const delBtn = document.createElement('button');
+                    delBtn.className = 'action-btn';
+                    delBtn.innerHTML = '🗑️';
+                    delBtn.title = '删除这条消息';
+                    delBtn.onclick = () => deleteUserMessageAndAssistant(i);
+                    actionsDiv.appendChild(editBtn);
+                    actionsDiv.appendChild(delBtn);
+                    wrapper.appendChild(actionsDiv);
+                }
+            } else if (msg.role === 'assistant') {
+                // 确保版本数据结构完整
+                if (!msg.regenerations) msg.regenerations = [];
+                if (msg.currentVersion === undefined) msg.currentVersion = 0;
+                const currentVer = msg.currentVersion;
+                const totalVers = msg.regenerations.length + 1; // 加上当前版本
+                // 显示当前版本的内容
+                const currentContent = (currentVer === 0) ? msg.content : (msg.regenerations[currentVer-1]?.content || msg.content);
+                const currentReasoning = (currentVer === 0) ? msg.reasoning : (msg.regenerations[currentVer-1]?.reasoning || null);
+                if (currentReasoning) {
+                    const reasoningDiv = document.createElement('div');
+                    reasoningDiv.className = 'reasoning-content';
+                    reasoningDiv.innerText = currentReasoning;
+                    wrapper.appendChild(reasoningDiv);
+                }
+                const mainDiv = document.createElement('div');
+                mainDiv.className = 'main-content';
+                mainDiv.innerText = currentContent;
+                wrapper.appendChild(mainDiv);
+                // 只有最后一条助手消息显示操作按钮和版本控件
+                const isLastAssistant = (i === messages.length - 1);
+                if (isLastAssistant) {
+                    const actionsDiv = document.createElement('div');
+                    actionsDiv.className = 'assistant-actions';
+                    // 版本切换控件（如果有多个版本）
+                    if (totalVers > 1) {
+                        const versionContainer = document.createElement('div');
+                        versionContainer.className = 'version-control';
+                        const prevBtn = document.createElement('button');
+                        prevBtn.innerHTML = '◀';
+                        prevBtn.title = '上一版本';
+                        prevBtn.onclick = () => changeAssistantVersion(i, -1);
+                        const versionSpan = document.createElement('span');
+                        versionSpan.id = `ver_${i}`;
+                        versionSpan.innerText = `${currentVer+1}/${totalVers}`;
+                        const nextBtn = document.createElement('button');
+                        nextBtn.innerHTML = '▶';
+                        nextBtn.title = '下一版本';
+                        nextBtn.onclick = () => changeAssistantVersion(i, 1);
+                        versionContainer.appendChild(prevBtn);
+                        versionContainer.appendChild(versionSpan);
+                        versionContainer.appendChild(nextBtn);
+                        actionsDiv.appendChild(versionContainer);
+                    } else {
+                        // 显示单版本标识
+                        const versionSpan = document.createElement('span');
+                        versionSpan.className = 'version-control';
+                        versionSpan.innerText = `1/1`;
+                        versionSpan.style.fontSize = '0.7rem';
+                        versionSpan.style.padding = '0 8px';
+                        versionSpan.style.background = 'var(--badge-bg)';
+                        versionSpan.style.borderRadius = '20px';
+                        actionsDiv.appendChild(versionSpan);
+                    }
+                    // 重新生成按钮
+                    const regenBtn = document.createElement('button');
+                    regenBtn.className = 'action-btn';
+                    regenBtn.innerHTML = '🔄';
+                    regenBtn.title = '重新生成';
+                    regenBtn.onclick = () => regenerateAssistantResponse(i);
+                    // 历史记录按钮
+                    const historyBtn = document.createElement('button');
+                    historyBtn.className = 'action-btn';
+                    historyBtn.innerHTML = '📋';
+                    historyBtn.title = '查看所有历史版本';
+                    historyBtn.onclick = () => showRegenerationHistory(i);
+                    actionsDiv.appendChild(regenBtn);
+                    actionsDiv.appendChild(historyBtn);
+                    wrapper.appendChild(actionsDiv);
+                }
+            }
+            messagesArea.appendChild(wrapper);
+        }
+        messagesArea.scrollTop = messagesArea.scrollHeight;
     }
 
-    async function sendMessage(userMessage, isRegenerate = false, regenerateIndex = 0) {
+    // 切换助手消息的版本
+    async function changeAssistantVersion(assistantIndex, delta) {
+        const conv = getCurrentConversation();
+        if (!conv) return;
+        const assistantMsg = conv.messages[assistantIndex];
+        if (!assistantMsg || assistantMsg.role !== 'assistant') return;
+        const totalVers = assistantMsg.regenerations.length + 1;
+        let newVer = assistantMsg.currentVersion + delta;
+        if (newVer < 0) newVer = 0;
+        if (newVer >= totalVers) newVer = totalVers - 1;
+        if (newVer === assistantMsg.currentVersion) return;
+        assistantMsg.currentVersion = newVer;
+        saveData();
+        loadConversationToUI(); // 重新渲染以更新显示
+    }
+
+    // 编辑最后一条用户消息并自动重新生成
+    async function editLastUserMessageAndRegenerate(userIndex) {
+        const conv = getCurrentConversation();
+        if (!conv) return;
+        const userMsg = conv.messages[userIndex];
+        if (!userMsg || userMsg.role !== 'user') return;
+        const newContent = prompt('编辑消息内容:', userMsg.content);
+        if (!newContent || newContent.trim() === '') return;
+        userMsg.content = newContent.trim();
+        // 删除该用户消息之后的所有消息（通常是一条助手回复）
+        conv.messages = conv.messages.slice(0, userIndex + 1);
+        saveData();
+        loadConversationToUI();
+        // 自动重新生成回复
+        await regenerateAfterEdit(userIndex);
+    }
+
+    async function regenerateAfterEdit(userIndex) {
+        const conv = getCurrentConversation();
         const role = getCurrentRole();
-        if (!role) { addMessageToUI('assistant', '请先选择一个角色'); return; }
-        let conv = getCurrentConversation();
-        if (!conv) {
-            addNewConversation(currentRoleId);
-            conv = getCurrentConversation();
-        }
-        let messages = conv.messages.filter(m => m.role !== 'system');
-        
-        // 如果是重新生成，移除最后一条助手消息
-        if (isRegenerate && messages.length >= 2) {
-            messages = messages.slice(0, -1);
-        }
-        
+        if (!conv || !role) return;
+        const historyMessages = conv.messages.slice(0, userIndex + 1);
         const systemMsg = { role: "system", content: role.systemPrompt };
-        const apiMessages = [systemMsg, ...messages, { role: "user", content: userMessage }];
+        const apiMessages = [systemMsg];
+        for (let msg of historyMessages) {
+            if (msg.role !== 'system') {
+                apiMessages.push({ role: msg.role, content: msg.content });
+            }
+        }
         const requestBody = {
             model: currentModel,
             messages: apiMessages,
             stream: false
         };
-        
-        // 仅在不是重新生成时添加用户消息
-        if (!isRegenerate) {
-            addMessageToUI('user', userMessage);
-        }
-        
-        const loadingId = 'loading_' + Date.now();
         const loadingDiv = document.createElement('div');
         loadingDiv.className = 'loading';
-        loadingDiv.id = loadingId;
-        loadingDiv.innerText = isRegenerate ? '重新生成中...' : 'AI 思考中...';
+        loadingDiv.innerText = 'AI 重新生成中...';
         messagesArea.appendChild(loadingDiv);
         messagesArea.scrollTop = messagesArea.scrollHeight;
-
         try {
             const response = await fetch(WORKER_URL, {
                 method: 'POST',
@@ -1025,51 +1246,237 @@
             if (currentModel === 'deepseek-reasoner' && data.choices[0].message.reasoning_content) {
                 reasoning = data.choices[0].message.reasoning_content;
             }
-            
-            // 构建助手消息对象，包含生成记录
-            const assistantMessage = {
-                role: "assistant", 
-                content: assistantReply, 
+            const newAssistantMsg = {
+                role: 'assistant',
+                content: assistantReply,
                 reasoning: reasoning,
                 regenerations: [],
-                regenerateCount: 0
+                currentVersion: 0
             };
-            
-            // 如果是重新生成，更新最后一条助手消息
-            let updatedMessages;
-            if (isRegenerate && messages.length >= 1) {
-                const lastMessage = messages[messages.length - 1];
-                if (lastMessage.role === 'assistant') {
-                    // 保存当前回复到历史记录
-                    lastMessage.regenerations.push({
-                        content: lastMessage.content,
-                        reasoning: lastMessage.reasoning,
-                        timestamp: Date.now()
-                    });
-                    lastMessage.regenerateCount += 1;
-                    lastMessage.content = assistantReply;
-                    lastMessage.reasoning = reasoning;
-                    updatedMessages = messages;
-                } else {
-                    updatedMessages = [...messages, assistantMessage];
-                }
-            } else {
-                updatedMessages = [...messages, 
-                    { role: "user", content: userMessage, reasoning: null },
-                    assistantMessage
-                ];
-            }
-            
-            conv.messages = updatedMessages;
+            conv.messages.push(newAssistantMsg);
             saveData();
-            document.getElementById(loadingId)?.remove();
-            
-            // 重新渲染整个对话
             loadConversationToUI();
         } catch (err) {
-            document.getElementById(loadingId)?.remove();
-            addMessageToUI('assistant', `❌ 请求失败: ${err.message}\n请检查 Worker 地址或暗号。`);
+            alert(`生成失败: ${err.message}`);
+        } finally {
+            loadingDiv.remove();
         }
+    }
+
+    function deleteUserMessageAndAssistant(userIndex) {
+        if (!confirm('确定删除这条消息及其回复吗？')) return;
+        const conv = getCurrentConversation();
+        if (!conv) return;
+        if (userIndex + 1 < conv.messages.length && conv.messages[userIndex+1].role === 'assistant') {
+            conv.messages.splice(userIndex, 2);
+        } else {
+            conv.messages.splice(userIndex, 1);
+        }
+        saveData();
+        loadConversationToUI();
+    }
+
+    async function regenerateAssistantResponse(assistantIndex) {
+        const conv = getCurrentConversation();
+        const role = getCurrentRole();
+        if (!conv || !role) return;
+        const assistantMsg = conv.messages[assistantIndex];
+        if (!assistantMsg || assistantMsg.role !== 'assistant') return;
+        const totalVers = assistantMsg.regenerations.length + 1;
+        if (totalVers >= 6) { // 最多5次额外生成，总共最多6个版本（当前+5个历史）
+            alert('已达到最大重新生成次数（5次）');
+            return;
+        }
+        let userIndex = assistantIndex - 1;
+        if (userIndex < 0 || conv.messages[userIndex].role !== 'user') {
+            alert('无法找到对应的用户消息');
+            return;
+        }
+        const historyMessages = conv.messages.slice(0, userIndex + 1);
+        const systemMsg = { role: "system", content: role.systemPrompt };
+        const apiMessages = [systemMsg];
+        for (let msg of historyMessages) {
+            if (msg.role !== 'system') {
+                apiMessages.push({ role: msg.role, content: msg.content });
+            }
+        }
+        const requestBody = {
+            model: currentModel,
+            messages: apiMessages,
+            stream: false
+        };
+        const loadingDiv = document.createElement('div');
+        loadingDiv.className = 'loading';
+        loadingDiv.innerText = '重新生成中...';
+        messagesArea.appendChild(loadingDiv);
+        messagesArea.scrollTop = messagesArea.scrollHeight;
+        try {
+            const response = await fetch(WORKER_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-API-Key': CUSTOM_SECRET },
+                body: JSON.stringify(requestBody)
+            });
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            const data = await response.json();
+            const newContent = data.choices[0].message.content;
+            let newReasoning = null;
+            if (currentModel === 'deepseek-reasoner' && data.choices[0].message.reasoning_content) {
+                newReasoning = data.choices[0].message.reasoning_content;
+            }
+            // 保存当前版本到历史
+            assistantMsg.regenerations.push({
+                content: assistantMsg.content,
+                reasoning: assistantMsg.reasoning,
+                timestamp: Date.now()
+            });
+            // 更新当前内容为新生成
+            assistantMsg.content = newContent;
+            assistantMsg.reasoning = newReasoning;
+            assistantMsg.currentVersion = assistantMsg.regenerations.length; // 最新版本索引
+            saveData();
+            loadConversationToUI();
+        } catch (err) {
+            alert(`重新生成失败: ${err.message}`);
+        } finally {
+            loadingDiv.remove();
+        }
+    }
+
+    function showRegenerationHistory(assistantIndex) {
+        const conv = getCurrentConversation();
+        if (!conv) return;
+        const assistantMsg = conv.messages[assistantIndex];
+        if (!assistantMsg || assistantMsg.role !== 'assistant') return;
+        const regens = assistantMsg.regenerations || [];
+        if (regens.length === 0) {
+            alert('没有生成历史记录');
+            return;
+        }
+        let historyHTML = '<div class="regeneration-history">';
+        regens.forEach((regen, idx) => {
+            const date = new Date(regen.timestamp);
+            const timeStr = `${date.toLocaleDateString()} ${date.toLocaleTimeString()}`;
+            historyHTML += `
+                <div class="regen-item" data-version="${idx}">
+                    <div class="regen-time">版本 ${idx+1} · ${timeStr}</div>
+                    <div class="regen-content">${escapeHtml(regen.content)}</div>
+                    ${regen.reasoning ? `<div class="regen-reasoning">${escapeHtml(regen.reasoning)}</div>` : ''}
+                </div>
+            `;
+        });
+        historyHTML += '</div>';
+        const modal = document.createElement('div');
+        modal.className = 'modal';
+        modal.style.display = 'flex';
+        modal.innerHTML = `
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>生成历史（点击恢复）</h2>
+                    <button class="modal-close">&times;</button>
+                </div>
+                <div class="modal-body">${historyHTML}</div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+        modal.querySelector('.modal-close').onclick = () => modal.remove();
+        modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+        modal.querySelectorAll('.regen-item').forEach(item => {
+            item.addEventListener('click', () => {
+                const version = parseInt(item.dataset.version);
+                const selected = regens[version];
+                if (selected) {
+                    // 恢复所选版本到当前显示
+                    assistantMsg.content = selected.content;
+                    assistantMsg.reasoning = selected.reasoning;
+                    assistantMsg.currentVersion = version + 1; // 因为regenerations索引从0开始，currentVersion=0表示原始内容
+                    // 为了保持一致性，将原始内容也视为一个版本？这里简单处理：将所选版本设置为当前版本，并调整regenerations
+                    // 更合理：将当前内容替换为所选版本，并且不破坏原有历史顺序
+                    // 但为了简单，直接替换并保存
+                    saveData();
+                    loadConversationToUI();
+                    modal.remove();
+                }
+            });
+        });
+    }
+
+    async function sendMessage(userMessage) {
+        const role = getCurrentRole();
+        if (!role) { addTempMessage('assistant', '请先选择一个角色'); return; }
+        let conv = getCurrentConversation();
+        if (!conv) {
+            addNewConversation(currentRoleId);
+            conv = getCurrentConversation();
+        }
+        const historyMessages = [];
+        for (let msg of conv.messages) {
+            if (msg.role === 'user') {
+                historyMessages.push({ role: 'user', content: msg.content });
+            } else if (msg.role === 'assistant') {
+                // 使用当前显示的版本内容
+                const content = (msg.currentVersion === 0) ? msg.content : (msg.regenerations[msg.currentVersion-1]?.content || msg.content);
+                historyMessages.push({ role: 'assistant', content: content });
+            }
+        }
+        const systemMsg = { role: "system", content: role.systemPrompt };
+        const apiMessages = [systemMsg, ...historyMessages, { role: "user", content: userMessage }];
+        const requestBody = {
+            model: currentModel,
+            messages: apiMessages,
+            stream: false
+        };
+        const userMsgObj = { role: 'user', content: userMessage };
+        conv.messages.push(userMsgObj);
+        saveData();
+        loadConversationToUI();
+        const loadingDiv = document.createElement('div');
+        loadingDiv.className = 'loading';
+        loadingDiv.innerText = 'AI 思考中...';
+        messagesArea.appendChild(loadingDiv);
+        messagesArea.scrollTop = messagesArea.scrollHeight;
+        try {
+            const response = await fetch(WORKER_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-API-Key': CUSTOM_SECRET },
+                body: JSON.stringify(requestBody)
+            });
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            const data = await response.json();
+            const assistantReply = data.choices[0].message.content;
+            let reasoning = null;
+            if (currentModel === 'deepseek-reasoner' && data.choices[0].message.reasoning_content) {
+                reasoning = data.choices[0].message.reasoning_content;
+            }
+            const assistantMsgObj = {
+                role: 'assistant',
+                content: assistantReply,
+                reasoning: reasoning,
+                regenerations: [],
+                currentVersion: 0
+            };
+            conv.messages.push(assistantMsgObj);
+            saveData();
+            loadConversationToUI();
+        } catch (err) {
+            conv.messages.pop();
+            saveData();
+            loadConversationToUI();
+            addTempMessage('assistant', `❌ 请求失败: ${err.message}\n请检查 Worker 地址或暗号。`);
+        } finally {
+            loadingDiv.remove();
+        }
+    }
+
+    function addTempMessage(role, content) {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'message-wrapper';
+        const msgDiv = document.createElement('div');
+        msgDiv.className = role === 'user' ? 'user-message' : 'assistant-message';
+        msgDiv.innerText = content;
+        wrapper.appendChild(msgDiv);
+        messagesArea.appendChild(wrapper);
+        messagesArea.scrollTop = messagesArea.scrollHeight;
+        setTimeout(() => wrapper.remove(), 3000);
     }
 
     function addNewConversation(roleId) {
@@ -1079,7 +1486,7 @@
         const newConv = {
             id: newId,
             name: `新对话 ${role.conversations.length + 1}`,
-            messages: [{ role: 'assistant', content: `你好！我是${role.name}，开始新对话吧～`, reasoning: null }]
+            messages: [{ role: 'assistant', content: `你好！我是${role.name}，开始新对话吧～`, reasoning: null, regenerations: [], currentVersion: 0 }]
         };
         role.conversations.push(newConv);
         saveData();
@@ -1210,19 +1617,48 @@
             localStorage.setItem('deepseek_theme', 'dark');
             themeToggle.innerHTML = '☀️';
         }
+        loadUserColor();
     }
     function onModelChange() {
         currentModel = modelSelect.value;
         saveData();
-        addMessageToUI('assistant', `模型已切换为 ${currentModel === 'deepseek-chat' ? '标准对话' : '推理模型'}`);
+        addTempMessage('assistant', `模型已切换为 ${currentModel === 'deepseek-chat' ? '标准对话' : '推理模型'}`);
     }
 
-    // 事件绑定
+    function adjustTextareaHeight() {
+        messageInput.style.height = 'auto';
+        messageInput.style.height = Math.min(messageInput.scrollHeight, 200) + 'px';
+    }
+    messageInput.addEventListener('input', adjustTextareaHeight);
+    messageInput.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            sendBtn.click();
+        }
+    });
+
+    colorPickerBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        colorDropdown.classList.toggle('show');
+    });
+    document.addEventListener('click', (e) => {
+        if (!colorPickerBtn.contains(e.target) && !colorDropdown.contains(e.target)) {
+            colorDropdown.classList.remove('show');
+        }
+    });
+    document.querySelectorAll('.color-option').forEach(opt => {
+        opt.addEventListener('click', () => {
+            const color = opt.dataset.color;
+            setUserColor(color);
+            colorDropdown.classList.remove('show');
+        });
+    });
+
     sendBtn.addEventListener('click', async () => {
         const text = messageInput.value.trim();
         if (!text) return;
         messageInput.value = '';
-        adjustTextareaHeight(); // 重置输入框高度
+        adjustTextareaHeight();
         await sendMessage(text);
     });
     addRoleBtn.addEventListener('click', () => openEditRoleModal(null));
@@ -1248,82 +1684,74 @@
 
     // 拖拽功能
     let isDragging = false;
-    let startX, startY, startLeft, startTop;
+    let dragStartX, dragStartY, btnStartLeft, btnStartTop;
+    let dragThreshold = 5;
+    let hasMoved = false;
 
     function initDraggableButton() {
-        const btn = document.getElementById('floatCollapseBtn');
-        
-        // 加载保存的位置
+        const btn = floatCollapseBtn;
         loadButtonPosition();
-        
-        btn.addEventListener('mousedown', startDrag);
-        btn.addEventListener('touchstart', startDrag, { passive: true });
-        
-        document.addEventListener('mousemove', drag);
-        document.addEventListener('touchmove', drag, { passive: false });
-        
-        document.addEventListener('mouseup', endDrag);
-        document.addEventListener('touchend', endDrag);
+        btn.addEventListener('mousedown', onDragStart);
+        btn.addEventListener('touchstart', onDragStart, { passive: false });
+        document.addEventListener('mousemove', onDragMove);
+        document.addEventListener('touchmove', onDragMove, { passive: false });
+        document.addEventListener('mouseup', onDragEnd);
+        document.addEventListener('touchend', onDragEnd);
     }
 
-    function startDrag(e) {
+    function onDragStart(e) {
         isDragging = true;
-        const btn = document.getElementById('floatCollapseBtn');
-        
+        hasMoved = false;
+        const btn = floatCollapseBtn;
         if (e.type === 'mousedown') {
-            startX = e.clientX;
-            startY = e.clientY;
-        } else if (e.type === 'touchstart') {
-            startX = e.touches[0].clientX;
-            startY = e.touches[0].clientY;
+            dragStartX = e.clientX;
+            dragStartY = e.clientY;
+        } else {
+            e.preventDefault();
+            dragStartX = e.touches[0].clientX;
+            dragStartY = e.touches[0].clientY;
         }
-        
-        startLeft = parseInt(btn.style.left) || 20;
-        startTop = parseInt(btn.style.top) || (window.innerHeight - 68);
+        btnStartLeft = parseInt(btn.style.left) || 20;
+        btnStartTop = parseInt(btn.style.top) || (window.innerHeight - 68);
+        btn.style.transition = 'none';
     }
 
-    function drag(e) {
+    function onDragMove(e) {
         if (!isDragging) return;
-        
-        e.preventDefault();
-        const btn = document.getElementById('floatCollapseBtn');
         let clientX, clientY;
-        
         if (e.type === 'mousemove') {
             clientX = e.clientX;
             clientY = e.clientY;
-        } else if (e.type === 'touchmove') {
+        } else {
             clientX = e.touches[0].clientX;
             clientY = e.touches[0].clientY;
         }
-        
-        const deltaX = clientX - startX;
-        const deltaY = clientY - startY;
-        
-        let newLeft = startLeft + deltaX;
-        let newTop = startTop + deltaY;
-        
-        // 限制在视窗内
-        newLeft = Math.max(10, Math.min(newLeft, window.innerWidth - 58));
-        newTop = Math.max(10, Math.min(newTop, window.innerHeight - 58));
-        
-        btn.style.left = newLeft + 'px';
-        btn.style.top = newTop + 'px';
-    }
-
-    function endDrag() {
-        if (isDragging) {
-            isDragging = false;
-            saveButtonPosition();
+        const deltaX = clientX - dragStartX;
+        const deltaY = clientY - dragStartY;
+        if (!hasMoved && (Math.abs(deltaX) > dragThreshold || Math.abs(deltaY) > dragThreshold)) {
+            hasMoved = true;
+        }
+        if (hasMoved) {
+            e.preventDefault();
+            const newLeft = Math.min(Math.max(btnStartLeft + deltaX, 10), window.innerWidth - 58);
+            const newTop = Math.min(Math.max(btnStartTop + deltaY, 10), window.innerHeight - 58);
+            floatCollapseBtn.style.left = newLeft + 'px';
+            floatCollapseBtn.style.top = newTop + 'px';
         }
     }
 
+    function onDragEnd() {
+        if (isDragging && hasMoved) {
+            saveButtonPosition();
+        }
+        isDragging = false;
+        hasMoved = false;
+        floatCollapseBtn.style.transition = '';
+    }
+
     function saveButtonPosition() {
-        const btn = document.getElementById('floatCollapseBtn');
-        const position = {
-            left: btn.style.left,
-            top: btn.style.top
-        };
+        const btn = floatCollapseBtn;
+        const position = { left: btn.style.left, top: btn.style.top };
         localStorage.setItem('float_button_position', JSON.stringify(position));
     }
 
@@ -1331,156 +1759,25 @@
         const saved = localStorage.getItem('float_button_position');
         if (saved) {
             try {
-                const position = JSON.parse(saved);
-                const btn = document.getElementById('floatCollapseBtn');
-                btn.style.left = position.left || '20px';
-                btn.style.top = position.top || (window.innerHeight - 68) + 'px';
-            } catch (e) {
-                console.error('Failed to load button position:', e);
-                resetButtonPosition();
-            }
+                const pos = JSON.parse(saved);
+                floatCollapseBtn.style.left = pos.left || '20px';
+                floatCollapseBtn.style.top = pos.top || (window.innerHeight - 68) + 'px';
+            } catch(e) { resetButtonPosition(); }
         } else {
             resetButtonPosition();
         }
     }
 
     function resetButtonPosition() {
-        const btn = document.getElementById('floatCollapseBtn');
-        btn.style.left = '20px';
-        btn.style.top = (window.innerHeight - 68) + 'px';
-    }
-
-    // 编辑最后一条用户消息
-    function editLastUserMessage(currentContent) {
-        const newContent = prompt('编辑你的消息:', currentContent);
-        if (newContent !== null && newContent.trim() !== '') {
-            const conv = getCurrentConversation();
-            if (conv && conv.messages) {
-                // 找到最后一条用户消息
-                for (let i = conv.messages.length - 1; i >= 0; i--) {
-                    if (conv.messages[i].role === 'user') {
-                        conv.messages[i].content = newContent.trim();
-                        saveData();
-                        loadConversationToUI();
-                        break;
-                    }
-                }
-            }
-        }
-    }
-
-    // 删除最后一条用户消息
-    function deleteLastUserMessage() {
-        if (confirm('确定要删除最后一条消息吗？')) {
-            const conv = getCurrentConversation();
-            if (conv && conv.messages) {
-                // 找到最后一条用户消息并删除
-                for (let i = conv.messages.length - 1; i >= 0; i--) {
-                    if (conv.messages[i].role === 'user') {
-                        conv.messages.splice(i, 1);
-                        // 同时删除后续的助手消息
-                        if (i < conv.messages.length && conv.messages[i].role === 'assistant') {
-                            conv.messages.splice(i, 1);
-                        }
-                        saveData();
-                        loadConversationToUI();
-                        break;
-                    }
-                }
-            }
-        }
-    }
-
-    // 重新生成最后一条回复
-    async function regenerateLastResponse() {
-        const conv = getCurrentConversation();
-        if (conv && conv.messages) {
-            // 找到最后一条助手消息
-            let assistantMessageIndex = -1;
-            let userMessageIndex = -1;
-            
-            for (let i = conv.messages.length - 1; i >= 0; i--) {
-                if (conv.messages[i].role === 'assistant') {
-                    assistantMessageIndex = i;
-                    // 检查重新生成次数
-                    const assistantMessage = conv.messages[i];
-                    if (assistantMessage.regenerateCount >= 4) { // 0-4共5次
-                        alert('已达到最大重新生成次数（5次）');
-                        return;
-                    }
-                } else if (conv.messages[i].role === 'user') {
-                    userMessageIndex = i;
-                    break;
-                }
-            }
-            
-            if (userMessageIndex !== -1) {
-                const userMessage = conv.messages[userMessageIndex].content;
-                await sendMessage(userMessage, true);
-            }
-        }
-    }
-
-    // 显示重新生成历史记录
-    function showRegenerationHistory(messageIndex) {
-        const conv = getCurrentConversation();
-        if (conv && conv.messages && messageIndex >= 0 && messageIndex < conv.messages.length) {
-            const message = conv.messages[messageIndex];
-            if (message.role === 'assistant' && message.regenerations && message.regenerations.length > 0) {
-                let historyHTML = '<div class="regeneration-history">';
-                historyHTML += '<h3>生成历史记录</h3>';
-                
-                message.regenerations.forEach((regen, index) => {
-                    const date = new Date(regen.timestamp);
-                    const time = date.toLocaleTimeString();
-                    historyHTML += `<div class="regen-item">
-                        <div class="regen-time">${time} (第${index + 1}次)</div>
-                        <div class="regen-content">${regen.content}</div>
-                        ${regen.reasoning ? `<div class="regen-reasoning">${regen.reasoning}</div>` : ''}
-                    </div>`;
-                });
-                
-                historyHTML += '</div>';
-                
-                // 创建弹出窗口
-                const modal = document.createElement('div');
-                modal.className = 'modal';
-                modal.innerHTML = `
-                    <div class="modal-content">
-                        <div class="modal-header">
-                            <h2>生成历史</h2>
-                            <button class="modal-close">✕</button>
-                        </div>
-                        <div class="modal-body">${historyHTML}</div>
-                    </div>
-                `;
-                
-                document.body.appendChild(modal);
-                
-                // 关闭按钮事件
-                modal.querySelector('.modal-close').addEventListener('click', () => {
-                    modal.remove();
-                });
-                
-                // 点击外部关闭
-                modal.addEventListener('click', (e) => {
-                    if (e.target === modal) {
-                        modal.remove();
-                    }
-                });
-            } else {
-                alert('没有生成历史记录');
-            }
-        }
+        floatCollapseBtn.style.left = '20px';
+        floatCollapseBtn.style.top = (window.innerHeight - 68) + 'px';
     }
 
     // 初始化
     loadData();
     loadTheme();
     loadSidebarState();
-    // 确保模态窗口在页面加载时是隐藏的
-    roleModal.style.display = 'none';
-    renameConvModal.style.display = 'none';
+    loadUserColor();
     renderSidebar();
     loadConversationToUI();
     initDraggableButton();
