@@ -71,7 +71,7 @@
 
         /* 角色侧边栏 - 可折叠 */
         .role-sidebar {
-            width: 320px;
+            width: 280px;
             background: var(--bg-sidebar);
             display: flex;
             flex-direction: column;
@@ -81,8 +81,8 @@
             position: relative;
         }
         .role-sidebar.collapsed {
-            width: 48px;
-            min-width: 48px;
+            width: 32px;
+            min-width: 32px;
         }
         .sidebar-content {
             flex: 1;
@@ -93,28 +93,6 @@
             opacity: 0;
             pointer-events: none;
         }
-        .collapse-btn {
-            position: absolute;
-            right: -12px;
-            top: 20px;
-            background: var(--badge-bg);
-            border: 1px solid var(--border-light);
-            border-radius: 20px;
-            width: 24px;
-            height: 24px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            z-index: 10;
-            font-size: 12px;
-            color: var(--text-primary);
-            transition: 0.2s;
-        }
-        .collapsed .collapse-btn {
-            transform: rotate(180deg);
-        }
-
         .sidebar-header {
             padding: 20px 16px;
             font-weight: 500;
@@ -290,14 +268,14 @@
         .model-selector {
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: 6px;
             font-size: 0.8rem;
         }
         .model-selector select {
             background: var(--badge-bg);
             border: 1px solid var(--input-border);
             border-radius: 20px;
-            padding: 5px 12px;
+            padding: 5px 8px;
             font-size: 0.8rem;
             font-family: inherit;
             color: var(--text-primary);
@@ -308,12 +286,14 @@
             background: var(--badge-bg);
             border: 1px solid var(--input-border);
             border-radius: 30px;
-            padding: 5px 12px;
-            font-size: 0.8rem;
+            padding: 5px 10px;
+            font-size: 1rem;
             cursor: pointer;
             display: flex;
             align-items: center;
-            gap: 6px;
+            justify-content: center;
+            width: 36px;
+            height: 36px;
             color: var(--text-primary);
             transition: 0.2s;
         }
@@ -436,19 +416,55 @@
             gap: 12px;
             justify-content: flex-end;
         }
+
+        /* 浮动折叠按钮 */
+        .float-collapse-btn {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            background: var(--button-bg);
+            color: white;
+            border: none;
+            font-size: 20px;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+        .float-collapse-btn:hover {
+            background: var(--button-hover);
+            transform: scale(1.05);
+        }
+
         @media (max-width: 700px) {
             body { padding: 12px; }
             .app-container { gap: 12px; }
             .role-sidebar { width: 260px; }
-            .role-sidebar.collapsed { width: 48px; }
+            .role-sidebar.collapsed { width: 32px; }
             .conv-list { max-height: 120px; }
+            .float-collapse-btn {
+                width: 44px;
+                height: 44px;
+                font-size: 18px;
+                bottom: 15px;
+                left: 15px;
+            }
+            .theme-toggle {
+                width: 34px;
+                height: 34px;
+            }
         }
     </style>
 </head>
 <body>
 <div class="app-container">
     <div class="role-sidebar" id="roleSidebar">
-        <div class="collapse-btn" id="collapseBtn">◀</div>
         <div class="sidebar-content">
             <div class="sidebar-header">
                 <span>🎭 角色卡</span>
@@ -466,13 +482,13 @@
             </div>
             <div style="display: flex; gap: 12px;">
                 <div class="model-selector">
-                    <span>🧠 模型：</span>
+                    <span>🧠</span>
                     <select id="modelSelect">
                         <option value="deepseek-chat">deepseek-chat (标准)</option>
                         <option value="deepseek-reasoner">deepseek-reasoner (推理)</option>
                     </select>
                 </div>
-                <button class="theme-toggle" id="themeToggle">🌙 夜晚模式</button>
+                <button class="theme-toggle" id="themeToggle">🌙</button>
             </div>
         </div>
         <div class="messages-area" id="messagesArea">
@@ -484,6 +500,9 @@
         </div>
     </div>
 </div>
+
+<!-- 浮动折叠按钮 -->
+<button class="float-collapse-btn" id="floatCollapseBtn">◀</button>
 
 <!-- 编辑角色弹窗 -->
 <div id="roleModal" class="modal">
@@ -536,7 +555,7 @@
     const confirmRenameBtn = document.getElementById('confirmRenameBtn');
     const cancelRenameBtn = document.getElementById('cancelRenameBtn');
     const roleSidebar = document.getElementById('roleSidebar');
-    const collapseBtn = document.getElementById('collapseBtn');
+    const floatCollapseBtn = document.getElementById('floatCollapseBtn');
 
     // 数据结构
     let roles = [];
@@ -610,28 +629,28 @@
         return role.conversations.find(c => c.id === currentConversationId);
     }
 
-    // 折叠侧边栏
+    // 折叠侧边栏（浮动按钮版）
     let sidebarCollapsed = false;
     function loadSidebarState() {
         const saved = localStorage.getItem('sidebar_collapsed');
         if (saved === 'true') {
             sidebarCollapsed = true;
             roleSidebar.classList.add('collapsed');
-            collapseBtn.innerHTML = '▶';
+            floatCollapseBtn.innerHTML = '▶';
         } else {
             sidebarCollapsed = false;
             roleSidebar.classList.remove('collapsed');
-            collapseBtn.innerHTML = '◀';
+            floatCollapseBtn.innerHTML = '◀';
         }
     }
     function toggleSidebar() {
         sidebarCollapsed = !sidebarCollapsed;
         if (sidebarCollapsed) {
             roleSidebar.classList.add('collapsed');
-            collapseBtn.innerHTML = '▶';
+            floatCollapseBtn.innerHTML = '▶';
         } else {
             roleSidebar.classList.remove('collapsed');
-            collapseBtn.innerHTML = '◀';
+            floatCollapseBtn.innerHTML = '◀';
         }
         localStorage.setItem('sidebar_collapsed', sidebarCollapsed);
     }
@@ -946,21 +965,21 @@
         const saved = localStorage.getItem('deepseek_theme');
         if (saved === 'dark') {
             document.body.classList.add('dark');
-            themeToggle.innerHTML = '☀️ 日间模式';
+            themeToggle.innerHTML = '☀️';
         } else {
             document.body.classList.remove('dark');
-            themeToggle.innerHTML = '🌙 夜晚模式';
+            themeToggle.innerHTML = '🌙';
         }
     }
     function toggleTheme() {
         if (document.body.classList.contains('dark')) {
             document.body.classList.remove('dark');
             localStorage.setItem('deepseek_theme', 'light');
-            themeToggle.innerHTML = '🌙 夜晚模式';
+            themeToggle.innerHTML = '🌙';
         } else {
             document.body.classList.add('dark');
             localStorage.setItem('deepseek_theme', 'dark');
-            themeToggle.innerHTML = '☀️ 日间模式';
+            themeToggle.innerHTML = '☀️';
         }
     }
     function onModelChange() {
@@ -988,7 +1007,7 @@
     confirmRenameBtn.addEventListener('click', renameConversation);
     cancelRenameBtn.addEventListener('click', () => renameConvModal.style.display = 'none');
     renameConvModal.addEventListener('click', (e) => { if (e.target === renameConvModal) renameConvModal.style.display = 'none'; });
-    collapseBtn.addEventListener('click', toggleSidebar);
+    floatCollapseBtn.addEventListener('click', toggleSidebar);
 
     function escapeHtml(str) {
         if (!str) return '';
