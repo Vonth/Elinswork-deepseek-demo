@@ -546,10 +546,10 @@
         .float-collapse-btn::after {
             content: '';
             position: absolute;
-            top: -12px;
-            left: -12px;
-            right: -12px;
-            bottom: -12px;
+            top: -24px;
+            left: -24px;
+            right: -24px;
+            bottom: -24px;
             border-radius: 50%;
         }
         .float-collapse-btn:active { transform: scale(0.96); }
@@ -913,7 +913,11 @@
     confirmRenameBtn.addEventListener('click', renameConversation);
     cancelRenameBtn.addEventListener('click', () => renameConvModal.style.display = 'none');
     renameConvModal.addEventListener('click', (e) => { if (e.target === renameConvModal) renameConvModal.style.display = 'none'; });
-    floatCollapseBtn.addEventListener('click', toggleSidebar);
+    floatCofloatCollapseBtn.addEventListener('touchstart', (e) => {
+    e.preventDefault();  // 防止滚动
+    toggleSidebar();
+    });
+    floatCollapseBtn.addEventListener('click', toggleSidebar);llapseBtn.addEventListener('click', toggleSidebar);
 
     function escapeHtml(str) { if (!str) return ''; return str.replace(/[&<>]/g, function(m) { if (m === '&') return '&amp;'; if (m === '<') return '&lt;'; if (m === '>') return '&gt;'; return m; }); }
 
