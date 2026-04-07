@@ -1,0 +1,1482 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+    <title>DeepSeek AI · 角色扮演</title>
+    <style>
+        /* ---------- 全局 CSS 变量 ---------- */
+        :root {
+            --bg-body: #ffffff;
+            --bg-sidebar: #ffffff;
+            --bg-chat: #ffffff;
+            --border-light: #f0f0f0;
+            --text-primary: #1a1a2e;
+            --text-secondary: #555;
+            --text-reasoning: #666;
+            --card-active-bg: #fafafa;
+            --card-active-border: #eaeaea;
+            --input-border: #e0e0e0;
+            --button-bg: #2c3e50;
+            --button-hover: #1e2b38;
+            --badge-bg: #f5f5f5;
+            --modal-bg: white;
+            --modal-overlay: rgba(0,0,0,0.4);
+            --user-msg-bg: #e1e9fa;
+            --user-msg-text: #1a1a2e;
+            --scrollbar-thumb: #cbd5e1;
+            --scrollbar-track: #f1f1f1;
+            --reasoning-border: #ccc;
+            --input-area-bg: #ffffff;
+        }
+
+        body.dark {
+            --bg-body: #121212;
+            --bg-sidebar: #1e1e2a;
+            --bg-chat: #1e1e2a;
+            --border-light: #2a2a3a;
+            --text-primary: #e0e0e0;
+            --text-secondary: #aaa;
+            --text-reasoning: #aaa;
+            --card-active-bg: #2a2a3a;
+            --card-active-border: #3a3a4a;
+            --input-border: #3a3a4a;
+            --button-bg: #3a4c62;
+            --button-hover: #2c3e50;
+            --badge-bg: #2a2a3a;
+            --modal-bg: #2a2a3a;
+            --modal-overlay: rgba(0,0,0,0.7);
+            --user-msg-text: #e0e0e0;
+            --scrollbar-thumb: #4a4a5a;
+            --scrollbar-track: #2a2a3a;
+            --reasoning-border: #555;
+            --input-area-bg: #1e1e2a;
+        }
+
+        /* 用户消息颜色主题 */
+        body.user-color-blue { --user-msg-bg: #e1e9fa; }
+        body.dark.user-color-blue { --user-msg-bg: #2a3a5a; }
+        body.user-color-green { --user-msg-bg: #e0f2e9; }
+        body.dark.user-color-green { --user-msg-bg: #2a4a3a; }
+        body.user-color-orange { --user-msg-bg: #ffe0cc; }
+        body.dark.user-color-orange { --user-msg-bg: #5a3a2a; }
+        body.user-color-purple { --user-msg-bg: #f0e6ff; }
+        body.dark.user-color-purple { --user-msg-bg: #3a2a5a; }
+        body.user-color-pink { --user-msg-bg: #ffe6f0; }
+        body.dark.user-color-pink { --user-msg-bg: #5a2a3a; }
+        body.user-color-gray { --user-msg-bg: #f0f0f0; }
+        body.dark.user-color-gray { --user-msg-bg: #3a3a4a; }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background: var(--bg-body);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+            transition: background 0.2s, color 0.2s;
+            color: var(--text-primary);
+        }
+
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: var(--scrollbar-track); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 4px; }
+
+        .app-container {
+            display: flex;
+            flex: 1;
+            min-height: 0;
+            width: 100%;
+            max-width: 1400px;
+            margin: 0 auto;
+            position: relative;
+        }
+
+        /* 角色面板 */
+        .role-sidebar {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 300px;
+            height: 100%;
+            background: var(--bg-sidebar);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+            z-index: 1000;
+            transform: translateX(-100%);
+            transition: transform 0.3s ease;
+            border-radius: 20px;
+        }
+        .role-sidebar.open { transform: translateX(0); }
+        .sidebar-content { flex: 1; overflow-y: auto; }
+        .sidebar-header {
+            padding: 20px 16px;
+            font-weight: 500;
+            display: flex;
+            justify-content: space-between;
+            border-bottom: 1px solid var(--border-light);
+        }
+        .add-role-btn {
+            background: none;
+            border: none;
+            font-size: 1.2rem;
+            cursor: pointer;
+            width: 44px;
+            height: 44px;
+            border-radius: 22px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-primary);
+            touch-action: manipulation;
+        }
+        .role-list { padding: 12px; }
+        .role-card {
+            background: transparent;
+            border-radius: 16px;
+            padding: 12px;
+            margin-bottom: 8px;
+            cursor: pointer;
+            border: 1px solid transparent;
+            touch-action: manipulation;
+        }
+        .role-card.active {
+            background: var(--card-active-bg);
+            border-color: var(--card-active-border);
+        }
+        .role-name {
+            font-weight: 500;
+            font-size: 0.95rem;
+            margin-bottom: 6px;
+            display: flex;
+            justify-content: space-between;
+        }
+        .role-preview {
+            font-size: 0.7rem;
+            color: var(--text-secondary);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .role-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 8px;
+            justify-content: flex-end;
+        }
+        .role-actions button {
+            background: none;
+            border: none;
+            font-size: 0.7rem;
+            cursor: pointer;
+            padding: 6px 12px;
+            border-radius: 20px;
+            background: var(--badge-bg);
+            color: var(--text-secondary);
+            touch-action: manipulation;
+        }
+        .conversation-section {
+            border-top: 1px solid var(--border-light);
+            margin-top: 8px;
+            padding-top: 8px;
+        }
+        .section-title {
+            font-size: 0.75rem;
+            font-weight: 500;
+            color: var(--text-secondary);
+            padding: 8px 12px;
+            display: flex;
+            justify-content: space-between;
+        }
+        .add-conv-btn {
+            background: none;
+            border: none;
+            font-size: 0.8rem;
+            cursor: pointer;
+            color: var(--text-secondary);
+            padding: 6px 10px;
+            touch-action: manipulation;
+        }
+        .conv-list { max-height: 200px; overflow-y: auto; }
+        .conv-item {
+            padding: 10px 12px;
+            margin: 2px 0;
+            border-radius: 10px;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.8rem;
+            touch-action: manipulation;
+        }
+        .conv-item.active {
+            background: var(--card-active-bg);
+            border: 1px solid var(--card-active-border);
+        }
+        .conv-name { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .conv-actions { display: none; gap: 6px; }
+        .conv-item:hover .conv-actions { display: flex; }
+        .conv-actions button {
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 0.7rem;
+            color: var(--text-secondary);
+            padding: 4px 8px;
+            touch-action: manipulation;
+        }
+
+        /* 聊天区域 */
+        .chat-container {
+            flex: 1;
+            background: var(--bg-chat);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            border-radius: 20px;
+        }
+        .chat-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border-light);
+            display: flex;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .header-left { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+        .current-role-badge {
+            font-size: 0.8rem;
+            background: var(--badge-bg);
+            padding: 6px 12px;
+            border-radius: 20px;
+        }
+
+        /* 右侧按钮容器 - 横向滚动（隐藏滚动条） */
+        .header-right {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            overflow-x: auto;
+            overflow-y: hidden;
+            white-space: nowrap;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: thin;
+            max-width: 100%;
+            padding-bottom: 4px;
+        }
+        .header-right::-webkit-scrollbar {
+            height: 2px;
+            background: transparent;
+        }
+        .header-right::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .header-right::-webkit-scrollbar-thumb {
+            background: var(--scrollbar-thumb);
+            border-radius: 2px;
+        }
+
+        .model-selector {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 0.8rem;
+            flex-shrink: 0;
+        }
+        .model-selector select {
+            background: var(--badge-bg);
+            border: 1px solid var(--input-border);
+            border-radius: 20px;
+            padding: 6px 10px;
+            font-size: 0.75rem;
+            color: var(--text-primary);
+            touch-action: manipulation;
+            width: 100px; /* 固定宽度，缩短占用空间 */
+        }
+        .theme-toggle, .sidebar-toggle-btn, .color-btn {
+            background: var(--badge-bg);
+            border: 1px solid var(--input-border);
+            border-radius: 30px;
+            width: 44px;
+            height: 44px;
+            font-size: 1.2rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            touch-action: manipulation;
+            flex-shrink: 0;
+        }
+        .color-picker { position: relative; flex-shrink: 0; }
+        .color-dropdown {
+            display: none;
+            position: absolute;
+            top: 48px;
+            right: 0;
+            background: var(--modal-bg);
+            border: 1px solid var(--border-light);
+            border-radius: 20px;
+            padding: 8px;
+            z-index: 100;
+            gap: 8px;
+            flex-wrap: wrap;
+            width: 180px;
+        }
+        .color-dropdown.show { display: flex; }
+        .color-option {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            cursor: pointer;
+            border: 2px solid transparent;
+            touch-action: manipulation;
+        }
+        .color-option.active { border-color: var(--text-primary); }
+
+        .messages-area {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .message-wrapper {
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+            margin-bottom: 4px;
+        }
+        .user-message {
+            text-align: left;  /* 改为左对齐 */
+            color: var(--user-msg-text);
+            font-size: 1rem;
+            line-height: 1.4;
+            padding: 10px 14px;
+            background: var(--user-msg-bg);
+            border-radius: 18px 18px 4px 18px;
+            max-width: 85%;
+            margin-left: auto;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+        }
+        .user-actions {
+            display: flex;
+            gap: 8px;
+            justify-content: flex-end;
+            margin-top: 4px;
+        }
+        .assistant-message {
+            text-align: left;
+            color: var(--text-primary);
+            font-size: 1rem;
+            line-height: 1.4;
+            padding: 4px 0;
+            background: transparent;
+            max-width: 100%;
+        }
+        .message-timestamp {
+            font-size: 0.7rem;
+            color: var(--text-secondary);
+            margin-top: 2px;
+        }
+        .user-message + .message-timestamp {
+            text-align: right;
+        }
+        .assistant-message + .message-timestamp {
+            text-align: left;
+        }
+        .pagination-controls {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            margin-top: 20px;
+            padding: 10px;
+            background: var(--bg-sidebar);
+            border-radius: 10px;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+        }
+        .pagination-btn {
+            background: var(--button-bg);
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            min-width: 60px;
+            touch-action: manipulation;
+        }
+        .pagination-btn:disabled {
+            background: var(--border-light);
+            color: var(--text-secondary);
+            cursor: not-allowed;
+        }
+        .page-info {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+        .reasoning-wrapper {
+            margin: 4px 0;
+            position: relative;
+        }
+        .reasoning-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            user-select: none;
+            touch-action: manipulation;
+            padding: 4px 0;
+        }
+        .reasoning-toggle {
+            background: none;
+            border: none;
+            font-size: 0.8rem;
+            cursor: pointer;
+            color: var(--text-secondary);
+            padding: 4px;
+            touch-action: manipulation;
+        }
+        .reasoning-content {
+            font-size: 0.8rem;
+            color: var(--text-reasoning);
+            background: var(--bg-sidebar);
+            padding: 8px 12px;
+            border-left: 3px solid var(--reasoning-border);
+            border-radius: 0 12px 12px 0;
+            white-space: pre-wrap;
+            word-break: break-word;
+            transition: all 0.2s;
+        }
+        .reasoning-content.collapsed { display: none; }
+        .main-content {
+            font-size: 1rem;
+            color: var(--text-primary);
+            background: transparent;
+            padding: 0;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+        .assistant-actions {
+            display: flex;
+            gap: 8px;
+            justify-content: flex-start;
+            align-items: center;
+            margin-top: 6px;
+            flex-wrap: wrap;
+        }
+        .version-control {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            background: var(--badge-bg);
+            padding: 2px 6px;
+            border-radius: 20px;
+        }
+        .version-control button {
+            background: none;
+            border: none;
+            font-size: 0.8rem;
+            cursor: pointer;
+            padding: 2px 6px;
+            color: var(--text-primary);
+            touch-action: manipulation;
+        }
+        .version-control span { font-size: 0.7rem; min-width: 36px; text-align: center; }
+        .action-btn {
+            background: none;
+            border: none;
+            font-size: 1rem;
+            cursor: pointer;
+            padding: 4px 8px;
+            border-radius: 30px;
+            color: var(--text-secondary);
+            transition: 0.2s;
+            touch-action: manipulation;
+            min-height: 36px;
+        }
+        .action-btn:hover, .action-btn:active { background: var(--badge-bg); }
+
+        .input-area {
+            padding: 12px 20px;
+            border-top: 1px solid var(--border-light);
+            display: flex;
+            gap: 12px;
+            background: var(--input-area-bg);
+            align-items: flex-end;
+            border-radius: 20px;
+            margin: 0 20px 20px 20px;
+        }
+        #messageInput {
+            flex: 1;
+            padding: 10px 16px;
+            border: 1px solid var(--input-border);
+            border-radius: 30px;
+            font-size: 1rem;
+            outline: none;
+            background: var(--bg-sidebar);
+            color: var(--text-primary);
+            resize: none;
+            min-height: 40px;
+            max-height: 200px;
+            font-family: inherit;
+        }
+        button, .action-btn, .add-role-btn, .add-conv-btn, .role-actions button, .conv-actions button, .color-btn, .theme-toggle, .sidebar-toggle-btn {
+            touch-action: manipulation;
+        }
+        #sendBtn {
+            width: 48px;
+            height: 48px;
+            padding: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            background: var(--button-bg);
+            border-radius: 30px;
+            border: none;
+            cursor: pointer;
+            color: white;
+            touch-action: manipulation;
+        }
+        .loading { text-align: center; color: var(--text-secondary); padding: 8px; font-size: 0.8rem; }
+
+        /* 模态框 */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: var(--modal-overlay);
+            justify-content: center;
+            align-items: center;
+            z-index: 2000;
+        }
+        .modal-content {
+            background: var(--modal-bg);
+            width: 90%;
+            max-width: 700px;
+            border-radius: 24px;
+            padding: 24px;
+            color: var(--text-primary);
+        }
+        .modal-content input, .modal-content textarea {
+            width: 100%;
+            padding: 12px;
+            margin-bottom: 16px;
+            border: 1px solid var(--input-border);
+            border-radius: 16px;
+            background: var(--bg-sidebar);
+            color: var(--text-primary);
+            font-family: inherit;
+        }
+        .modal-content textarea { min-height: 280px; resize: vertical; }
+        .modal-buttons { display: flex; gap: 12px; justify-content: flex-end; }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+        .modal-close { background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--text-secondary); }
+        .modal-body { max-height: 60vh; overflow-y: auto; }
+        .regeneration-history { display: flex; flex-direction: column; gap: 12px; }
+        .regen-item {
+            padding: 12px;
+            border: 1px solid var(--border-light);
+            border-radius: 12px;
+            background: var(--bg-sidebar);
+            cursor: pointer;
+        }
+        .regen-time { font-size: 0.7rem; color: var(--text-secondary); margin-bottom: 6px; }
+        .regen-content { font-size: 0.85rem; white-space: pre-wrap; }
+        .regen-reasoning { font-size: 0.75rem; color: var(--text-reasoning); margin-top: 6px; padding-top: 6px; border-top: 1px dashed var(--border-light); }
+
+        /* 编辑用户消息的自定义模态框 */
+        .edit-user-modal .modal-content {
+            max-width: 500px;
+        }
+        .edit-user-modal textarea {
+            min-height: 150px;
+        }
+
+        @media (max-width: 700px) {
+            body { padding: 12px; }
+            .role-sidebar { width: 260px; }
+            .user-message { max-width: 90%; }
+            .input-area { margin: 0 12px 12px 12px; padding: 10px 16px; }
+            .action-btn { padding: 6px 10px; font-size: 1rem; }
+            .version-control button { padding: 4px 8px; }
+            .pagination-btn { min-width: 50px; padding: 4px 8px; }
+            .header-right { gap: 6px; }
+            .theme-toggle, .sidebar-toggle-btn, .color-btn {
+                width: 40px;
+                height: 40px;
+                font-size: 1rem;
+            }
+            .model-selector select {
+                width: 90px;
+                padding: 4px 8px;
+                font-size: 0.7rem;
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="app-container">
+    <div class="role-sidebar" id="roleSidebar">
+        <div class="sidebar-content">
+            <div class="sidebar-header">
+                <span>🎭 角色卡</span>
+                <button class="add-role-btn" id="addRoleBtn">+</button>
+            </div>
+            <div class="role-list" id="roleList"></div>
+        </div>
+    </div>
+    <div class="chat-container">
+        <div class="chat-header">
+            <div class="header-left">
+                🤖 DeepSeek · 角色扮演
+                <span class="current-role-badge" id="currentRoleBadge">未选择</span>
+            </div>
+            <div class="header-right">
+                <button class="theme-toggle" id="themeToggle">🌙</button>
+                <button class="sidebar-toggle-btn" id="sidebarToggleBtn">🎭</button>
+                <div class="color-picker">
+                    <button class="color-btn" id="colorPickerBtn">🎨</button>
+                    <div class="color-dropdown" id="colorDropdown">
+                        <div class="color-option" data-color="blue" style="background: #e1e9fa; border: 1px solid #aaa;"></div>
+                        <div class="color-option" data-color="green" style="background: #e0f2e9;"></div>
+                        <div class="color-option" data-color="orange" style="background: #ffe0cc;"></div>
+                        <div class="color-option" data-color="purple" style="background: #f0e6ff;"></div>
+                        <div class="color-option" data-color="pink" style="background: #ffe6f0;"></div>
+                        <div class="color-option" data-color="gray" style="background: #f0f0f0;"></div>
+                    </div>
+                </div>
+                <div class="model-selector">
+                    <span>🧠</span>
+                    <select id="modelSelect">
+                        <option value="deepseek-chat">快速回答</option>
+                        <option value="deepseek-reasoner">深度思考</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+        <div class="messages-area" id="messagesArea">
+            <div class="assistant-message">请从左侧选择一个角色和会话开始～</div>
+        </div>
+        <div class="input-area">
+            <textarea id="messageInput" placeholder="输入消息..." autocomplete="off" rows="1"></textarea>
+            <button id="sendBtn">📤</button>
+        </div>
+    </div>
+</div>
+
+<!-- 模态框 -->
+<div id="roleModal" class="modal"><div class="modal-content"><h3 id="modalTitle">编辑角色</h3><input type="text" id="roleName" placeholder="角色名称"><textarea id="rolePrompt" placeholder="系统提示词（人设）..."></textarea><div class="modal-buttons"><button id="saveRoleBtn">保存</button><button id="cancelModalBtn">取消</button></div></div></div>
+<div id="renameConvModal" class="modal"><div class="modal-content"><h3>重命名会话</h3><input type="text" id="newConvName" placeholder="新名称"><div class="modal-buttons"><button id="confirmRenameBtn">确定</button><button id="cancelRenameBtn">取消</button></div></div></div>
+
+<!-- 编辑用户消息的自定义模态框 -->
+<div id="editUserMsgModal" class="modal edit-user-modal">
+    <div class="modal-content">
+        <h3>编辑消息</h3>
+        <textarea id="editUserMsgContent" rows="4" placeholder="输入新的消息内容..."></textarea>
+        <div class="modal-buttons">
+            <button id="confirmEditMsgBtn">保存并重新生成</button>
+            <button id="cancelEditMsgBtn">取消</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    // ========== 配置模块 ==========
+    const Config = {
+        WORKER_URL: 'https://still-bread-327a.liaoyilin826.workers.dev/',
+        CUSTOM_SECRET: 'xK9mP2vL7qR4nF8t',
+        MAX_REGENERATIONS: 5,
+        PAGE_SIZE: 20
+    };
+
+    // 分页状态
+    const Pagination = {
+        currentPage: 1
+    };
+
+    // ========== 工具函数 ==========
+    function escapeHtml(text) {
+        if (!text) return '';
+        return text.replace(/[&<>]/g, function(m) {
+            if (m === '&') return '&amp;';
+            if (m === '<') return '&lt;';
+            if (m === '>') return '&gt;';
+            return m;
+        });
+    }
+
+    // ========== 数据管理模块 ==========
+    const DataManager = {
+        roles: [],
+        currentRoleId: null,
+        currentConversationId: null,
+        currentModel: 'deepseek-chat',
+        sidebarOpen: false,
+        userColor: 'blue',
+        
+        generateId() {
+            return crypto.randomUUID ? crypto.randomUUID() : Date.now() + '-' + Math.random();
+        },
+        
+        defaultRole: {
+            id: 'default_role',
+            name: '新角色',
+            systemPrompt: '你是一个乐于助人的AI助手。',
+            conversations: []
+        },
+        
+        ensureDefaultRoles() {
+            if (!this.roles || this.roles.length === 0) {
+                this.roles = [JSON.parse(JSON.stringify(this.defaultRole))];
+            }
+            for (let role of this.roles) {
+                if (!role.conversations || role.conversations.length === 0) {
+                    role.conversations = [{ 
+                        id: this.generateId(), 
+                        name: '新对话', 
+                        messages: [] 
+                    }];
+                }
+                for (let conv of role.conversations) {
+                    if (!conv.messages) conv.messages = [];
+                    if (conv.messages.length === 0) {
+                        conv.messages.push({ 
+                            role: 'assistant', 
+                            content: `你好！我是${role.name}，开始对话吧～`, 
+                            reasoning: null, 
+                            regenerations: [], 
+                            currentVersion: 0, 
+                            reasoningCollapsed: false,
+                            timestamp: new Date().toISOString()
+                        });
+                    }
+                    for (let msg of conv.messages) {
+                        if (msg.role === 'assistant') {
+                            if (!msg.regenerations) msg.regenerations = [];
+                            if (msg.currentVersion === undefined) msg.currentVersion = 0;
+                            if (msg.reasoningCollapsed === undefined) msg.reasoningCollapsed = false;
+                        }
+                        if (!msg.timestamp) {
+                            msg.timestamp = new Date().toISOString();
+                        }
+                    }
+                }
+            }
+            this.saveData();
+        },
+        
+        saveData() {
+            localStorage.setItem('deepseek_app_data', JSON.stringify({
+                roles: this.roles,
+                currentRoleId: this.currentRoleId,
+                currentConversationId: this.currentConversationId,
+                currentModel: this.currentModel
+            }));
+        },
+        
+        loadData() {
+            const saved = localStorage.getItem('deepseek_app_data');
+            if (saved) {
+                try {
+                    const data = JSON.parse(saved);
+                    this.roles = data.roles || [];
+                    this.currentRoleId = data.currentRoleId || null;
+                    this.currentConversationId = data.currentConversationId || null;
+                    this.currentModel = data.currentModel || 'deepseek-chat';
+                    modelSelect.value = this.currentModel === 'deepseek-chat' ? 'deepseek-chat' : 'deepseek-reasoner';
+                } catch(e) { console.error(e); }
+            }
+            this.ensureDefaultRoles();
+            if (!this.roles.find(r => r.id === this.currentRoleId) && this.roles.length) {
+                this.currentRoleId = this.roles[0].id;
+            }
+            if (this.currentRoleId) {
+                const role = this.getCurrentRole();
+                if (role && (!this.currentConversationId || !role.conversations.find(c => c.id === this.currentConversationId))) {
+                    this.currentConversationId = role.conversations[0]?.id || null;
+                }
+            }
+            this.saveData();
+        },
+        
+        getCurrentRole() {
+            return this.roles.find(r => r.id === this.currentRoleId);
+        },
+        
+        getCurrentConversation() {
+            const role = this.getCurrentRole();
+            return role ? role.conversations.find(c => c.id === this.currentConversationId) : null;
+        },
+        
+        loadSidebarState() {
+            const saved = localStorage.getItem('sidebar_open');
+            if (saved === 'true') {
+                this.sidebarOpen = true;
+                roleSidebar.classList.add('open');
+                sidebarToggleBtn.innerHTML = '✕';
+            } else {
+                this.sidebarOpen = false;
+                roleSidebar.classList.remove('open');
+                sidebarToggleBtn.innerHTML = '🎭';
+            }
+        },
+        
+        toggleSidebar() {
+            this.sidebarOpen = !this.sidebarOpen;
+            if (this.sidebarOpen) {
+                roleSidebar.classList.add('open');
+                sidebarToggleBtn.innerHTML = '✕';
+            } else {
+                roleSidebar.classList.remove('open');
+                sidebarToggleBtn.innerHTML = '🎭';
+            }
+            localStorage.setItem('sidebar_open', this.sidebarOpen);
+        },
+        
+        loadUserColor() {
+            this.userColor = localStorage.getItem('user_msg_color') || 'blue';
+            document.body.classList.remove('user-color-blue', 'user-color-green', 'user-color-orange', 'user-color-purple', 'user-color-pink', 'user-color-gray');
+            document.body.classList.add(`user-color-${this.userColor}`);
+            document.querySelectorAll('.color-option').forEach(opt => {
+                opt.classList.remove('active');
+                if (opt.dataset.color === this.userColor) opt.classList.add('active');
+            });
+        },
+        
+        setUserColor(color) {
+            this.userColor = color;
+            localStorage.setItem('user_msg_color', color);
+            this.loadUserColor();
+        }
+    };
+
+    // ========== DOM 元素 ==========
+    const DOM = {
+        messagesArea: document.getElementById('messagesArea'),
+        messageInput: document.getElementById('messageInput'),
+        sendBtn: document.getElementById('sendBtn'),
+        roleListDiv: document.getElementById('roleList'),
+        currentRoleBadge: document.getElementById('currentRoleBadge'),
+        addRoleBtn: document.getElementById('addRoleBtn'),
+        roleModal: document.getElementById('roleModal'),
+        modalTitle: document.getElementById('modalTitle'),
+        roleNameInput: document.getElementById('roleName'),
+        rolePromptInput: document.getElementById('rolePrompt'),
+        saveRoleBtn: document.getElementById('saveRoleBtn'),
+        cancelModalBtn: document.getElementById('cancelModalBtn'),
+        modelSelect: document.getElementById('modelSelect'),
+        themeToggle: document.getElementById('themeToggle'),
+        renameConvModal: document.getElementById('renameConvModal'),
+        newConvNameInput: document.getElementById('newConvName'),
+        confirmRenameBtn: document.getElementById('confirmRenameBtn'),
+        cancelRenameBtn: document.getElementById('cancelRenameBtn'),
+        roleSidebar: document.getElementById('roleSidebar'),
+        colorPickerBtn: document.getElementById('colorPickerBtn'),
+        colorDropdown: document.getElementById('colorDropdown'),
+        sidebarToggleBtn: document.getElementById('sidebarToggleBtn'),
+        editUserMsgModal: document.getElementById('editUserMsgModal'),
+        editUserMsgContent: document.getElementById('editUserMsgContent'),
+        confirmEditMsgBtn: document.getElementById('confirmEditMsgBtn'),
+        cancelEditMsgBtn: document.getElementById('cancelEditMsgBtn')
+    };
+
+    // 存储正在编辑的用户消息索引
+    let editingUserMessageIndex = null;
+
+    // ========== UI 管理模块 ==========
+    const UIManager = {
+        resetPagination() {
+            Pagination.currentPage = 1;
+        },
+        
+        adjustPaginationAfterDelete(totalMessages) {
+            const totalPages = Math.ceil(totalMessages / Config.PAGE_SIZE);
+            if (Pagination.currentPage > totalPages && totalPages > 0) {
+                Pagination.currentPage = totalPages;
+            } else if (totalPages === 0) {
+                Pagination.currentPage = 1;
+            }
+        },
+        
+        renderSidebar() {
+            DOM.roleListDiv.innerHTML = '';
+            for (let role of DataManager.roles) {
+                const roleCard = document.createElement('div');
+                roleCard.className = `role-card ${DataManager.currentRoleId === role.id ? 'active' : ''}`;
+                roleCard.innerHTML = `<div class="role-name">${escapeHtml(role.name)}<div class="role-actions"><button class="edit-role-btn" data-id="${role.id}">编辑</button><button class="delete-role-btn" data-id="${role.id}">删除</button></div></div><div class="role-preview">${escapeHtml(role.systemPrompt.substring(0, 45))}...</div>`;
+                roleCard.addEventListener('click', (e) => {
+                    if (e.target.tagName !== 'BUTTON') this.switchRole(role.id);
+                });
+                roleCard.querySelector('.edit-role-btn').addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    this.openEditRoleModal(role.id);
+                });
+                roleCard.querySelector('.delete-role-btn').addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    this.deleteRole(role.id);
+                });
+                const convSection = document.createElement('div');
+                convSection.className = 'conversation-section';
+                convSection.innerHTML = `<div class="section-title">💬 对话历史<button class="add-conv-btn" data-role="${role.id}">+ 新建</button></div><div class="conv-list" id="conv-list-${role.id}"></div>`;
+                roleCard.appendChild(convSection);
+                DOM.roleListDiv.appendChild(roleCard);
+                const convContainer = convSection.querySelector(`.conv-list`);
+                for (let conv of role.conversations) {
+                    const convItem = document.createElement('div');
+                    convItem.className = `conv-item ${DataManager.currentRoleId === role.id && DataManager.currentConversationId === conv.id ? 'active' : ''}`;
+                    convItem.innerHTML = `<span class="conv-name">${escapeHtml(conv.name)}</span><div class="conv-actions"><button class="rename-conv" data-role="${role.id}" data-conv="${conv.id}">✏️</button><button class="delete-conv" data-role="${role.id}" data-conv="${conv.id}">🗑️</button></div>`;
+                    convItem.addEventListener('click', (e) => {
+                        if (e.target.tagName !== 'BUTTON') this.switchConversation(role.id, conv.id);
+                    });
+                    convItem.querySelector('.rename-conv').addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        this.openRenameModal(role.id, conv.id);
+                    });
+                    convItem.querySelector('.delete-conv').addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        this.deleteConversation(role.id, conv.id);
+                    });
+                    convContainer.appendChild(convItem);
+                }
+                convSection.querySelector('.add-conv-btn').addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    this.addConversation(role.id);
+                });
+            }
+            const curRole = DataManager.getCurrentRole();
+            DOM.currentRoleBadge.innerText = curRole ? curRole.name : '无角色';
+        },
+        
+        switchRole(roleId) {
+            if (DataManager.currentRoleId === roleId) return;
+            DataManager.currentRoleId = roleId;
+            const role = DataManager.getCurrentRole();
+            DataManager.currentConversationId = role?.conversations[0]?.id || null;
+            DataManager.saveData();
+            this.resetPagination();
+            this.renderSidebar();
+            this.loadConversationToUI();
+        },
+        
+        switchConversation(roleId, convId) {
+            if (DataManager.currentRoleId !== roleId) DataManager.currentRoleId = roleId;
+            DataManager.currentConversationId = convId;
+            DataManager.saveData();
+            this.resetPagination();
+            this.renderSidebar();
+            this.loadConversationToUI();
+        },
+        
+        addConversation(roleId) {
+            const role = DataManager.roles.find(r => r.id === roleId);
+            if (role) {
+                const newConv = {
+                    id: DataManager.generateId(),
+                    name: '新对话',
+                    messages: [{
+                        role: 'assistant',
+                        content: `你好！我是${role.name}，开始对话吧～`,
+                        reasoning: null,
+                        regenerations: [],
+                        currentVersion: 0,
+                        reasoningCollapsed: false,
+                        timestamp: new Date().toISOString()
+                    }]
+                };
+                role.conversations.push(newConv);
+                DataManager.currentRoleId = roleId;
+                DataManager.currentConversationId = newConv.id;
+                DataManager.saveData();
+                this.resetPagination();
+                this.renderSidebar();
+                this.loadConversationToUI();
+            }
+        },
+        
+        openEditRoleModal(roleId) {
+            if (roleId === null) {
+                DOM.modalTitle.textContent = '新建角色';
+                DOM.roleNameInput.value = '';
+                DOM.rolePromptInput.value = '';
+                delete DOM.roleModal.dataset.roleId;
+                DOM.roleModal.style.display = 'flex';
+                return;
+            }
+            const role = DataManager.roles.find(r => r.id === roleId);
+            if (role) {
+                DOM.modalTitle.textContent = '编辑角色';
+                DOM.roleNameInput.value = role.name;
+                DOM.rolePromptInput.value = role.systemPrompt;
+                DOM.roleModal.dataset.roleId = roleId;
+                DOM.roleModal.style.display = 'flex';
+            }
+        },
+        
+        openRenameModal(roleId, convId) {
+            const role = DataManager.roles.find(r => r.id === roleId);
+            const conv = role?.conversations.find(c => c.id === convId);
+            if (conv) {
+                DOM.newConvNameInput.value = conv.name;
+                DOM.renameConvModal.dataset.roleId = roleId;
+                DOM.renameConvModal.dataset.convId = convId;
+                DOM.renameConvModal.style.display = 'flex';
+            }
+        },
+        
+        renameConversation() {
+            const roleId = DOM.renameConvModal.dataset.roleId;
+            const convId = DOM.renameConvModal.dataset.convId;
+            const newName = DOM.newConvNameInput.value.trim();
+            if (!newName) return;
+            const role = DataManager.roles.find(r => r.id === roleId);
+            if (role) {
+                const conv = role.conversations.find(c => c.id === convId);
+                if (conv) {
+                    conv.name = newName;
+                    DataManager.saveData();
+                    this.renderSidebar();
+                }
+            }
+            DOM.renameConvModal.style.display = 'none';
+        },
+        
+        deleteRole(roleId) {
+            if (confirm('确定要删除这个角色吗？')) {
+                const index = DataManager.roles.findIndex(r => r.id === roleId);
+                if (index !== -1) {
+                    DataManager.roles.splice(index, 1);
+                    if (DataManager.currentRoleId === roleId) {
+                        DataManager.currentRoleId = DataManager.roles.length ? DataManager.roles[0].id : null;
+                        if (DataManager.currentRoleId) {
+                            DataManager.currentConversationId = DataManager.roles[0].conversations[0]?.id || null;
+                        } else {
+                            DataManager.currentConversationId = null;
+                        }
+                    }
+                    DataManager.saveData();
+                    this.resetPagination();
+                    this.renderSidebar();
+                    this.loadConversationToUI();
+                }
+            }
+        },
+        
+        deleteConversation(roleId, convId) {
+            if (confirm('确定要删除这个对话吗？')) {
+                const role = DataManager.roles.find(r => r.id === roleId);
+                if (role) {
+                    const index = role.conversations.findIndex(c => c.id === convId);
+                    if (index !== -1) {
+                        role.conversations.splice(index, 1);
+                        if (DataManager.currentRoleId === roleId && DataManager.currentConversationId === convId) {
+                            DataManager.currentConversationId = role.conversations.length ? role.conversations[0].id : null;
+                        }
+                        DataManager.saveData();
+                        this.resetPagination();
+                        this.renderSidebar();
+                        this.loadConversationToUI();
+                    }
+                }
+            }
+        },
+        
+        saveRole() {
+            const name = DOM.roleNameInput.value.trim();
+            const prompt = DOM.rolePromptInput.value.trim();
+            if (!name || !prompt) { alert('请填写完整'); return; }
+            const roleId = DOM.roleModal.dataset.roleId;
+            if (roleId) {
+                const role = DataManager.roles.find(r => r.id === roleId);
+                if (role) {
+                    role.name = name;
+                    role.systemPrompt = prompt;
+                }
+            } else {
+                const newId = DataManager.generateId();
+                DataManager.roles.push({ id: newId, name, systemPrompt: prompt, conversations: [] });
+                DataManager.ensureDefaultRoles();
+            }
+            DataManager.saveData();
+            if (!DataManager.currentRoleId && DataManager.roles.length) {
+                DataManager.currentRoleId = DataManager.roles[0].id;
+            }
+            this.renderSidebar();
+            if (DataManager.currentRoleId) this.loadConversationToUI();
+            this.closeModal();
+        },
+        
+        closeModal() {
+            DOM.roleModal.style.display = 'none';
+            delete DOM.roleModal.dataset.roleId;
+        },
+        
+        loadTheme() {
+            const saved = localStorage.getItem('deepseek_theme');
+            if (saved === 'dark') {
+                document.body.classList.add('dark');
+                DOM.themeToggle.innerHTML = '☀️';
+            } else {
+                document.body.classList.remove('dark');
+                DOM.themeToggle.innerHTML = '🌙';
+            }
+        },
+        
+        toggleTheme() {
+            if (document.body.classList.contains('dark')) {
+                document.body.classList.remove('dark');
+                localStorage.setItem('deepseek_theme', 'light');
+                DOM.themeToggle.innerHTML = '🌙';
+            } else {
+                document.body.classList.add('dark');
+                localStorage.setItem('deepseek_theme', 'dark');
+                DOM.themeToggle.innerHTML = '☀️';
+            }
+            DataManager.loadUserColor();
+        },
+        
+        onModelChange() {
+            DataManager.currentModel = DOM.modelSelect.value;
+            DataManager.saveData();
+            this.addTempMessage('assistant', `模型已切换为 ${DataManager.currentModel === 'deepseek-chat' ? '快速回答' : '深度思考'}`);
+        },
+        
+        adjustTextareaHeight() {
+            DOM.messageInput.style.height = 'auto';
+            DOM.messageInput.style.height = Math.min(DOM.messageInput.scrollHeight, 200) + 'px';
+        },
+        
+        addTempMessage(role, content) {
+            const wrapper = document.createElement('div'); wrapper.className = 'message-wrapper';
+            const msgDiv = document.createElement('div'); msgDiv.className = role === 'user' ? 'user-message' : 'assistant-message'; msgDiv.innerText = content;
+            wrapper.appendChild(msgDiv); DOM.messagesArea.appendChild(wrapper); DOM.messagesArea.scrollTop = DOM.messagesArea.scrollHeight;
+            setTimeout(() => wrapper.remove(), 3000);
+        },
+        
+        toggleReasoning(assistantIndex) {
+            const conv = DataManager.getCurrentConversation(); if (!conv) return;
+            const msg = conv.messages[assistantIndex]; if (!msg || msg.role !== 'assistant') return;
+            msg.reasoningCollapsed = !msg.reasoningCollapsed;
+            DataManager.saveData();
+            this.loadConversationToUI();
+        },
+        
+        changeAssistantVersion(assistantIndex, delta) {
+            const conv = DataManager.getCurrentConversation(); if (!conv) return;
+            const assistantMsg = conv.messages[assistantIndex]; if (!assistantMsg || assistantMsg.role !== 'assistant') return;
+            const totalVers = assistantMsg.regenerations.length + 1;
+            let newVer = assistantMsg.currentVersion + delta;
+            if (newVer < 0) newVer = 0;
+            if (newVer >= totalVers) newVer = totalVers - 1;
+            if (newVer === assistantMsg.currentVersion) return;
+            assistantMsg.currentVersion = newVer;
+            DataManager.saveData();
+            this.loadConversationToUI();
+        },
+        
+        async regenerateAssistantResponse(assistantIndex) {
+            const conv = DataManager.getCurrentConversation(); const role = DataManager.getCurrentRole();
+            if (!conv || !role) return;
+            const assistantMsg = conv.messages[assistantIndex]; if (!assistantMsg || assistantMsg.role !== 'assistant') return;
+            const totalVers = assistantMsg.regenerations.length + 1;
+            if (totalVers >= Config.MAX_REGENERATIONS + 1) { alert(`已达到最大重新生成次数（${Config.MAX_REGENERATIONS}次）`); return; }
+            let userIndex = assistantIndex - 1;
+            if (userIndex < 0 || conv.messages[userIndex].role !== 'user') { alert('无法找到对应的用户消息'); return; }
+            const historyMessages = conv.messages.slice(0, userIndex + 1);
+            const systemMsg = { role: "system", content: role.systemPrompt };
+            const apiMessages = [systemMsg];
+            for (let msg of historyMessages) if (msg.role !== 'system') apiMessages.push({ role: msg.role, content: msg.content });
+            const requestBody = { model: DataManager.currentModel, messages: apiMessages, stream: false };
+            const loadingDiv = document.createElement('div'); loadingDiv.className = 'loading'; loadingDiv.innerText = '重新生成中...'; DOM.messagesArea.appendChild(loadingDiv); DOM.messagesArea.scrollTop = DOM.messagesArea.scrollHeight;
+            try {
+                const response = await fetch(Config.WORKER_URL, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-API-Key': Config.CUSTOM_SECRET }, body: JSON.stringify(requestBody) });
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                const data = await response.json();
+                const newContent = data.choices[0].message.content;
+                let newReasoning = null;
+                if (DataManager.currentModel === 'deepseek-reasoner' && data.choices[0].message.reasoning_content) newReasoning = data.choices[0].message.reasoning_content;
+                assistantMsg.regenerations.push({ content: assistantMsg.content, reasoning: assistantMsg.reasoning, timestamp: Date.now() });
+                assistantMsg.content = newContent; assistantMsg.reasoning = newReasoning;
+                assistantMsg.currentVersion = assistantMsg.regenerations.length; // 自动显示最新版本
+                DataManager.saveData(); this.loadConversationToUI();
+            } catch (err) { alert(`重新生成失败: ${err.message}`); } finally { loadingDiv.remove(); }
+        },
+        
+        showRegenerationHistory(assistantIndex) {
+            const conv = DataManager.getCurrentConversation(); if (!conv) return;
+            const assistantMsg = conv.messages[assistantIndex]; if (!assistantMsg || assistantMsg.role !== 'assistant') return;
+            const regens = assistantMsg.regenerations || [];
+            if (regens.length === 0) { alert('没有生成历史记录'); return; }
+            let historyHTML = '<div class="regeneration-history">';
+            regens.forEach((regen, idx) => { const date = new Date(regen.timestamp); const timeStr = `${date.toLocaleDateString()} ${date.toLocaleTimeString()}`; historyHTML += `<div class="regen-item" data-version="${idx}"><div class="regen-time">版本 ${idx+1} · ${timeStr}</div><div class="regen-content">${escapeHtml(regen.content)}</div>${regen.reasoning ? `<div class="regen-reasoning">${escapeHtml(regen.reasoning)}</div>` : ''}</div>`; });
+            historyHTML += '</div>';
+            const modal = document.createElement('div'); modal.className = 'modal'; modal.style.display = 'flex';
+            modal.innerHTML = `<div class="modal-content"><div class="modal-header"><h2>生成历史（点击恢复）</h2><button class="modal-close">&times;</button></div><div class="modal-body">${historyHTML}</div></div>`;
+            document.body.appendChild(modal);
+            modal.querySelector('.modal-close').onclick = () => modal.remove();
+            modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+            modal.querySelectorAll('.regen-item').forEach(item => { item.addEventListener('click', () => { const version = parseInt(item.dataset.version); const selected = regens[version]; if (selected) { assistantMsg.content = selected.content; assistantMsg.reasoning = selected.reasoning; assistantMsg.currentVersion = version + 1; DataManager.saveData(); this.loadConversationToUI(); modal.remove(); } }); });
+        },
+        
+        // 使用自定义模态框编辑用户消息
+        openEditUserMessageModal(userIndex) {
+            const conv = DataManager.getCurrentConversation();
+            if (!conv) return;
+            const userMsg = conv.messages[userIndex];
+            if (!userMsg || userMsg.role !== 'user') return;
+            editingUserMessageIndex = userIndex;
+            DOM.editUserMsgContent.value = userMsg.content;
+            DOM.editUserMsgModal.style.display = 'flex';
+        },
+        
+        async confirmEditUserMessage() {
+            const newContent = DOM.editUserMsgContent.value.trim();
+            if (!newContent) {
+                alert('消息内容不能为空');
+                return;
+            }
+            const conv = DataManager.getCurrentConversation();
+            if (!conv || editingUserMessageIndex === null) return;
+            const userMsg = conv.messages[editingUserMessageIndex];
+            if (!userMsg || userMsg.role !== 'user') return;
+            userMsg.content = newContent;
+            // 删除该用户消息之后的所有消息（通常是一条助手回复）
+            conv.messages = conv.messages.slice(0, editingUserMessageIndex + 1);
+            DataManager.saveData();
+            this.loadConversationToUI();
+            // 自动重新生成回复
+            await this.regenerateAfterEdit(editingUserMessageIndex);
+            DOM.editUserMsgModal.style.display = 'none';
+            editingUserMessageIndex = null;
+        },
+        
+        closeEditUserModal() {
+            DOM.editUserMsgModal.style.display = 'none';
+            editingUserMessageIndex = null;
+        },
+        
+        async regenerateAfterEdit(userIndex) {
+            const conv = DataManager.getCurrentConversation(); const role = DataManager.getCurrentRole();
+            if (!conv || !role) return;
+            const historyMessages = conv.messages.slice(0, userIndex + 1);
+            const systemMsg = { role: "system", content: role.systemPrompt };
+            const apiMessages = [systemMsg];
+            for (let msg of historyMessages) if (msg.role !== 'system') apiMessages.push({ role: msg.role, content: msg.content });
+            const requestBody = { model: DataManager.currentModel, messages: apiMessages, stream: false };
+            const loadingDiv = document.createElement('div'); loadingDiv.className = 'loading'; loadingDiv.innerText = 'AI 重新生成中...'; DOM.messagesArea.appendChild(loadingDiv); DOM.messagesArea.scrollTop = DOM.messagesArea.scrollHeight;
+            try {
+                const response = await fetch(Config.WORKER_URL, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-API-Key': Config.CUSTOM_SECRET }, body: JSON.stringify(requestBody) });
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                const data = await response.json();
+                const assistantReply = data.choices[0].message.content;
+                let reasoning = null;
+                if (DataManager.currentModel === 'deepseek-reasoner' && data.choices[0].message.reasoning_content) reasoning = data.choices[0].message.reasoning_content;
+                conv.messages.push({ role: 'assistant', content: assistantReply, reasoning: reasoning, regenerations: [], currentVersion: 0, reasoningCollapsed: false, timestamp: new Date().toISOString() });
+                DataManager.saveData(); this.loadConversationToUI();
+            } catch (err) { alert(`生成失败: ${err.message}`); } finally { loadingDiv.remove(); }
+        },
+        
+        deleteUserMessageAndAssistant(userIndex) {
+            if (!confirm('确定删除这条消息及其回复吗？')) return;
+            const conv = DataManager.getCurrentConversation(); if (!conv) return;
+            if (userIndex + 1 < conv.messages.length && conv.messages[userIndex+1].role === 'assistant') conv.messages.splice(userIndex, 2);
+            else conv.messages.splice(userIndex, 1);
+            this.adjustPaginationAfterDelete(conv.messages.length);
+            DataManager.saveData(); this.loadConversationToUI();
+        },
+        
+        async sendMessage(userMessage) {
+            const role = DataManager.getCurrentRole(); if (!role) { this.addTempMessage('assistant', '请先选择一个角色'); return; }
+            let conv = DataManager.getCurrentConversation(); if (!conv) { this.addConversation(DataManager.currentRoleId); conv = DataManager.getCurrentConversation(); }
+            const historyMessages = [];
+            for (let msg of conv.messages) {
+                if (msg.role === 'user') historyMessages.push({ role: 'user', content: msg.content });
+                else if (msg.role === 'assistant') {
+                    const content = (msg.currentVersion === 0) ? msg.content : (msg.regenerations[msg.currentVersion-1]?.content || msg.content);
+                    historyMessages.push({ role: 'assistant', content: content });
+                }
+            }
+            const systemMsg = { role: "system", content: role.systemPrompt };
+            const apiMessages = [systemMsg, ...historyMessages, { role: "user", content: userMessage }];
+            const requestBody = { model: DataManager.currentModel, messages: apiMessages, stream: false };
+            conv.messages.push({ role: 'user', content: userMessage, timestamp: new Date().toISOString() });
+            DataManager.saveData(); 
+            const totalMessages = conv.messages.length;
+            const totalPages = Math.ceil(totalMessages / Config.PAGE_SIZE);
+            Pagination.currentPage = totalPages;
+            this.loadConversationToUI();
+            const loadingDiv = document.createElement('div'); loadingDiv.className = 'loading'; loadingDiv.innerText = 'AI 思考中...'; DOM.messagesArea.appendChild(loadingDiv); DOM.messagesArea.scrollTop = DOM.messagesArea.scrollHeight;
+            try {
+                const response = await fetch(Config.WORKER_URL, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-API-Key': Config.CUSTOM_SECRET }, body: JSON.stringify(requestBody) });
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                const data = await response.json();
+                const assistantReply = data.choices[0].message.content;
+                let reasoning = null;
+                if (DataManager.currentModel === 'deepseek-reasoner' && data.choices[0].message.reasoning_content) reasoning = data.choices[0].message.reasoning_content;
+                conv.messages.push({ role: 'assistant', content: assistantReply, reasoning: reasoning, regenerations: [], currentVersion: 0, reasoningCollapsed: false, timestamp: new Date().toISOString() });
+                DataManager.saveData(); 
+                const newTotal = conv.messages.length;
+                const newPages = Math.ceil(newTotal / Config.PAGE_SIZE);
+                Pagination.currentPage = newPages;
+                this.loadConversationToUI();
+            } catch (err) {
+                conv.messages.pop(); DataManager.saveData(); 
+                const afterPopTotal = conv.messages.length;
+                const afterPopPages = Math.ceil(afterPopTotal / Config.PAGE_SIZE);
+                Pagination.currentPage = afterPopPages > 0 ? afterPopPages : 1;
+                this.loadConversationToUI();
+                this.addTempMessage('assistant', `❌ 请求失败: ${err.message}\n请检查 Worker 地址或暗号。`);
+            } finally { loadingDiv.remove(); }
+        },
+        
+        loadConversationToUI() {
+            DOM.messagesArea.innerHTML = '';
+            const conv = DataManager.getCurrentConversation();
+            if (!conv || !conv.messages || conv.messages.length === 0) {
+                DOM.messagesArea.innerHTML = '<div class="assistant-message">选择一个会话开始对话～</div>';
+                return;
+            }
+            const messages = conv.messages;
+            const totalMessages = messages.length;
+            const totalPages = Math.ceil(totalMessages / Config.PAGE_SIZE);
+            if (Pagination.currentPage < 1) Pagination.currentPage = 1;
+            if (Pagination.currentPage > totalPages && totalPages > 0) Pagination.currentPage = totalPages;
+            const startIndex = (Pagination.currentPage - 1) * Config.PAGE_SIZE;
+            const endIndex = Math.min(startIndex + Config.PAGE_SIZE, totalMessages);
+            for (let i = startIndex; i < endIndex; i++) {
+                const msg = messages[i];
+                const wrapper = document.createElement('div'); wrapper.className = 'message-wrapper';
+                if (msg.role === 'user') {
+                    const userDiv = document.createElement('div'); userDiv.className = 'user-message'; userDiv.innerText = msg.content; wrapper.appendChild(userDiv);
+                    if (msg.timestamp) {
+                        const timeDiv = document.createElement('div'); timeDiv.className = 'message-timestamp'; timeDiv.innerText = new Date(msg.timestamp).toLocaleTimeString(); wrapper.appendChild(timeDiv);
+                    }
+                    const isLastUser = (i === messages.length - 1 || (i+1 < messages.length && messages[i+1].role === 'assistant' && i === messages.length-2));
+                    if (isLastUser) {
+                        const actions = document.createElement('div'); actions.className = 'user-actions';
+                        const editBtn = document.createElement('button'); editBtn.className = 'action-btn'; editBtn.innerHTML = '✏️'; editBtn.title = '编辑并重新生成'; editBtn.onclick = () => this.openEditUserMessageModal(i);
+                        const delBtn = document.createElement('button'); delBtn.className = 'action-btn'; delBtn.innerHTML = '🗑️'; delBtn.title = '删除'; delBtn.onclick = () => this.deleteUserMessageAndAssistant(i);
+                        actions.appendChild(editBtn); actions.appendChild(delBtn); wrapper.appendChild(actions);
+                    }
+                } else if (msg.role === 'assistant') {
+                    if (!msg.regenerations) msg.regenerations = [];
+                    if (msg.currentVersion === undefined) msg.currentVersion = 0;
+                    const currentVer = msg.currentVersion;
+                    const totalVers = msg.regenerations.length + 1;
+                    const currentContent = (currentVer === 0) ? msg.content : (msg.regenerations[currentVer-1]?.content || msg.content);
+                    const currentReasoning = (currentVer === 0) ? msg.reasoning : (msg.regenerations[currentVer-1]?.reasoning || null);
+                    if (currentReasoning) {
+                        const reasoningWrapper = document.createElement('div'); reasoningWrapper.className = 'reasoning-wrapper';
+                        const header = document.createElement('div'); header.className = 'reasoning-header';
+                        const toggleBtn = document.createElement('button'); toggleBtn.className = 'reasoning-toggle'; toggleBtn.innerHTML = msg.reasoningCollapsed ? '▶' : '▼'; toggleBtn.onclick = () => this.toggleReasoning(i);
+                        const hintSpan = document.createElement('span'); hintSpan.style.fontSize = '0.7rem'; hintSpan.style.color = 'var(--text-secondary)'; hintSpan.innerText = '深度思考';
+                        header.appendChild(toggleBtn); header.appendChild(hintSpan);
+                        const contentDiv = document.createElement('div'); contentDiv.className = `reasoning-content ${msg.reasoningCollapsed ? 'collapsed' : ''}`; contentDiv.innerText = currentReasoning;
+                        reasoningWrapper.appendChild(header); reasoningWrapper.appendChild(contentDiv);
+                        wrapper.appendChild(reasoningWrapper);
+                    }
+                    const mainDiv = document.createElement('div'); mainDiv.className = 'main-content'; mainDiv.innerText = currentContent; wrapper.appendChild(mainDiv);
+                    if (msg.timestamp) {
+                        const timeDiv = document.createElement('div'); timeDiv.className = 'message-timestamp'; timeDiv.innerText = new Date(msg.timestamp).toLocaleTimeString(); wrapper.appendChild(timeDiv);
+                    }
+                    const isLastAssistant = (i === messages.length - 1);
+                    if (isLastAssistant) {
+                        const actionsDiv = document.createElement('div'); actionsDiv.className = 'assistant-actions';
+                        if (totalVers > 1) {
+                            const versionContainer = document.createElement('div'); versionContainer.className = 'version-control';
+                            const prevBtn = document.createElement('button'); prevBtn.innerHTML = '◀'; prevBtn.onclick = () => this.changeAssistantVersion(i, -1);
+                            const versionSpan = document.createElement('span'); versionSpan.innerText = `${currentVer+1}/${totalVers}`;
+                            const nextBtn = document.createElement('button'); nextBtn.innerHTML = '▶'; nextBtn.onclick = () => this.changeAssistantVersion(i, 1);
+                            versionContainer.appendChild(prevBtn); versionContainer.appendChild(versionSpan); versionContainer.appendChild(nextBtn);
+                            actionsDiv.appendChild(versionContainer);
+                        } else { const versionSpan = document.createElement('span'); versionSpan.className = 'version-control'; versionSpan.innerText = '1/1'; actionsDiv.appendChild(versionSpan); }
+                        const regenBtn = document.createElement('button'); regenBtn.className = 'action-btn'; regenBtn.innerHTML = '🔄'; regenBtn.title = '重新生成'; regenBtn.onclick = () => this.regenerateAssistantResponse(i);
+                        const historyBtn = document.createElement('button'); historyBtn.className = 'action-btn'; historyBtn.innerHTML = '📋'; historyBtn.title = '历史版本'; historyBtn.onclick = () => this.showRegenerationHistory(i);
+                        actionsDiv.appendChild(regenBtn); actionsDiv.appendChild(historyBtn);
+                        wrapper.appendChild(actionsDiv);
+                    }
+                }
+                DOM.messagesArea.appendChild(wrapper);
+            }
+            if (totalPages > 1) this.renderPaginationControls(totalPages);
+            DOM.messagesArea.scrollTop = DOM.messagesArea.scrollHeight;
+        },
+        
+        renderPaginationControls(totalPages) {
+            const paginationDiv = document.createElement('div');
+            paginationDiv.className = 'pagination-controls';
+            const prevBtn = document.createElement('button');
+            prevBtn.className = 'pagination-btn';
+            prevBtn.innerHTML = '上一页';
+            prevBtn.disabled = Pagination.currentPage === 1;
+            prevBtn.onclick = () => {
+                if (Pagination.currentPage > 1) {
+                    Pagination.currentPage--;
+                    this.loadConversationToUI();
+                }
+            };
+            paginationDiv.appendChild(prevBtn);
+            const pageInfo = document.createElement('span');
+            pageInfo.className = 'page-info';
+            pageInfo.innerText = `${Pagination.currentPage}/${totalPages}`;
+            paginationDiv.appendChild(pageInfo);
+            const nextBtn = document.createElement('button');
+            nextBtn.className = 'pagination-btn';
+            nextBtn.innerHTML = '下一页';
+            nextBtn.disabled = Pagination.currentPage === totalPages;
+            nextBtn.onclick = () => {
+                if (Pagination.currentPage < totalPages) {
+                    Pagination.currentPage++;
+                    this.loadConversationToUI();
+                }
+            };
+            paginationDiv.appendChild(nextBtn);
+            DOM.messagesArea.appendChild(paginationDiv);
+        }
+    };
+
+    // ========== 事件绑定 ==========
+    DOM.messageInput.addEventListener('input', () => UIManager.adjustTextareaHeight());
+    DOM.messageInput.addEventListener('keydown', function(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); DOM.sendBtn.click(); } });
+
+    DOM.colorPickerBtn.addEventListener('click', (e) => { e.stopPropagation(); DOM.colorDropdown.classList.toggle('show'); });
+    document.addEventListener('click', (e) => { if (!DOM.colorPickerBtn.contains(e.target) && !DOM.colorDropdown.contains(e.target)) DOM.colorDropdown.classList.remove('show'); });
+    document.querySelectorAll('.color-option').forEach(opt => { opt.addEventListener('click', () => { const color = opt.dataset.color; DataManager.setUserColor(color); DOM.colorDropdown.classList.remove('show'); }); });
+
+    DOM.sendBtn.addEventListener('click', async () => { const text = DOM.messageInput.value.trim(); if (!text) return; DOM.messageInput.value = ''; UIManager.adjustTextareaHeight(); await UIManager.sendMessage(text); });
+    DOM.addRoleBtn.addEventListener('click', () => UIManager.openEditRoleModal(null));
+    DOM.saveRoleBtn.addEventListener('click', () => UIManager.saveRole());
+    DOM.cancelModalBtn.addEventListener('click', () => UIManager.closeModal());
+    DOM.roleModal.addEventListener('click', (e) => { if (e.target === DOM.roleModal) UIManager.closeModal(); });
+    DOM.modelSelect.addEventListener('change', () => UIManager.onModelChange());
+    DOM.themeToggle.addEventListener('click', () => UIManager.toggleTheme());
+    DOM.confirmRenameBtn.addEventListener('click', () => UIManager.renameConversation());
+    DOM.cancelRenameBtn.addEventListener('click', () => DOM.renameConvModal.style.display = 'none');
+    DOM.renameConvModal.addEventListener('click', (e) => { if (e.target === DOM.renameConvModal) DOM.renameConvModal.style.display = 'none'; });
+    DOM.sidebarToggleBtn.addEventListener('click', () => DataManager.toggleSidebar());
+    
+    // 编辑用户消息模态框事件
+    DOM.confirmEditMsgBtn.addEventListener('click', () => UIManager.confirmEditUserMessage());
+    DOM.cancelEditMsgBtn.addEventListener('click', () => UIManager.closeEditUserModal());
+    DOM.editUserMsgModal.addEventListener('click', (e) => { if (e.target === DOM.editUserMsgModal) UIManager.closeEditUserModal(); });
+
+    // ========== 初始化 ==========
+    DataManager.loadData();
+    UIManager.loadTheme();
+    DataManager.loadSidebarState();
+    DataManager.loadUserColor();
+    UIManager.renderSidebar();
+    UIManager.loadConversationToUI();
+</script>
+</body>
+</html>
