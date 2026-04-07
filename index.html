@@ -46,26 +46,12 @@
             --badge-bg: #2a2a3a;
             --modal-bg: #2a2a3a;
             --modal-overlay: rgba(0,0,0,0.7);
-            --user-msg-text: #e0e0e0;
+            --user-msg-text: #363535;
             --scrollbar-thumb: #4a4a5a;
             --scrollbar-track: #2a2a3a;
             --reasoning-border: #555;
             --input-area-bg: #1e1e2a;
         }
-
-        /* 用户消息颜色主题 */
-        body.user-color-blue { --user-msg-bg: #e1e9fa; }
-        body.dark.user-color-blue { --user-msg-bg: #2a3a5a; }
-        body.user-color-green { --user-msg-bg: #e0f2e9; }
-        body.dark.user-color-green { --user-msg-bg: #2a4a3a; }
-        body.user-color-orange { --user-msg-bg: #ffe0cc; }
-        body.dark.user-color-orange { --user-msg-bg: #5a3a2a; }
-        body.user-color-purple { --user-msg-bg: #f0e6ff; }
-        body.dark.user-color-purple { --user-msg-bg: #3a2a5a; }
-        body.user-color-pink { --user-msg-bg: #ffe6f0; }
-        body.dark.user-color-pink { --user-msg-bg: #5a2a3a; }
-        body.user-color-gray { --user-msg-bg: #f0f0f0; }
-        body.dark.user-color-gray { --user-msg-bg: #3a3a4a; }
 
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -296,7 +282,7 @@
             color: var(--text-primary);
             touch-action: manipulation;
             width: 100px;
-            height: 44px;          /* 与按钮高度一致 */
+            height: 44px;
             line-height: 44px;
             cursor: pointer;
             appearance: none;
@@ -304,7 +290,7 @@
             text-align: center;
             text-align-last: center;
         }
-        .theme-toggle, .sidebar-toggle-btn, .color-btn {
+        .theme-toggle, .sidebar-toggle-btn {
             background: var(--badge-bg);
             border: 1px solid var(--input-border);
             border-radius: 30px;
@@ -318,31 +304,6 @@
             touch-action: manipulation;
             flex-shrink: 0;
         }
-        .color-picker { position: relative; flex-shrink: 0; }
-        .color-dropdown {
-            display: none;
-            position: absolute;
-            top: 48px;
-            right: 0;
-            background: var(--modal-bg);
-            border: 1px solid var(--border-light);
-            border-radius: 20px;
-            padding: 8px;
-            z-index: 100;
-            gap: 8px;
-            flex-wrap: wrap;
-            width: 180px;
-        }
-        .color-dropdown.show { display: flex; }
-        .color-option {
-            width: 36px;
-            height: 36px;
-            border-radius: 50%;
-            cursor: pointer;
-            border: 2px solid transparent;
-            touch-action: manipulation;
-        }
-        .color-option.active { border-color: var(--text-primary); }
 
         .messages-area {
             flex: 1;
@@ -534,7 +495,7 @@
             max-height: 200px;
             font-family: inherit;
         }
-        button, .action-btn, .add-role-btn, .add-conv-btn, .role-actions button, .conv-actions button, .color-btn, .theme-toggle, .sidebar-toggle-btn {
+        button, .action-btn, .add-role-btn, .add-conv-btn, .role-actions button, .conv-actions button, .theme-toggle, .sidebar-toggle-btn {
             touch-action: manipulation;
         }
         #sendBtn {
@@ -619,7 +580,7 @@
             .version-control button { padding: 4px 8px; }
             .pagination-btn { min-width: 50px; padding: 4px 8px; }
             .header-right { gap: 6px; }
-            .theme-toggle, .sidebar-toggle-btn, .color-btn {
+            .theme-toggle, .sidebar-toggle-btn {
                 width: 40px;
                 height: 40px;
                 font-size: 1rem;
@@ -659,17 +620,6 @@
                 </div>
                 <button class="theme-toggle" id="themeToggle">🌙</button>
                 <button class="sidebar-toggle-btn" id="sidebarToggleBtn">🎭</button>
-                <div class="color-picker">
-                    <button class="color-btn" id="colorPickerBtn">🎨</button>
-                    <div class="color-dropdown" id="colorDropdown">
-                        <div class="color-option" data-color="blue" style="background: #e1e9fa; border: 1px solid #aaa;"></div>
-                        <div class="color-option" data-color="green" style="background: #e0f2e9;"></div>
-                        <div class="color-option" data-color="orange" style="background: #ffe0cc;"></div>
-                        <div class="color-option" data-color="purple" style="background: #f0e6ff;"></div>
-                        <div class="color-option" data-color="pink" style="background: #ffe6f0;"></div>
-                        <div class="color-option" data-color="gray" style="background: #f0f0f0;"></div>
-                    </div>
-                </div>
             </div>
         </div>
         <div class="messages-area" id="messagesArea">
@@ -730,7 +680,6 @@
         currentConversationId: null,
         currentModel: 'deepseek-chat',
         sidebarOpen: false,
-        userColor: 'blue',
         
         generateId() {
             return crypto.randomUUID ? crypto.randomUUID() : Date.now() + '-' + Math.random();
@@ -849,22 +798,6 @@
                 sidebarToggleBtn.innerHTML = '🎭';
             }
             localStorage.setItem('sidebar_open', this.sidebarOpen);
-        },
-        
-        loadUserColor() {
-            this.userColor = localStorage.getItem('user_msg_color') || 'blue';
-            document.body.classList.remove('user-color-blue', 'user-color-green', 'user-color-orange', 'user-color-purple', 'user-color-pink', 'user-color-gray');
-            document.body.classList.add(`user-color-${this.userColor}`);
-            document.querySelectorAll('.color-option').forEach(opt => {
-                opt.classList.remove('active');
-                if (opt.dataset.color === this.userColor) opt.classList.add('active');
-            });
-        },
-        
-        setUserColor(color) {
-            this.userColor = color;
-            localStorage.setItem('user_msg_color', color);
-            this.loadUserColor();
         }
     };
 
@@ -889,8 +822,6 @@
         confirmRenameBtn: document.getElementById('confirmRenameBtn'),
         cancelRenameBtn: document.getElementById('cancelRenameBtn'),
         roleSidebar: document.getElementById('roleSidebar'),
-        colorPickerBtn: document.getElementById('colorPickerBtn'),
-        colorDropdown: document.getElementById('colorDropdown'),
         sidebarToggleBtn: document.getElementById('sidebarToggleBtn'),
         editUserMsgModal: document.getElementById('editUserMsgModal'),
         editUserMsgContent: document.getElementById('editUserMsgContent'),
@@ -1149,7 +1080,6 @@
                 localStorage.setItem('deepseek_theme', 'dark');
                 DOM.themeToggle.innerHTML = '☀️';
             }
-            DataManager.loadUserColor();
         },
         
         onModelChange() {
@@ -1395,28 +1325,10 @@
 
     DOM.sidebarToggleBtn.addEventListener('click', DataManager.toggleSidebar.bind(DataManager));
 
-    DOM.colorPickerBtn.addEventListener('click', () => {
-        DOM.colorDropdown.classList.toggle('show');
-    });
-
+    // 点击页面其他地方关闭侧边栏
     document.addEventListener('click', (e) => {
-        if (!DOM.colorPickerBtn.contains(e.target) && !DOM.colorDropdown.contains(e.target)) {
-            DOM.colorDropdown.classList.remove('show');
-        }
         if (DataManager.sidebarOpen && !DOM.roleSidebar.contains(e.target) && !DOM.sidebarToggleBtn.contains(e.target)) {
             DataManager.toggleSidebar();
-        }
-    });
-
-    // 使用事件委托监听颜色下拉菜单内的点击
-    DOM.colorDropdown.addEventListener('click', (e) => {
-        const option = e.target.closest('.color-option');
-        if (option) {
-            const color = option.dataset.color;
-            if (color) {
-                DataManager.setUserColor(color);
-                DOM.colorDropdown.classList.remove('show'); // 选择后自动关闭下拉菜单
-            }
         }
     });
 
@@ -1457,7 +1369,6 @@
     // 初始化
     DataManager.loadData();
     DataManager.loadSidebarState();
-    DataManager.loadUserColor();
     UIManager.loadTheme();
     UIManager.renderSidebar();
     UIManager.loadConversationToUI();
