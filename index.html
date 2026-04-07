@@ -643,6 +643,13 @@
                 <span class="current-role-badge" id="currentRoleBadge">未选择</span>
             </div>
             <div class="header-right">
+                <div class="model-selector">
+                    <span>🧠</span>
+                    <select id="modelSelect">
+                        <option value="deepseek-chat">快速回答</option>
+                        <option value="deepseek-reasoner">深度思考</option>
+                    </select>
+                </div>
                 <button class="theme-toggle" id="themeToggle">🌙</button>
                 <button class="sidebar-toggle-btn" id="sidebarToggleBtn">🎭</button>
                 <div class="color-picker">
@@ -655,13 +662,6 @@
                         <div class="color-option" data-color="pink" style="background: #ffe6f0;"></div>
                         <div class="color-option" data-color="gray" style="background: #f0f0f0;"></div>
                     </div>
-                </div>
-                <div class="model-selector">
-                    <span>🧠</span>
-                    <select id="modelSelect">
-                        <option value="deepseek-chat">快速回答</option>
-                        <option value="deepseek-reasoner">深度思考</option>
-                    </select>
                 </div>
             </div>
         </div>
@@ -1225,256 +1225,212 @@
             document.body.appendChild(modal);
             modal.querySelector('.modal-close').onclick = () => modal.remove();
             modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
-            modal.querySelectorAll('.regen-item').forEach(item => { item.addEventListener('click', () => { const version = parseInt(item.dataset.version); const selected = regens[version]; if (selected) { assistantMsg.content = selected.content; assistantMsg.reasoning = selected.reasoning; assistantMsg.currentVersion = version + 1; DataManager.saveData(); this.loadConversationToUI(); modal.remove(); } }); });
-        },
-        
-        // 使用自定义模态框编辑用户消息
-        openEditUserMessageModal(userIndex) {
-            const conv = DataManager.getCurrentConversation();
-            if (!conv) return;
-            const userMsg = conv.messages[userIndex];
-            if (!userMsg || userMsg.role !== 'user') return;
-            editingUserMessageIndex = userIndex;
-            DOM.editUserMsgContent.value = userMsg.content;
-            DOM.editUserMsgModal.style.display = 'flex';
-        },
-        
-        async confirmEditUserMessage() {
-            const newContent = DOM.editUserMsgContent.value.trim();
-            if (!newContent) {
-                alert('消息内容不能为空');
-                return;
-            }
-            const conv = DataManager.getCurrentConversation();
-            if (!conv || editingUserMessageIndex === null) return;
-            const userMsg = conv.messages[editingUserMessageIndex];
-            if (!userMsg || userMsg.role !== 'user') return;
-            userMsg.content = newContent;
-            // 删除该用户消息之后的所有消息（通常是一条助手回复）
-            conv.messages = conv.messages.slice(0, editingUserMessageIndex + 1);
-            DataManager.saveData();
-            this.loadConversationToUI();
-            // 自动重新生成回复
-            await this.regenerateAfterEdit(editingUserMessageIndex);
-            DOM.editUserMsgModal.style.display = 'none';
-            editingUserMessageIndex = null;
-        },
-        
-        closeEditUserModal() {
-            DOM.editUserMsgModal.style.display = 'none';
-            editingUserMessageIndex = null;
-        },
-        
-        async regenerateAfterEdit(userIndex) {
-            const conv = DataManager.getCurrentConversation(); const role = DataManager.getCurrentRole();
-            if (!conv || !role) return;
-            const historyMessages = conv.messages.slice(0, userIndex + 1);
-            const systemMsg = { role: "system", content: role.systemPrompt };
-            const apiMessages = [systemMsg];
-            for (let msg of historyMessages) if (msg.role !== 'system') apiMessages.push({ role: msg.role, content: msg.content });
-            const requestBody = { model: DataManager.currentModel, messages: apiMessages, stream: false };
-            const loadingDiv = document.createElement('div'); loadingDiv.className = 'loading'; loadingDiv.innerText = 'AI 重新生成中...'; DOM.messagesArea.appendChild(loadingDiv); DOM.messagesArea.scrollTop = DOM.messagesArea.scrollHeight;
-            try {
-                const response = await fetch(Config.WORKER_URL, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-API-Key': Config.CUSTOM_SECRET }, body: JSON.stringify(requestBody) });
-                if (!response.ok) throw new Error(`HTTP ${response.status}`);
-                const data = await response.json();
-                const assistantReply = data.choices[0].message.content;
-                let reasoning = null;
-                if (DataManager.currentModel === 'deepseek-reasoner' && data.choices[0].message.reasoning_content) reasoning = data.choices[0].message.reasoning_content;
-                conv.messages.push({ role: 'assistant', content: assistantReply, reasoning: reasoning, regenerations: [], currentVersion: 0, reasoningCollapsed: false, timestamp: new Date().toISOString() });
-                DataManager.saveData(); this.loadConversationToUI();
-            } catch (err) { alert(`生成失败: ${err.message}`); } finally { loadingDiv.remove(); }
-        },
-        
-        deleteUserMessageAndAssistant(userIndex) {
-            if (!confirm('确定删除这条消息及其回复吗？')) return;
-            const conv = DataManager.getCurrentConversation(); if (!conv) return;
-            if (userIndex + 1 < conv.messages.length && conv.messages[userIndex+1].role === 'assistant') conv.messages.splice(userIndex, 2);
-            else conv.messages.splice(userIndex, 1);
-            this.adjustPaginationAfterDelete(conv.messages.length);
-            DataManager.saveData(); this.loadConversationToUI();
-        },
-        
-        async sendMessage(userMessage) {
-            const role = DataManager.getCurrentRole(); if (!role) { this.addTempMessage('assistant', '请先选择一个角色'); return; }
-            let conv = DataManager.getCurrentConversation(); if (!conv) { this.addConversation(DataManager.currentRoleId); conv = DataManager.getCurrentConversation(); }
-            const historyMessages = [];
-            for (let msg of conv.messages) {
-                if (msg.role === 'user') historyMessages.push({ role: 'user', content: msg.content });
-                else if (msg.role === 'assistant') {
-                    const content = (msg.currentVersion === 0) ? msg.content : (msg.regenerations[msg.currentVersion-1]?.content || msg.content);
-                    historyMessages.push({ role: 'assistant', content: content });
-                }
-            }
-            const systemMsg = { role: "system", content: role.systemPrompt };
-            const apiMessages = [systemMsg, ...historyMessages, { role: "user", content: userMessage }];
-            const requestBody = { model: DataManager.currentModel, messages: apiMessages, stream: false };
-            conv.messages.push({ role: 'user', content: userMessage, timestamp: new Date().toISOString() });
-            DataManager.saveData(); 
-            const totalMessages = conv.messages.length;
-            const totalPages = Math.ceil(totalMessages / Config.PAGE_SIZE);
-            Pagination.currentPage = totalPages;
-            this.loadConversationToUI();
-            const loadingDiv = document.createElement('div'); loadingDiv.className = 'loading'; loadingDiv.innerText = 'AI 思考中...'; DOM.messagesArea.appendChild(loadingDiv); DOM.messagesArea.scrollTop = DOM.messagesArea.scrollHeight;
-            try {
-                const response = await fetch(Config.WORKER_URL, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-API-Key': Config.CUSTOM_SECRET }, body: JSON.stringify(requestBody) });
-                if (!response.ok) throw new Error(`HTTP ${response.status}`);
-                const data = await response.json();
-                const assistantReply = data.choices[0].message.content;
-                let reasoning = null;
-                if (DataManager.currentModel === 'deepseek-reasoner' && data.choices[0].message.reasoning_content) reasoning = data.choices[0].message.reasoning_content;
-                conv.messages.push({ role: 'assistant', content: assistantReply, reasoning: reasoning, regenerations: [], currentVersion: 0, reasoningCollapsed: false, timestamp: new Date().toISOString() });
-                DataManager.saveData(); 
-                const newTotal = conv.messages.length;
-                const newPages = Math.ceil(newTotal / Config.PAGE_SIZE);
-                Pagination.currentPage = newPages;
-                this.loadConversationToUI();
-            } catch (err) {
-                conv.messages.pop(); DataManager.saveData(); 
-                const afterPopTotal = conv.messages.length;
-                const afterPopPages = Math.ceil(afterPopTotal / Config.PAGE_SIZE);
-                Pagination.currentPage = afterPopPages > 0 ? afterPopPages : 1;
-                this.loadConversationToUI();
-                this.addTempMessage('assistant', `❌ 请求失败: ${err.message}\n请检查 Worker 地址或暗号。`);
-            } finally { loadingDiv.remove(); }
+            modal.querySelectorAll('.regen-item').forEach(item => {
+                item.onclick = (e) => {
+                    const version = parseInt(item.dataset.version);
+                    assistantMsg.currentVersion = version;
+                    DataManager.saveData();
+                    this.loadConversationToUI();
+                    modal.remove();
+                };
+            });
         },
         
         loadConversationToUI() {
-            DOM.messagesArea.innerHTML = '';
             const conv = DataManager.getCurrentConversation();
-            if (!conv || !conv.messages || conv.messages.length === 0) {
-                DOM.messagesArea.innerHTML = '<div class="assistant-message">选择一个会话开始对话～</div>';
+            if (!conv) {
+                DOM.messagesArea.innerHTML = '<div class="assistant-message">请从左侧选择一个角色和会话开始～</div>';
                 return;
             }
+            DOM.messagesArea.innerHTML = '';
             const messages = conv.messages;
-            const totalMessages = messages.length;
-            const totalPages = Math.ceil(totalMessages / Config.PAGE_SIZE);
-            if (Pagination.currentPage < 1) Pagination.currentPage = 1;
-            if (Pagination.currentPage > totalPages && totalPages > 0) Pagination.currentPage = totalPages;
-            const startIndex = (Pagination.currentPage - 1) * Config.PAGE_SIZE;
-            const endIndex = Math.min(startIndex + Config.PAGE_SIZE, totalMessages);
-            for (let i = startIndex; i < endIndex; i++) {
+            for (let i = 0; i < messages.length; i++) {
                 const msg = messages[i];
-                const wrapper = document.createElement('div'); wrapper.className = 'message-wrapper';
+                const wrapper = document.createElement('div');
+                wrapper.className = 'message-wrapper';
                 if (msg.role === 'user') {
-                    const userDiv = document.createElement('div'); userDiv.className = 'user-message'; userDiv.innerText = msg.content; wrapper.appendChild(userDiv);
-                    if (msg.timestamp) {
-                        const timeDiv = document.createElement('div'); timeDiv.className = 'message-timestamp'; timeDiv.innerText = new Date(msg.timestamp).toLocaleTimeString(); wrapper.appendChild(timeDiv);
-                    }
-                    const isLastUser = (i === messages.length - 1 || (i+1 < messages.length && messages[i+1].role === 'assistant' && i === messages.length-2));
-                    if (isLastUser) {
-                        const actions = document.createElement('div'); actions.className = 'user-actions';
-                        const editBtn = document.createElement('button'); editBtn.className = 'action-btn'; editBtn.innerHTML = '✏️'; editBtn.title = '编辑并重新生成'; editBtn.onclick = () => this.openEditUserMessageModal(i);
-                        const delBtn = document.createElement('button'); delBtn.className = 'action-btn'; delBtn.innerHTML = '🗑️'; delBtn.title = '删除'; delBtn.onclick = () => this.deleteUserMessageAndAssistant(i);
-                        actions.appendChild(editBtn); actions.appendChild(delBtn); wrapper.appendChild(actions);
-                    }
+                    wrapper.innerHTML = `<div class="user-message">${escapeHtml(msg.content)}</div><div class="message-timestamp">${new Date(msg.timestamp).toLocaleString()}</div><div class="user-actions"><button class="action-btn edit-user-msg" data-index="${i}">✏️ 编辑</button></div>`;
+                    wrapper.querySelector('.edit-user-msg').addEventListener('click', () => {
+                        editingUserMessageIndex = i;
+                        DOM.editUserMsgContent.value = msg.content;
+                        DOM.editUserMsgModal.style.display = 'flex';
+                    });
                 } else if (msg.role === 'assistant') {
-                    if (!msg.regenerations) msg.regenerations = [];
-                    if (msg.currentVersion === undefined) msg.currentVersion = 0;
-                    const currentVer = msg.currentVersion;
-                    const totalVers = msg.regenerations.length + 1;
-                    const currentContent = (currentVer === 0) ? msg.content : (msg.regenerations[currentVer-1]?.content || msg.content);
-                    const currentReasoning = (currentVer === 0) ? msg.reasoning : (msg.regenerations[currentVer-1]?.reasoning || null);
-                    if (currentReasoning) {
-                        const reasoningWrapper = document.createElement('div'); reasoningWrapper.className = 'reasoning-wrapper';
-                        const header = document.createElement('div'); header.className = 'reasoning-header';
-                        const toggleBtn = document.createElement('button'); toggleBtn.className = 'reasoning-toggle'; toggleBtn.innerHTML = msg.reasoningCollapsed ? '▶' : '▼'; toggleBtn.onclick = () => this.toggleReasoning(i);
-                        const hintSpan = document.createElement('span'); hintSpan.style.fontSize = '0.7rem'; hintSpan.style.color = 'var(--text-secondary)'; hintSpan.innerText = '深度思考';
-                        header.appendChild(toggleBtn); header.appendChild(hintSpan);
-                        const contentDiv = document.createElement('div'); contentDiv.className = `reasoning-content ${msg.reasoningCollapsed ? 'collapsed' : ''}`; contentDiv.innerText = currentReasoning;
-                        reasoningWrapper.appendChild(header); reasoningWrapper.appendChild(contentDiv);
-                        wrapper.appendChild(reasoningWrapper);
+                    const regenCount = msg.regenerations ? msg.regenerations.length : 0;
+                    let content = msg.content;
+                    let reasoning = msg.reasoning;
+                    if (msg.currentVersion > 0 && msg.regenerations) {
+                        const regen = msg.regenerations[msg.currentVersion - 1];
+                        if (regen) {
+                            content = regen.content;
+                            reasoning = regen.reasoning;
+                        }
                     }
-                    const mainDiv = document.createElement('div'); mainDiv.className = 'main-content'; mainDiv.innerText = currentContent; wrapper.appendChild(mainDiv);
-                    if (msg.timestamp) {
-                        const timeDiv = document.createElement('div'); timeDiv.className = 'message-timestamp'; timeDiv.innerText = new Date(msg.timestamp).toLocaleTimeString(); wrapper.appendChild(timeDiv);
+                    wrapper.innerHTML = `<div class="assistant-message"><div class="main-content">${escapeHtml(content)}</div>${reasoning ? `<div class="reasoning-wrapper"><div class="reasoning-header"><button class="reasoning-toggle" data-index="${i}">${msg.reasoningCollapsed ? '▶️' : '▼'} 思考过程</button></div><div class="reasoning-content ${msg.reasoningCollapsed ? 'collapsed' : ''}">${escapeHtml(reasoning)}</div></div>` : ''}</div><div class="message-timestamp">${new Date(msg.timestamp).toLocaleString()}</div><div class="assistant-actions"><div class="version-control"><button class="version-btn" data-index="${i}" data-delta="-1">←</button><span>${msg.currentVersion + 1}/${regenCount + 1}</span><button class="version-btn" data-index="${i}" data-delta="1">→</button></div>${regenCount > 0 ? `<button class="action-btn show-history" data-index="${i}">📋 历史</button>` : ''}<button class="action-btn regenerate" data-index="${i}">🔄 重新生成</button></div>`;
+                    if (reasoning) {
+                        wrapper.querySelector('.reasoning-toggle').addEventListener('click', () => {
+                            this.toggleReasoning(i);
+                        });
                     }
-                    const isLastAssistant = (i === messages.length - 1);
-                    if (isLastAssistant) {
-                        const actionsDiv = document.createElement('div'); actionsDiv.className = 'assistant-actions';
-                        if (totalVers > 1) {
-                            const versionContainer = document.createElement('div'); versionContainer.className = 'version-control';
-                            const prevBtn = document.createElement('button'); prevBtn.innerHTML = '◀'; prevBtn.onclick = () => this.changeAssistantVersion(i, -1);
-                            const versionSpan = document.createElement('span'); versionSpan.innerText = `${currentVer+1}/${totalVers}`;
-                            const nextBtn = document.createElement('button'); nextBtn.innerHTML = '▶'; nextBtn.onclick = () => this.changeAssistantVersion(i, 1);
-                            versionContainer.appendChild(prevBtn); versionContainer.appendChild(versionSpan); versionContainer.appendChild(nextBtn);
-                            actionsDiv.appendChild(versionContainer);
-                        } else { const versionSpan = document.createElement('span'); versionSpan.className = 'version-control'; versionSpan.innerText = '1/1'; actionsDiv.appendChild(versionSpan); }
-                        const regenBtn = document.createElement('button'); regenBtn.className = 'action-btn'; regenBtn.innerHTML = '🔄'; regenBtn.title = '重新生成'; regenBtn.onclick = () => this.regenerateAssistantResponse(i);
-                        const historyBtn = document.createElement('button'); historyBtn.className = 'action-btn'; historyBtn.innerHTML = '📋'; historyBtn.title = '历史版本'; historyBtn.onclick = () => this.showRegenerationHistory(i);
-                        actionsDiv.appendChild(regenBtn); actionsDiv.appendChild(historyBtn);
-                        wrapper.appendChild(actionsDiv);
+                    wrapper.querySelectorAll('.version-btn').forEach(btn => {
+                        btn.addEventListener('click', () => {
+                            const delta = parseInt(btn.dataset.delta);
+                            this.changeAssistantVersion(i, delta);
+                        });
+                    });
+                    if (regenCount > 0) {
+                        wrapper.querySelector('.show-history').addEventListener('click', () => {
+                            this.showRegenerationHistory(i);
+                        });
                     }
+                    wrapper.querySelector('.regenerate').addEventListener('click', () => {
+                        this.regenerateAssistantResponse(i);
+                    });
                 }
                 DOM.messagesArea.appendChild(wrapper);
             }
-            if (totalPages > 1) this.renderPaginationControls(totalPages);
             DOM.messagesArea.scrollTop = DOM.messagesArea.scrollHeight;
-        },
-        
-        renderPaginationControls(totalPages) {
-            const paginationDiv = document.createElement('div');
-            paginationDiv.className = 'pagination-controls';
-            const prevBtn = document.createElement('button');
-            prevBtn.className = 'pagination-btn';
-            prevBtn.innerHTML = '上一页';
-            prevBtn.disabled = Pagination.currentPage === 1;
-            prevBtn.onclick = () => {
-                if (Pagination.currentPage > 1) {
-                    Pagination.currentPage--;
-                    this.loadConversationToUI();
-                }
-            };
-            paginationDiv.appendChild(prevBtn);
-            const pageInfo = document.createElement('span');
-            pageInfo.className = 'page-info';
-            pageInfo.innerText = `${Pagination.currentPage}/${totalPages}`;
-            paginationDiv.appendChild(pageInfo);
-            const nextBtn = document.createElement('button');
-            nextBtn.className = 'pagination-btn';
-            nextBtn.innerHTML = '下一页';
-            nextBtn.disabled = Pagination.currentPage === totalPages;
-            nextBtn.onclick = () => {
-                if (Pagination.currentPage < totalPages) {
-                    Pagination.currentPage++;
-                    this.loadConversationToUI();
-                }
-            };
-            paginationDiv.appendChild(nextBtn);
-            DOM.messagesArea.appendChild(paginationDiv);
         }
     };
 
-    // ========== 事件绑定 ==========
-    DOM.messageInput.addEventListener('input', () => UIManager.adjustTextareaHeight());
-    DOM.messageInput.addEventListener('keydown', function(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); DOM.sendBtn.click(); } });
+    // ========== 事件监听器 ==========
+    DOM.sendBtn.addEventListener('click', async () => {
+        const text = DOM.messageInput.value.trim();
+        if (!text) return;
+        if (!DataManager.currentRoleId) { alert('请先选择一个角色'); return; }
+        DOM.messageInput.value = '';
+        UIManager.adjustTextareaHeight();
+        const conv = DataManager.getCurrentConversation();
+        if (!conv) return;
+        const userMsg = {
+            role: 'user',
+            content: text,
+            timestamp: new Date().toISOString()
+        };
+        conv.messages.push(userMsg);
+        UIManager.loadConversationToUI();
+        const role = DataManager.getCurrentRole();
+        const systemMsg = { role: "system", content: role.systemPrompt };
+        const apiMessages = [systemMsg];
+        for (let msg of conv.messages) if (msg.role !== 'system') apiMessages.push({ role: msg.role, content: msg.content });
+        const requestBody = { model: DataManager.currentModel, messages: apiMessages, stream: false };
+        const loadingDiv = document.createElement('div'); loadingDiv.className = 'loading'; loadingDiv.innerText = '生成中...'; DOM.messagesArea.appendChild(loadingDiv); DOM.messagesArea.scrollTop = DOM.messagesArea.scrollHeight;
+        try {
+            const response = await fetch(Config.WORKER_URL, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-API-Key': Config.CUSTOM_SECRET }, body: JSON.stringify(requestBody) });
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            const data = await response.json();
+            const newContent = data.choices[0].message.content;
+            let newReasoning = null;
+            if (DataManager.currentModel === 'deepseek-reasoner' && data.choices[0].message.reasoning_content) newReasoning = data.choices[0].message.reasoning_content;
+            const assistantMsg = {
+                role: 'assistant',
+                content: newContent,
+                reasoning: newReasoning,
+                regenerations: [],
+                currentVersion: 0,
+                reasoningCollapsed: false,
+                timestamp: new Date().toISOString()
+            };
+            conv.messages.push(assistantMsg);
+            DataManager.saveData();
+            UIManager.loadConversationToUI();
+        } catch (err) {
+            alert(`生成失败: ${err.message}`);
+            conv.messages.pop();
+            UIManager.loadConversationToUI();
+        } finally {
+            loadingDiv.remove();
+        }
+    });
 
-    DOM.colorPickerBtn.addEventListener('click', (e) => { e.stopPropagation(); DOM.colorDropdown.classList.toggle('show'); });
-    document.addEventListener('click', (e) => { if (!DOM.colorPickerBtn.contains(e.target) && !DOM.colorDropdown.contains(e.target)) DOM.colorDropdown.classList.remove('show'); });
-    document.querySelectorAll('.color-option').forEach(opt => { opt.addEventListener('click', () => { const color = opt.dataset.color; DataManager.setUserColor(color); DOM.colorDropdown.classList.remove('show'); }); });
+    DOM.messageInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            DOM.sendBtn.click();
+        }
+    });
 
-    DOM.sendBtn.addEventListener('click', async () => { const text = DOM.messageInput.value.trim(); if (!text) return; DOM.messageInput.value = ''; UIManager.adjustTextareaHeight(); await UIManager.sendMessage(text); });
-    DOM.addRoleBtn.addEventListener('click', () => UIManager.openEditRoleModal(null));
-    DOM.saveRoleBtn.addEventListener('click', () => UIManager.saveRole());
-    DOM.cancelModalBtn.addEventListener('click', () => UIManager.closeModal());
-    DOM.roleModal.addEventListener('click', (e) => { if (e.target === DOM.roleModal) UIManager.closeModal(); });
-    DOM.modelSelect.addEventListener('change', () => UIManager.onModelChange());
-    DOM.themeToggle.addEventListener('click', () => UIManager.toggleTheme());
-    DOM.confirmRenameBtn.addEventListener('click', () => UIManager.renameConversation());
-    DOM.cancelRenameBtn.addEventListener('click', () => DOM.renameConvModal.style.display = 'none');
-    DOM.renameConvModal.addEventListener('click', (e) => { if (e.target === DOM.renameConvModal) DOM.renameConvModal.style.display = 'none'; });
-    DOM.sidebarToggleBtn.addEventListener('click', () => DataManager.toggleSidebar());
-    
-    // 编辑用户消息模态框事件
-    DOM.confirmEditMsgBtn.addEventListener('click', () => UIManager.confirmEditUserMessage());
-    DOM.cancelEditMsgBtn.addEventListener('click', () => UIManager.closeEditUserModal());
-    DOM.editUserMsgModal.addEventListener('click', (e) => { if (e.target === DOM.editUserMsgModal) UIManager.closeEditUserModal(); });
+    DOM.messageInput.addEventListener('input', UIManager.adjustTextareaHeight);
 
-    // ========== 初始化 ==========
+    DOM.addRoleBtn.addEventListener('click', () => {
+        UIManager.openEditRoleModal(null);
+    });
+
+    DOM.saveRoleBtn.addEventListener('click', UIManager.saveRole.bind(UIManager));
+
+    DOM.cancelModalBtn.addEventListener('click', UIManager.closeModal.bind(UIManager));
+
+    DOM.confirmRenameBtn.addEventListener('click', UIManager.renameConversation.bind(UIManager));
+
+    DOM.cancelRenameBtn.addEventListener('click', () => {
+        DOM.renameConvModal.style.display = 'none';
+    });
+
+    DOM.themeToggle.addEventListener('click', UIManager.toggleTheme.bind(UIManager));
+
+    DOM.sidebarToggleBtn.addEventListener('click', DataManager.toggleSidebar.bind(DataManager));
+
+    DOM.colorPickerBtn.addEventListener('click', () => {
+        DOM.colorDropdown.classList.toggle('show');
+    });
+
+    document.addEventListener('click', (e) => {
+        if (!DOM.colorPickerBtn.contains(e.target) && !DOM.colorDropdown.contains(e.target)) {
+            DOM.colorDropdown.classList.remove('show');
+        }
+        if (DataManager.sidebarOpen && !DOM.roleSidebar.contains(e.target) && !DOM.sidebarToggleBtn.contains(e.target)) {
+            DataManager.toggleSidebar();
+        }
+    });
+
+    document.querySelectorAll('.color-option').forEach(option => {
+        option.addEventListener('click', () => {
+            const color = option.dataset.color;
+            DataManager.setUserColor(color);
+        });
+    });
+
+    DOM.modelSelect.addEventListener('change', UIManager.onModelChange.bind(UIManager));
+
+    DOM.confirmEditMsgBtn.addEventListener('click', async () => {
+        const newContent = DOM.editUserMsgContent.value.trim();
+        if (!newContent) return;
+        if (!DataManager.currentRoleId) { alert('请先选择一个角色'); return; }
+        const conv = DataManager.getCurrentConversation();
+        if (!conv || editingUserMessageIndex === null) return;
+        const userMsg = conv.messages[editingUserMessageIndex];
+        if (!userMsg || userMsg.role !== 'user') return;
+        userMsg.content = newContent;
+        userMsg.timestamp = new Date().toISOString();
+        // 删除该用户消息之后的所有消息
+        conv.messages.splice(editingUserMessageIndex + 1);
+        DataManager.saveData();
+        UIManager.loadConversationToUI();
+        DOM.editUserMsgModal.style.display = 'none';
+        editingUserMessageIndex = null;
+        // 自动发送新消息
+        DOM.sendBtn.click();
+    });
+
+    DOM.cancelEditMsgBtn.addEventListener('click', () => {
+        DOM.editUserMsgModal.style.display = 'none';
+        editingUserMessageIndex = null;
+    });
+
+    // 点击模态框外部关闭
+    document.querySelectorAll('.modal').forEach(modal => {
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                modal.style.display = 'none';
+            }
+        });
+    });
+
+    // 初始化
     DataManager.loadData();
-    UIManager.loadTheme();
     DataManager.loadSidebarState();
     DataManager.loadUserColor();
+    UIManager.loadTheme();
     UIManager.renderSidebar();
     UIManager.loadConversationToUI();
 </script>
