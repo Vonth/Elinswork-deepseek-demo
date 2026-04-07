@@ -290,12 +290,19 @@
         .model-selector select {
             background: var(--badge-bg);
             border: 1px solid var(--input-border);
-            border-radius: 20px;
-            padding: 6px 10px;
-            font-size: 0.75rem;
+            border-radius: 30px;
+            padding: 0 10px;
+            font-size: 0.85rem;
             color: var(--text-primary);
             touch-action: manipulation;
-            width: 100px; /* 固定宽度，缩短占用空间 */
+            width: 100px;
+            height: 44px;          /* 与按钮高度一致 */
+            line-height: 44px;
+            cursor: pointer;
+            appearance: none;
+            -webkit-appearance: none;
+            text-align: center;
+            text-align-last: center;
         }
         .theme-toggle, .sidebar-toggle-btn, .color-btn {
             background: var(--badge-bg);
@@ -352,7 +359,7 @@
             margin-bottom: 4px;
         }
         .user-message {
-            text-align: left;  /* 改为左对齐 */
+            text-align: left;
             color: var(--user-msg-text);
             font-size: 1rem;
             line-height: 1.4;
@@ -619,8 +626,8 @@
             }
             .model-selector select {
                 width: 90px;
-                padding: 4px 8px;
-                font-size: 0.7rem;
+                height: 40px;
+                font-size: 0.75rem;
             }
         }
     </style>
@@ -1207,7 +1214,7 @@
                 if (DataManager.currentModel === 'deepseek-reasoner' && data.choices[0].message.reasoning_content) newReasoning = data.choices[0].message.reasoning_content;
                 assistantMsg.regenerations.push({ content: assistantMsg.content, reasoning: assistantMsg.reasoning, timestamp: Date.now() });
                 assistantMsg.content = newContent; assistantMsg.reasoning = newReasoning;
-                assistantMsg.currentVersion = assistantMsg.regenerations.length; // 自动显示最新版本
+                assistantMsg.currentVersion = assistantMsg.regenerations.length;
                 DataManager.saveData(); this.loadConversationToUI();
             } catch (err) { alert(`重新生成失败: ${err.message}`); } finally { loadingDiv.remove(); }
         },
@@ -1236,6 +1243,21 @@
             });
         },
         
+        // 删除用户消息及其关联的AI回复
+        deleteUserMessageAndAssistant(userIndex) {
+            if (!confirm('确定删除这条消息及其回复吗？')) return;
+            const conv = DataManager.getCurrentConversation();
+            if (!conv) return;
+            // 如果下一条是 AI 回复，则一起删除
+            if (userIndex + 1 < conv.messages.length && conv.messages[userIndex+1].role === 'assistant') {
+                conv.messages.splice(userIndex, 2);
+            } else {
+                conv.messages.splice(userIndex, 1);
+            }
+            DataManager.saveData();
+            this.loadConversationToUI();
+        },
+        
         loadConversationToUI() {
             const conv = DataManager.getCurrentConversation();
             if (!conv) {
@@ -1249,11 +1271,14 @@
                 const wrapper = document.createElement('div');
                 wrapper.className = 'message-wrapper';
                 if (msg.role === 'user') {
-                    wrapper.innerHTML = `<div class="user-message">${escapeHtml(msg.content)}</div><div class="message-timestamp">${new Date(msg.timestamp).toLocaleString()}</div><div class="user-actions"><button class="action-btn edit-user-msg" data-index="${i}">✏️ 编辑</button></div>`;
+                    wrapper.innerHTML = `<div class="user-message">${escapeHtml(msg.content)}</div><div class="message-timestamp">${new Date(msg.timestamp).toLocaleString()}</div><div class="user-actions"><button class="action-btn edit-user-msg" data-index="${i}">✏️ 编辑</button><button class="action-btn delete-user-msg" data-index="${i}">🗑️ 删除</button></div>`;
                     wrapper.querySelector('.edit-user-msg').addEventListener('click', () => {
                         editingUserMessageIndex = i;
                         DOM.editUserMsgContent.value = msg.content;
                         DOM.editUserMsgModal.style.display = 'flex';
+                    });
+                    wrapper.querySelector('.delete-user-msg').addEventListener('click', () => {
+                        this.deleteUserMessageAndAssistant(i);
                     });
                 } else if (msg.role === 'assistant') {
                     const regenCount = msg.regenerations ? msg.regenerations.length : 0;
@@ -1383,11 +1408,16 @@
         }
     });
 
-    document.querySelectorAll('.color-option').forEach(option => {
-        option.addEventListener('click', () => {
+    // 使用事件委托监听颜色下拉菜单内的点击
+    DOM.colorDropdown.addEventListener('click', (e) => {
+        const option = e.target.closest('.color-option');
+        if (option) {
             const color = option.dataset.color;
-            DataManager.setUserColor(color);
-        });
+            if (color) {
+                DataManager.setUserColor(color);
+                DOM.colorDropdown.classList.remove('show'); // 选择后自动关闭下拉菜单
+            }
+        }
     });
 
     DOM.modelSelect.addEventListener('change', UIManager.onModelChange.bind(UIManager));
@@ -1402,13 +1432,11 @@
         if (!userMsg || userMsg.role !== 'user') return;
         userMsg.content = newContent;
         userMsg.timestamp = new Date().toISOString();
-        // 删除该用户消息之后的所有消息
         conv.messages.splice(editingUserMessageIndex + 1);
         DataManager.saveData();
         UIManager.loadConversationToUI();
         DOM.editUserMsgModal.style.display = 'none';
         editingUserMessageIndex = null;
-        // 自动发送新消息
         DOM.sendBtn.click();
     });
 
