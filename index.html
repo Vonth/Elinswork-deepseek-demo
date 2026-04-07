@@ -268,7 +268,6 @@
             max-width: 100%;
             padding-bottom: 4px;
         }
-        /* 隐藏滚动条（Chrome/Safari） */
         .header-right::-webkit-scrollbar {
             height: 2px;
             background: transparent;
@@ -280,17 +279,25 @@
             background: var(--scrollbar-thumb);
             border-radius: 2px;
         }
-        .model-selector { display: flex; align-items: center; gap: 6px; font-size: 0.8rem; }
+
+        .model-selector {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 0.8rem;
+            flex-shrink: 0;
+        }
         .model-selector select {
             background: var(--badge-bg);
             border: 1px solid var(--input-border);
             border-radius: 20px;
             padding: 6px 10px;
-            font-size: 0.8rem;
+            font-size: 0.75rem;
             color: var(--text-primary);
             touch-action: manipulation;
+            width: 100px; /* 固定宽度，缩短占用空间 */
         }
-        .theme-toggle {
+        .theme-toggle, .sidebar-toggle-btn, .color-btn {
             background: var(--badge-bg);
             border: 1px solid var(--input-border);
             border-radius: 30px;
@@ -302,35 +309,9 @@
             align-items: center;
             justify-content: center;
             touch-action: manipulation;
+            flex-shrink: 0;
         }
-        .color-picker { position: relative; }
-        .color-btn {
-            background: var(--badge-bg);
-            border: 1px solid var(--input-border);
-            border-radius: 30px;
-            width: 44px;
-            height: 44px;
-            font-size: 1.2rem;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            touch-action: manipulation;
-        }
-        /* 新增侧边栏切换按钮 */
-        .sidebar-toggle-btn {
-            background: var(--badge-bg);
-            border: 1px solid var(--input-border);
-            border-radius: 30px;
-            width: 44px;
-            height: 44px;
-            font-size: 1.2rem;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            touch-action: manipulation;
-        }
+        .color-picker { position: relative; flex-shrink: 0; }
         .color-dropdown {
             display: none;
             position: absolute;
@@ -364,9 +345,14 @@
             flex-direction: column;
             gap: 8px;
         }
-        .message-wrapper { display: flex; flex-direction: column; width: 100%; margin-bottom: 4px; }
+        .message-wrapper {
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+            margin-bottom: 4px;
+        }
         .user-message {
-            text-align: right;
+            text-align: left;  /* 改为左对齐 */
             color: var(--user-msg-text);
             font-size: 1rem;
             line-height: 1.4;
@@ -381,7 +367,7 @@
             display: flex;
             gap: 8px;
             justify-content: flex-end;
-            margin-top: 6px;
+            margin-top: 4px;
         }
         .assistant-message {
             text-align: left;
@@ -395,10 +381,12 @@
         .message-timestamp {
             font-size: 0.7rem;
             color: var(--text-secondary);
-            margin-top: 4px;
+            margin-top: 2px;
+        }
+        .user-message + .message-timestamp {
             text-align: right;
         }
-        .message-wrapper .assistant-message + .message-timestamp {
+        .assistant-message + .message-timestamp {
             text-align: left;
         }
         .pagination-controls {
@@ -434,7 +422,7 @@
             font-weight: 500;
         }
         .reasoning-wrapper {
-            margin: 8px 0;
+            margin: 4px 0;
             position: relative;
         }
         .reasoning-header {
@@ -444,7 +432,7 @@
             cursor: pointer;
             user-select: none;
             touch-action: manipulation;
-            padding: 6px 0;
+            padding: 4px 0;
         }
         .reasoning-toggle {
             background: none;
@@ -452,14 +440,14 @@
             font-size: 0.8rem;
             cursor: pointer;
             color: var(--text-secondary);
-            padding: 6px;
+            padding: 4px;
             touch-action: manipulation;
         }
         .reasoning-content {
             font-size: 0.8rem;
             color: var(--text-reasoning);
             background: var(--bg-sidebar);
-            padding: 10px 12px;
+            padding: 8px 12px;
             border-left: 3px solid var(--reasoning-border);
             border-radius: 0 12px 12px 0;
             white-space: pre-wrap;
@@ -480,7 +468,7 @@
             gap: 8px;
             justify-content: flex-start;
             align-items: center;
-            margin-top: 8px;
+            margin-top: 6px;
             flex-wrap: wrap;
         }
         .version-control {
@@ -488,7 +476,7 @@
             align-items: center;
             gap: 4px;
             background: var(--badge-bg);
-            padding: 4px 8px;
+            padding: 2px 6px;
             border-radius: 20px;
         }
         .version-control button {
@@ -496,7 +484,7 @@
             border: none;
             font-size: 0.8rem;
             cursor: pointer;
-            padding: 4px 8px;
+            padding: 2px 6px;
             color: var(--text-primary);
             touch-action: manipulation;
         }
@@ -506,17 +494,17 @@
             border: none;
             font-size: 1rem;
             cursor: pointer;
-            padding: 6px 10px;
+            padding: 4px 8px;
             border-radius: 30px;
             color: var(--text-secondary);
             transition: 0.2s;
             touch-action: manipulation;
-            min-height: 44px;
+            min-height: 36px;
         }
         .action-btn:hover, .action-btn:active { background: var(--badge-bg); }
 
         .input-area {
-            padding: 16px 20px;
+            padding: 12px 20px;
             border-top: 1px solid var(--border-light);
             display: flex;
             gap: 12px;
@@ -527,7 +515,7 @@
         }
         #messageInput {
             flex: 1;
-            padding: 12px 16px;
+            padding: 10px 16px;
             border: 1px solid var(--input-border);
             border-radius: 30px;
             font-size: 1rem;
@@ -535,7 +523,7 @@
             background: var(--bg-sidebar);
             color: var(--text-primary);
             resize: none;
-            min-height: 44px;
+            min-height: 40px;
             max-height: 200px;
             font-family: inherit;
         }
@@ -607,15 +595,33 @@
         .regen-content { font-size: 0.85rem; white-space: pre-wrap; }
         .regen-reasoning { font-size: 0.75rem; color: var(--text-reasoning); margin-top: 6px; padding-top: 6px; border-top: 1px dashed var(--border-light); }
 
-        /* 移除浮动按钮样式，不再需要 */
+        /* 编辑用户消息的自定义模态框 */
+        .edit-user-modal .modal-content {
+            max-width: 500px;
+        }
+        .edit-user-modal textarea {
+            min-height: 150px;
+        }
+
         @media (max-width: 700px) {
             body { padding: 12px; }
             .role-sidebar { width: 260px; }
             .user-message { max-width: 90%; }
-            .input-area { margin: 0 12px 12px 12px; padding: 12px 16px; }
-            .action-btn { padding: 8px 12px; font-size: 1rem; }
-            .version-control button { padding: 6px 10px; }
+            .input-area { margin: 0 12px 12px 12px; padding: 10px 16px; }
+            .action-btn { padding: 6px 10px; font-size: 1rem; }
+            .version-control button { padding: 4px 8px; }
             .pagination-btn { min-width: 50px; padding: 4px 8px; }
+            .header-right { gap: 6px; }
+            .theme-toggle, .sidebar-toggle-btn, .color-btn {
+                width: 40px;
+                height: 40px;
+                font-size: 1rem;
+            }
+            .model-selector select {
+                width: 90px;
+                padding: 4px 8px;
+                font-size: 0.7rem;
+            }
         }
     </style>
 </head>
@@ -636,14 +642,7 @@
                 🤖 DeepSeek · 角色扮演
                 <span class="current-role-badge" id="currentRoleBadge">未选择</span>
             </div>
-            <div style="display: flex; gap: 12px; align-items: center;">
-                <div class="model-selector">
-                    <span>🧠</span>
-                    <select id="modelSelect">
-                        <option value="deepseek-chat">deepseek-chat (标准)</option>
-                        <option value="deepseek-reasoner">deepseek-reasoner (推理)</option>
-                    </select>
-                </div>
+            <div class="header-right">
                 <button class="theme-toggle" id="themeToggle">🌙</button>
                 <button class="sidebar-toggle-btn" id="sidebarToggleBtn">🎭</button>
                 <div class="color-picker">
@@ -656,6 +655,13 @@
                         <div class="color-option" data-color="pink" style="background: #ffe6f0;"></div>
                         <div class="color-option" data-color="gray" style="background: #f0f0f0;"></div>
                     </div>
+                </div>
+                <div class="model-selector">
+                    <span>🧠</span>
+                    <select id="modelSelect">
+                        <option value="deepseek-chat">快速回答</option>
+                        <option value="deepseek-reasoner">深度思考</option>
+                    </select>
                 </div>
             </div>
         </div>
@@ -672,6 +678,18 @@
 <!-- 模态框 -->
 <div id="roleModal" class="modal"><div class="modal-content"><h3 id="modalTitle">编辑角色</h3><input type="text" id="roleName" placeholder="角色名称"><textarea id="rolePrompt" placeholder="系统提示词（人设）..."></textarea><div class="modal-buttons"><button id="saveRoleBtn">保存</button><button id="cancelModalBtn">取消</button></div></div></div>
 <div id="renameConvModal" class="modal"><div class="modal-content"><h3>重命名会话</h3><input type="text" id="newConvName" placeholder="新名称"><div class="modal-buttons"><button id="confirmRenameBtn">确定</button><button id="cancelRenameBtn">取消</button></div></div></div>
+
+<!-- 编辑用户消息的自定义模态框 -->
+<div id="editUserMsgModal" class="modal edit-user-modal">
+    <div class="modal-content">
+        <h3>编辑消息</h3>
+        <textarea id="editUserMsgContent" rows="4" placeholder="输入新的消息内容..."></textarea>
+        <div class="modal-buttons">
+            <button id="confirmEditMsgBtn">保存并重新生成</button>
+            <button id="cancelEditMsgBtn">取消</button>
+        </div>
+    </div>
+</div>
 
 <script>
     // ========== 配置模块 ==========
@@ -776,7 +794,7 @@
                     this.currentRoleId = data.currentRoleId || null;
                     this.currentConversationId = data.currentConversationId || null;
                     this.currentModel = data.currentModel || 'deepseek-chat';
-                    modelSelect.value = this.currentModel;
+                    modelSelect.value = this.currentModel === 'deepseek-chat' ? 'deepseek-chat' : 'deepseek-reasoner';
                 } catch(e) { console.error(e); }
             }
             this.ensureDefaultRoles();
@@ -866,8 +884,15 @@
         roleSidebar: document.getElementById('roleSidebar'),
         colorPickerBtn: document.getElementById('colorPickerBtn'),
         colorDropdown: document.getElementById('colorDropdown'),
-        sidebarToggleBtn: document.getElementById('sidebarToggleBtn')
+        sidebarToggleBtn: document.getElementById('sidebarToggleBtn'),
+        editUserMsgModal: document.getElementById('editUserMsgModal'),
+        editUserMsgContent: document.getElementById('editUserMsgContent'),
+        confirmEditMsgBtn: document.getElementById('confirmEditMsgBtn'),
+        cancelEditMsgBtn: document.getElementById('cancelEditMsgBtn')
     };
+
+    // 存储正在编辑的用户消息索引
+    let editingUserMessageIndex = null;
 
     // ========== UI 管理模块 ==========
     const UIManager = {
@@ -1123,7 +1148,7 @@
         onModelChange() {
             DataManager.currentModel = DOM.modelSelect.value;
             DataManager.saveData();
-            this.addTempMessage('assistant', `模型已切换为 ${DataManager.currentModel === 'deepseek-chat' ? '标准对话' : '推理模型'}`);
+            this.addTempMessage('assistant', `模型已切换为 ${DataManager.currentModel === 'deepseek-chat' ? '快速回答' : '深度思考'}`);
         },
         
         adjustTextareaHeight() {
@@ -1181,7 +1206,8 @@
                 let newReasoning = null;
                 if (DataManager.currentModel === 'deepseek-reasoner' && data.choices[0].message.reasoning_content) newReasoning = data.choices[0].message.reasoning_content;
                 assistantMsg.regenerations.push({ content: assistantMsg.content, reasoning: assistantMsg.reasoning, timestamp: Date.now() });
-                assistantMsg.content = newContent; assistantMsg.reasoning = newReasoning; assistantMsg.currentVersion = assistantMsg.regenerations.length;
+                assistantMsg.content = newContent; assistantMsg.reasoning = newReasoning;
+                assistantMsg.currentVersion = assistantMsg.regenerations.length; // 自动显示最新版本
                 DataManager.saveData(); this.loadConversationToUI();
             } catch (err) { alert(`重新生成失败: ${err.message}`); } finally { loadingDiv.remove(); }
         },
@@ -1202,15 +1228,41 @@
             modal.querySelectorAll('.regen-item').forEach(item => { item.addEventListener('click', () => { const version = parseInt(item.dataset.version); const selected = regens[version]; if (selected) { assistantMsg.content = selected.content; assistantMsg.reasoning = selected.reasoning; assistantMsg.currentVersion = version + 1; DataManager.saveData(); this.loadConversationToUI(); modal.remove(); } }); });
         },
         
-        async editLastUserMessageAndRegenerate(userIndex) {
-            const conv = DataManager.getCurrentConversation(); if (!conv) return;
-            const userMsg = conv.messages[userIndex]; if (!userMsg || userMsg.role !== 'user') return;
-            const newContent = prompt('编辑消息内容:', userMsg.content);
-            if (!newContent || newContent.trim() === '') return;
-            userMsg.content = newContent.trim();
-            conv.messages = conv.messages.slice(0, userIndex + 1);
-            DataManager.saveData(); this.loadConversationToUI();
-            await this.regenerateAfterEdit(userIndex);
+        // 使用自定义模态框编辑用户消息
+        openEditUserMessageModal(userIndex) {
+            const conv = DataManager.getCurrentConversation();
+            if (!conv) return;
+            const userMsg = conv.messages[userIndex];
+            if (!userMsg || userMsg.role !== 'user') return;
+            editingUserMessageIndex = userIndex;
+            DOM.editUserMsgContent.value = userMsg.content;
+            DOM.editUserMsgModal.style.display = 'flex';
+        },
+        
+        async confirmEditUserMessage() {
+            const newContent = DOM.editUserMsgContent.value.trim();
+            if (!newContent) {
+                alert('消息内容不能为空');
+                return;
+            }
+            const conv = DataManager.getCurrentConversation();
+            if (!conv || editingUserMessageIndex === null) return;
+            const userMsg = conv.messages[editingUserMessageIndex];
+            if (!userMsg || userMsg.role !== 'user') return;
+            userMsg.content = newContent;
+            // 删除该用户消息之后的所有消息（通常是一条助手回复）
+            conv.messages = conv.messages.slice(0, editingUserMessageIndex + 1);
+            DataManager.saveData();
+            this.loadConversationToUI();
+            // 自动重新生成回复
+            await this.regenerateAfterEdit(editingUserMessageIndex);
+            DOM.editUserMsgModal.style.display = 'none';
+            editingUserMessageIndex = null;
+        },
+        
+        closeEditUserModal() {
+            DOM.editUserMsgModal.style.display = 'none';
+            editingUserMessageIndex = null;
         },
         
         async regenerateAfterEdit(userIndex) {
@@ -1312,7 +1364,7 @@
                     const isLastUser = (i === messages.length - 1 || (i+1 < messages.length && messages[i+1].role === 'assistant' && i === messages.length-2));
                     if (isLastUser) {
                         const actions = document.createElement('div'); actions.className = 'user-actions';
-                        const editBtn = document.createElement('button'); editBtn.className = 'action-btn'; editBtn.innerHTML = '✏️'; editBtn.title = '编辑并重新生成'; editBtn.onclick = () => this.editLastUserMessageAndRegenerate(i);
+                        const editBtn = document.createElement('button'); editBtn.className = 'action-btn'; editBtn.innerHTML = '✏️'; editBtn.title = '编辑并重新生成'; editBtn.onclick = () => this.openEditUserMessageModal(i);
                         const delBtn = document.createElement('button'); delBtn.className = 'action-btn'; delBtn.innerHTML = '🗑️'; delBtn.title = '删除'; delBtn.onclick = () => this.deleteUserMessageAndAssistant(i);
                         actions.appendChild(editBtn); actions.appendChild(delBtn); wrapper.appendChild(actions);
                     }
@@ -1413,14 +1465,10 @@
     DOM.renameConvModal.addEventListener('click', (e) => { if (e.target === DOM.renameConvModal) DOM.renameConvModal.style.display = 'none'; });
     DOM.sidebarToggleBtn.addEventListener('click', () => DataManager.toggleSidebar());
     
-    // 点击外部区域关闭角色卡界面
-    document.addEventListener('click', (e) => {
-        if (DataManager.sidebarOpen && 
-            !DOM.roleSidebar.contains(e.target) && 
-            !DOM.sidebarToggleBtn.contains(e.target)) {
-            DataManager.toggleSidebar();
-        }
-    });
+    // 编辑用户消息模态框事件
+    DOM.confirmEditMsgBtn.addEventListener('click', () => UIManager.confirmEditUserMessage());
+    DOM.cancelEditMsgBtn.addEventListener('click', () => UIManager.closeEditUserModal());
+    DOM.editUserMsgModal.addEventListener('click', (e) => { if (e.target === DOM.editUserMsgModal) UIManager.closeEditUserModal(); });
 
     // ========== 初始化 ==========
     DataManager.loadData();
