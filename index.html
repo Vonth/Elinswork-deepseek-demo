@@ -572,6 +572,7 @@
             min-height: 150px;
         }
 
+        /* 移动端始终显示对话操作按钮 */
         @media (max-width: 700px) {
             body { padding: 12px; }
             .role-sidebar { width: 260px; }
@@ -590,6 +591,10 @@
                 width: 90px;
                 height: 40px;
                 font-size: 0.75rem;
+            }
+            /* 移动端始终显示对话操作按钮 */
+            .conv-actions {
+                display: flex;
             }
         }
     </style>
@@ -846,6 +851,12 @@
             } else if (totalPages === 0) {
                 Pagination.currentPage = 1;
             }
+        },
+
+        // 跳转到最后一页（发送新消息后使用）
+        jumpToLastPage(totalMessages) {
+            const totalPages = Math.ceil(totalMessages / Config.PAGE_SIZE);
+            Pagination.currentPage = totalPages > 0 ? totalPages : 1;
         },
         
         renderSidebar() {
@@ -1186,30 +1197,48 @@
                 conv.messages.splice(userIndex, 1);
             }
             DataManager.saveData();
+            // 调整分页
+            this.adjustPaginationAfterDelete(conv.messages.length);
             this.loadConversationToUI();
         },
-        
+
+        // 核心：分页渲染消息
         loadConversationToUI() {
             const conv = DataManager.getCurrentConversation();
             if (!conv) {
                 DOM.messagesArea.innerHTML = '<div class="assistant-message">请从左侧选择一个角色和会话开始～</div>';
                 return;
             }
+
+            const allMessages = conv.messages;
+            const totalMessages = allMessages.length;
+            const totalPages = Math.ceil(totalMessages / Config.PAGE_SIZE);
+            // 确保 currentPage 在有效范围内
+            if (Pagination.currentPage < 1) Pagination.currentPage = 1;
+            if (totalPages > 0 && Pagination.currentPage > totalPages) Pagination.currentPage = totalPages;
+            
+            const startIdx = (Pagination.currentPage - 1) * Config.PAGE_SIZE;
+            const endIdx = Math.min(startIdx + Config.PAGE_SIZE, totalMessages);
+            const pageMessages = allMessages.slice(startIdx, endIdx);
+            
+            // 清空并重新填充
             DOM.messagesArea.innerHTML = '';
-            const messages = conv.messages;
-            for (let i = 0; i < messages.length; i++) {
-                const msg = messages[i];
+            
+            // 渲染当前页消息
+            for (let i = 0; i < pageMessages.length; i++) {
+                const msg = pageMessages[i];
+                const globalIdx = startIdx + i; // 全局索引
                 const wrapper = document.createElement('div');
                 wrapper.className = 'message-wrapper';
                 if (msg.role === 'user') {
-                    wrapper.innerHTML = `<div class="user-message">${escapeHtml(msg.content)}</div><div class="message-timestamp">${new Date(msg.timestamp).toLocaleString()}</div><div class="user-actions"><button class="action-btn edit-user-msg" data-index="${i}">✏️ 编辑</button><button class="action-btn delete-user-msg" data-index="${i}">🗑️ 删除</button></div>`;
+                    wrapper.innerHTML = `<div class="user-message">${escapeHtml(msg.content)}</div><div class="message-timestamp">${new Date(msg.timestamp).toLocaleString()}</div><div class="user-actions"><button class="action-btn edit-user-msg" data-index="${globalIdx}">✏️ 编辑</button><button class="action-btn delete-user-msg" data-index="${globalIdx}">🗑️ 删除</button></div>`;
                     wrapper.querySelector('.edit-user-msg').addEventListener('click', () => {
-                        editingUserMessageIndex = i;
+                        editingUserMessageIndex = globalIdx;
                         DOM.editUserMsgContent.value = msg.content;
                         DOM.editUserMsgModal.style.display = 'flex';
                     });
                     wrapper.querySelector('.delete-user-msg').addEventListener('click', () => {
-                        this.deleteUserMessageAndAssistant(i);
+                        this.deleteUserMessageAndAssistant(globalIdx);
                     });
                 } else if (msg.role === 'assistant') {
                     const regenCount = msg.regenerations ? msg.regenerations.length : 0;
@@ -1222,30 +1251,103 @@
                             reasoning = regen.reasoning;
                         }
                     }
-                    wrapper.innerHTML = `<div class="assistant-message"><div class="main-content">${escapeHtml(content)}</div>${reasoning ? `<div class="reasoning-wrapper"><div class="reasoning-header"><button class="reasoning-toggle" data-index="${i}">${msg.reasoningCollapsed ? '▶️' : '▼'} 思考过程</button></div><div class="reasoning-content ${msg.reasoningCollapsed ? 'collapsed' : ''}">${escapeHtml(reasoning)}</div></div>` : ''}</div><div class="message-timestamp">${new Date(msg.timestamp).toLocaleString()}</div><div class="assistant-actions"><div class="version-control"><button class="version-btn" data-index="${i}" data-delta="-1">←</button><span>${msg.currentVersion + 1}/${regenCount + 1}</span><button class="version-btn" data-index="${i}" data-delta="1">→</button></div>${regenCount > 0 ? `<button class="action-btn show-history" data-index="${i}">📋 历史</button>` : ''}<button class="action-btn regenerate" data-index="${i}">🔄 重新生成</button></div>`;
+                    wrapper.innerHTML = `<div class="assistant-message"><div class="main-content">${escapeHtml(content)}</div>${reasoning ? `<div class="reasoning-wrapper"><div class="reasoning-header"><button class="reasoning-toggle" data-index="${globalIdx}">${msg.reasoningCollapsed ? '▶️' : '▼'} 思考过程</button></div><div class="reasoning-content ${msg.reasoningCollapsed ? 'collapsed' : ''}">${escapeHtml(reasoning)}</div></div>` : ''}</div><div class="message-timestamp">${new Date(msg.timestamp).toLocaleString()}</div><div class="assistant-actions"><div class="version-control"><button class="version-btn" data-index="${globalIdx}" data-delta="-1">←</button><span>${msg.currentVersion + 1}/${regenCount + 1}</span><button class="version-btn" data-index="${globalIdx}" data-delta="1">→</button></div>${regenCount > 0 ? `<button class="action-btn show-history" data-index="${globalIdx}">📋 历史</button>` : ''}<button class="action-btn regenerate" data-index="${globalIdx}">🔄 重新生成</button></div>`;
                     if (reasoning) {
                         wrapper.querySelector('.reasoning-toggle').addEventListener('click', () => {
-                            this.toggleReasoning(i);
+                            this.toggleReasoning(globalIdx);
                         });
                     }
                     wrapper.querySelectorAll('.version-btn').forEach(btn => {
                         btn.addEventListener('click', () => {
                             const delta = parseInt(btn.dataset.delta);
-                            this.changeAssistantVersion(i, delta);
+                            this.changeAssistantVersion(globalIdx, delta);
                         });
                     });
                     if (regenCount > 0) {
                         wrapper.querySelector('.show-history').addEventListener('click', () => {
-                            this.showRegenerationHistory(i);
+                            this.showRegenerationHistory(globalIdx);
                         });
                     }
                     wrapper.querySelector('.regenerate').addEventListener('click', () => {
-                        this.regenerateAssistantResponse(i);
+                        this.regenerateAssistantResponse(globalIdx);
                     });
                 }
                 DOM.messagesArea.appendChild(wrapper);
             }
+            
+            // 添加分页控件
+            if (totalPages > 1) {
+                const paginationDiv = document.createElement('div');
+                paginationDiv.className = 'pagination-controls';
+                paginationDiv.innerHTML = `
+                    <button class="pagination-btn" id="prevPageBtn" ${Pagination.currentPage === 1 ? 'disabled' : ''}>上一页</button>
+                    <span class="page-info">第 ${Pagination.currentPage} / ${totalPages} 页</span>
+                    <button class="pagination-btn" id="nextPageBtn" ${Pagination.currentPage === totalPages ? 'disabled' : ''}>下一页</button>
+                `;
+                DOM.messagesArea.appendChild(paginationDiv);
+                document.getElementById('prevPageBtn')?.addEventListener('click', () => {
+                    if (Pagination.currentPage > 1) {
+                        Pagination.currentPage--;
+                        this.loadConversationToUI();
+                    }
+                });
+                document.getElementById('nextPageBtn')?.addEventListener('click', () => {
+                    if (Pagination.currentPage < totalPages) {
+                        Pagination.currentPage++;
+                        this.loadConversationToUI();
+                    }
+                });
+            }
+            
             DOM.messagesArea.scrollTop = DOM.messagesArea.scrollHeight;
+        },
+
+        // 辅助：基于用户消息索引生成回复（编辑后调用）
+        async generateReplyForUserIndex(conv, userIndex, systemPrompt) {
+            const historyMessages = conv.messages.slice(0, userIndex + 1);
+            const apiMessages = [{ role: "system", content: systemPrompt }, ...historyMessages];
+            const requestBody = {
+                model: DataManager.currentModel,
+                messages: apiMessages,
+                stream: false
+            };
+            const loadingDiv = document.createElement('div');
+            loadingDiv.className = 'loading';
+            loadingDiv.innerText = '生成中...';
+            DOM.messagesArea.appendChild(loadingDiv);
+            DOM.messagesArea.scrollTop = DOM.messagesArea.scrollHeight;
+            try {
+                const response = await fetch(Config.WORKER_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-API-Key': Config.CUSTOM_SECRET },
+                    body: JSON.stringify(requestBody)
+                });
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                const data = await response.json();
+                const newContent = data.choices[0].message.content;
+                let newReasoning = null;
+                if (DataManager.currentModel === 'deepseek-reasoner' && data.choices[0].message.reasoning_content) {
+                    newReasoning = data.choices[0].message.reasoning_content;
+                }
+                const assistantMsg = {
+                    role: 'assistant',
+                    content: newContent,
+                    reasoning: newReasoning,
+                    regenerations: [],
+                    currentVersion: 0,
+                    reasoningCollapsed: false,
+                    timestamp: new Date().toISOString()
+                };
+                conv.messages.push(assistantMsg);
+                DataManager.saveData();
+                // 跳转到最后一页
+                this.jumpToLastPage(conv.messages.length);
+                this.loadConversationToUI();
+            } catch (err) {
+                alert(`生成失败: ${err.message}`);
+            } finally {
+                loadingDiv.remove();
+            }
         }
     };
 
@@ -1289,10 +1391,12 @@
             };
             conv.messages.push(assistantMsg);
             DataManager.saveData();
+            // 跳转到最后一页
+            UIManager.jumpToLastPage(conv.messages.length);
             UIManager.loadConversationToUI();
         } catch (err) {
             alert(`生成失败: ${err.message}`);
-            conv.messages.pop();
+            conv.messages.pop(); // 移除刚添加的用户消息
             UIManager.loadConversationToUI();
         } finally {
             loadingDiv.remove();
@@ -1335,6 +1439,7 @@
 
     DOM.modelSelect.addEventListener('change', UIManager.onModelChange.bind(UIManager));
 
+    // 编辑用户消息确认（增加警告 + 正确重新生成）
     DOM.confirmEditMsgBtn.addEventListener('click', async () => {
         const newContent = DOM.editUserMsgContent.value.trim();
         if (!newContent) return;
@@ -1343,14 +1448,33 @@
         if (!conv || editingUserMessageIndex === null) return;
         const userMsg = conv.messages[editingUserMessageIndex];
         if (!userMsg || userMsg.role !== 'user') return;
+        
+        // 警告：编辑后将删除后续所有对话
+        if (!confirm('编辑此消息将删除之后的所有对话，是否继续？')) {
+            DOM.editUserMsgModal.style.display = 'none';
+            editingUserMessageIndex = null;
+            return;
+        }
+        
+        // 更新内容，删除后续消息
         userMsg.content = newContent;
         userMsg.timestamp = new Date().toISOString();
         conv.messages.splice(editingUserMessageIndex + 1);
         DataManager.saveData();
+        
+        // 重新渲染并跳转到最后一页（当前页可能就是最后一页）
+        UIManager.jumpToLastPage(conv.messages.length);
         UIManager.loadConversationToUI();
+        
         DOM.editUserMsgModal.style.display = 'none';
+        const idx = editingUserMessageIndex;
         editingUserMessageIndex = null;
-        DOM.sendBtn.click();
+        
+        // 调用生成回复（此时用户消息是最后一条）
+        const role = DataManager.getCurrentRole();
+        if (role) {
+            await UIManager.generateReplyForUserIndex(conv, idx, role.systemPrompt);
+        }
     });
 
     DOM.cancelEditMsgBtn.addEventListener('click', () => {
