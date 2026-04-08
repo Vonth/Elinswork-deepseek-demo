@@ -5,73 +5,79 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>DeepSeek AI · 角色扮演</title>
     <style>
-        /* ---------- 极简未来风 CSS 变量 ---------- */
+        /* ---------- 流体动态极光风 CSS 变量 ---------- */
         :root {
-            /* 亮色模式 (Minimal Light) */
-            --bg-body: #f7f7f9;
-            --bg-chat: transparent;
-            --bg-sidebar: rgba(255, 255, 255, 0.6);
+            /* ================= 亮色模式 ================= */
+            /* 极光流体背景色 - 日间淡雅风 */
+            --bg-base: #f4f6fa;
+            --aurora-1: #e0e7ff; /* 柔和的靛蓝 */
+            --aurora-2: #bae6fd; /* 天空蓝 */
+            --aurora-3: #f3e8ff; /* 淡紫 */
             
-            --glass-bg: rgba(255, 255, 255, 0.65);
-            --glass-border: rgba(0, 0, 0, 0.06);
-            --ambient-glow: radial-gradient(circle at 50% 0%, rgba(200, 200, 200, 0.3), transparent 70%);
+            --bg-chat: transparent;
+            --bg-sidebar: rgba(255, 255, 255, 0.65);
+            
+            --glass-bg: rgba(255, 255, 255, 0.6);
+            --glass-border: rgba(255, 255, 255, 0.8);
             
             --text-primary: #111111;
-            --text-secondary: #777777;
-            --text-reasoning: #666666;
+            --text-secondary: #6b7280;
+            --text-reasoning: #555555;
             
-            --card-active-bg: rgba(0, 0, 0, 0.04);
-            --card-active-border: rgba(0, 0, 0, 0.08);
-            --input-bg: rgba(255, 255, 255, 0.8);
+            --card-active-bg: rgba(255, 255, 255, 0.5);
+            --card-active-border: rgba(0, 0, 0, 0.05);
+            --input-bg: rgba(255, 255, 255, 0.75);
             
             --button-bg: #111111;
-            --button-hover: #333333;
             --button-text: #ffffff;
-            --badge-bg: rgba(0,0,0,0.05);
+            --badge-bg: rgba(0, 0, 0, 0.04);
             
-            /* 用户消息：浅灰色 */
-            --user-msg-bg: #e5e5ea;
+            /* 用户消息：磨砂毛玻璃效果 */
+            --user-msg-bg: rgba(255, 255, 255, 0.5);
+            --user-msg-border: rgba(255, 255, 255, 0.9);
             --user-msg-text: #000000;
+            --user-msg-shadow: rgba(0, 0, 0, 0.03);
             
             --modal-bg: rgba(255, 255, 255, 0.85);
-            --modal-overlay: rgba(0,0,0,0.3);
-            --reasoning-border: rgba(0,0,0,0.15);
+            --modal-overlay: rgba(0, 0, 0, 0.2);
+            --reasoning-border: rgba(0, 0, 0, 0.1);
         }
 
         body.dark {
-            /* 暗色模式 (Premium Space Dark - 参考图风格) */
-            --bg-body: #050505;
+            /* ================= 暗色模式 (参考图极光风格) ================= */
+            /* 极光流体背景色 - 迷幻深空风 */
+            --bg-base: #06020c;
+            --aurora-1: #3b0e8c; /* 深紫色 (右上) */
+            --aurora-2: #1e3a8a; /* 深蓝色 (中下) */
+            --aurora-3: #4ab9ec; /* 明亮的青蓝色 (右下) */
+            
             --bg-chat: transparent;
-            --bg-sidebar: rgba(15, 15, 15, 0.5);
+            --bg-sidebar: rgba(10, 5, 20, 0.4);
             
-            /* 极光/深空氛围光效 */
-            --ambient-glow: 
-                radial-gradient(circle at 15% 30%, rgba(255, 255, 255, 0.04) 0%, transparent 40%),
-                radial-gradient(circle at 85% 70%, rgba(200, 255, 250, 0.03) 0%, transparent 40%);
+            --glass-bg: rgba(15, 10, 25, 0.5);
+            --glass-border: rgba(255, 255, 255, 0.1);
             
-            --glass-bg: rgba(10, 10, 10, 0.55);
-            --glass-border: rgba(255, 255, 255, 0.08);
-            
-            --text-primary: #f0f0f0;
-            --text-secondary: #888888;
-            --text-reasoning: #999999;
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+            --text-reasoning: #cbd5e1;
             
             --card-active-bg: rgba(255, 255, 255, 0.06);
             --card-active-border: rgba(255, 255, 255, 0.1);
-            --input-bg: rgba(20, 20, 20, 0.6);
+            --input-bg: rgba(20, 15, 30, 0.5);
             
             --button-bg: #ffffff;
-            --button-hover: #dddddd;
             --button-text: #000000;
-            --badge-bg: rgba(255,255,255,0.08);
+            --badge-bg: rgba(255, 255, 255, 0.08);
             
-            /* 用户消息：深空灰色 */
-            --user-msg-bg: #222224;
+            /* 用户消息：暗黑磨砂玻璃 */
+            --user-msg-bg: rgba(255, 255, 255, 0.08);
+            --user-msg-border: rgba(255, 255, 255, 0.15);
             --user-msg-text: #ffffff;
+            --user-msg-shadow: rgba(0, 0, 0, 0.2);
             
-            --modal-bg: rgba(15, 15, 15, 0.85);
-            --modal-overlay: rgba(0,0,0,0.7);
-            --reasoning-border: rgba(255,255,255,0.15);
+            --modal-bg: rgba(15, 10, 25, 0.85);
+            --modal-overlay: rgba(0, 0, 0, 0.7);
+            --reasoning-border: rgba(255, 255, 255, 0.15);
         }
 
         /* ---------- 全局重置与排版 ---------- */
@@ -79,9 +85,7 @@
 
         body {
             font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "Helvetica Neue", Arial, sans-serif;
-            background-color: var(--bg-body);
-            background-image: var(--ambient-glow);
-            background-attachment: fixed;
+            background-color: var(--bg-base);
             height: 100dvh; 
             width: 100vw;
             display: flex;
@@ -92,6 +96,56 @@
         }
 
         ::-webkit-scrollbar { width: 0; height: 0; display: none; }
+
+        /* ---------- 流体动态背景 (Fluid Background) ---------- */
+        .dynamic-bg {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100vw; height: 100dvh;
+            z-index: -1;
+            overflow: hidden;
+            pointer-events: none;
+            background: var(--bg-base);
+            transition: background 0.4s ease;
+        }
+        .dynamic-bg .blob {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(80px);
+            opacity: 0.8;
+            will-change: transform;
+        }
+        .blob1 {
+            top: -10%; left: -10%;
+            width: 70vw; height: 70vw;
+            background: var(--aurora-1);
+            animation: float1 25s ease-in-out infinite alternate;
+        }
+        .blob2 {
+            bottom: -20%; right: -10%;
+            width: 80vw; height: 80vw;
+            background: var(--aurora-2);
+            animation: float2 30s ease-in-out infinite alternate;
+        }
+        .blob3 {
+            top: 40%; left: 30%;
+            width: 60vw; height: 60vw;
+            background: var(--aurora-3);
+            animation: float3 35s ease-in-out infinite alternate;
+        }
+
+        @keyframes float1 {
+            0% { transform: translate(0, 0) scale(1); }
+            100% { transform: translate(15vw, 15vh) scale(1.1); }
+        }
+        @keyframes float2 {
+            0% { transform: translate(0, 0) scale(1); }
+            100% { transform: translate(-20vw, -10vh) scale(1.2); }
+        }
+        @keyframes float3 {
+            0% { transform: translate(0, 0) scale(1); }
+            100% { transform: translate(10vw, -25vh) scale(1.3); }
+        }
 
         .app-container {
             display: flex;
@@ -272,7 +326,7 @@
         
         .message-wrapper { display: flex; flex-direction: column; width: 100%; }
         
-        /* 用户气泡 */
+        /* 💎 玻璃拟态用户气泡 */
         .user-message {
             align-self: flex-end;
             background: var(--user-msg-bg);
@@ -283,6 +337,12 @@
             border-radius: 20px 20px 4px 20px;
             max-width: 85%;
             word-break: break-word;
+            
+            /* 毛玻璃特效 */
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--user-msg-border);
+            box-shadow: 0 8px 32px var(--user-msg-shadow);
         }
         
         /* 助手文字 */
@@ -294,13 +354,14 @@
             max-width: 95%;
             word-break: break-word;
             padding: 4px 0;
+            text-shadow: 0 1px 3px rgba(0,0,0,0.1); /* 提升在流体背景上的文字对比度 */
         }
         
-        .message-timestamp { font-size: 0.7rem; color: var(--text-secondary); margin-top: 6px; opacity: 0.6; }
+        .message-timestamp { font-size: 0.7rem; color: var(--text-secondary); margin-top: 6px; opacity: 0.8; }
         .user-message + .message-timestamp { text-align: right; margin-right: 4px;}
         .assistant-message + .message-timestamp { text-align: left; margin-left: 4px;}
 
-        /* 思考过程 - 无底色、极简设计 */
+        /* 思考过程 - 极简设计 */
         .reasoning-wrapper { margin: 12px 0; display: flex; flex-direction: column; align-items: flex-start; }
         .reasoning-toggle {
             background: transparent;
@@ -328,7 +389,7 @@
         }
         .reasoning-content.collapsed { display: none; }
 
-        /* 助手与用户底部操作区 - 图标化 */
+        /* 助手与用户底部操作区 */
         .assistant-actions, .user-actions {
             display: flex;
             gap: 8px;
@@ -346,7 +407,7 @@
             color: var(--text-secondary);
         }
 
-        /* ---------- 核心：底部输入区 (毛玻璃) ---------- */
+        /* ---------- 底部输入区 (毛玻璃) ---------- */
         .input-area {
             position: absolute;
             bottom: 0;
@@ -354,8 +415,8 @@
             width: 100%;
             padding: 12px 20px calc(12px + env(safe-area-inset-bottom)) 20px;
             background: var(--glass-bg);
-            backdrop-filter: blur(24px);
-            -webkit-backdrop-filter: blur(24px);
+            backdrop-filter: blur(30px);
+            -webkit-backdrop-filter: blur(30px);
             border-top: 1px solid var(--glass-border);
             z-index: 100;
         }
@@ -391,8 +452,8 @@
             width: 32px;
             height: 32px;
             border-radius: 50%;
-            background: var(--text-primary);
-            color: var(--bg-body);
+            background: var(--button-bg);
+            color: var(--button-text);
             border: none;
             display: flex;
             align-items: center;
@@ -424,6 +485,8 @@
             border-radius: 24px;
             padding: 24px;
             transform: translateY(-5%); 
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
         }
         .modal-content h3 { margin-bottom: 20px; font-weight: 500; font-size: 1.1rem; text-align: center; }
         .modal-content input, .modal-content textarea {
@@ -464,6 +527,13 @@
     </style>
 </head>
 <body>
+<!-- 背景极光流体层 -->
+<div class="dynamic-bg">
+    <div class="blob blob1"></div>
+    <div class="blob blob2"></div>
+    <div class="blob blob3"></div>
+</div>
+
 <div class="app-container">
     <div class="role-sidebar" id="roleSidebar">
         <div class="sidebar-content">
