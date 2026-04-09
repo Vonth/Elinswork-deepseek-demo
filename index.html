@@ -180,7 +180,6 @@
             overflow-y: auto;
             -webkit-overflow-scrolling: touch;
             padding-top: env(safe-area-inset-top);
-            padding-bottom: env(safe-area-inset-bottom);
         }
         .sidebar-header {
             padding: 24px 20px;
@@ -257,6 +256,31 @@
         .conv-name { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .conv-actions { display: flex; gap: 4px; opacity: 0.6; }
         .conv-item.active .conv-actions { opacity: 1; }
+
+        /* 侧边栏底部：导入导出控制区 */
+        .sidebar-footer {
+            padding: 16px 20px calc(16px + env(safe-area-inset-bottom)) 20px;
+            border-top: 1px solid var(--glass-border);
+            display: flex;
+            gap: 10px;
+        }
+        .action-btn {
+            flex: 1;
+            background: var(--badge-bg);
+            border: 1px solid transparent;
+            color: var(--text-primary);
+            padding: 10px;
+            border-radius: 12px;
+            font-size: 0.85rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            transition: background 0.2s;
+        }
+        .action-btn:active, .action-btn:hover { background: var(--card-active-bg); }
+        .action-btn svg { width: 16px; height: 16px; }
 
         /* ---------- 主聊天区域 ---------- */
         .chat-container {
@@ -362,7 +386,7 @@
         .assistant-message + .message-timestamp { text-align: left; margin-left: 4px;}
 
         /* 思考过程 - 极简设计 */
-        .reasoning-wrapper { margin: 12px 0; display: flex; flex-direction: column; align-items: flex-start; }
+        .reasoning-wrapper { margin: 4px 0 12px 0; display: flex; flex-direction: column; align-items: flex-start; }
         .reasoning-toggle {
             background: transparent;
             border: none;
@@ -378,7 +402,7 @@
         .reasoning-toggle:hover { color: var(--text-primary); }
         .reasoning-toggle svg { width: 14px; height: 14px; opacity: 0.7;}
         .reasoning-content {
-            font-size: 0.9rem;
+            font-size: 0.82rem;
             color: var(--text-reasoning);
             padding: 8px 0 8px 14px;
             margin-top: 4px;
@@ -407,7 +431,7 @@
             color: var(--text-secondary);
         }
 
-        /* ---------- 底部输入区 (毛玻璃) ---------- */
+        /* ---------- 底部输入区 (完全融入毛玻璃风格) ---------- */
         .input-area {
             position: absolute;
             bottom: 0;
@@ -420,19 +444,19 @@
             border-top: 1px solid var(--glass-border);
             z-index: 100;
         }
+        /* 去除独立边框，整体作为输入容器 */
         .input-wrapper {
             position: relative;
             width: 100%;
             display: flex;
             align-items: flex-end;
-            background: var(--input-bg);
-            border-radius: 24px;
-            border: 1px solid var(--glass-border);
-            box-shadow: 0 4px 20px rgba(0,0,0,0.03);
+            background: transparent;
+            border: none;
+            box-shadow: none;
         }
         #messageInput {
             width: 100%;
-            padding: 12px 48px 12px 20px;
+            padding: 8px 48px 8px 8px;
             border: none;
             background: transparent;
             color: var(--text-primary);
@@ -443,11 +467,11 @@
             outline: none;
             font-family: inherit;
         }
-        #messageInput::placeholder { color: var(--text-secondary); }
+        #messageInput::placeholder { color: var(--text-secondary); opacity: 0.8; }
         
         #sendBtn {
             position: absolute;
-            right: 8px;
+            right: 0px;
             bottom: 6px;
             width: 32px;
             height: 32px;
@@ -543,6 +567,18 @@
             </div>
             <div class="role-list" id="roleList"></div>
         </div>
+        <!-- 侧边栏底部导入导出 -->
+        <div class="sidebar-footer">
+            <button id="exportBtn" class="action-btn">
+                <svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="none"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                导出
+            </button>
+            <button id="importBtn" class="action-btn">
+                <svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="none"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                导入
+            </button>
+            <input type="file" id="importFile" accept=".json" style="display:none">
+        </div>
     </div>
     <div class="chat-container">
         <div class="chat-header">
@@ -566,7 +602,7 @@
         </div>
         <div class="input-area" id="inputArea">
             <div class="input-wrapper">
-                <textarea id="messageInput" placeholder="输入消息..." autocomplete="off" rows="1"></textarea>
+                <textarea id="messageInput" placeholder="在此输入消息，发送给角色..." autocomplete="off" rows="1"></textarea>
                 <button id="sendBtn"><svg viewBox="0 0 24 24"><line x1="12" y1="19" x2="12" y2="5"></line><polyline points="5 12 12 5 19 12"></polyline></svg></button>
             </div>
         </div>
@@ -669,7 +705,8 @@
             modelSelect: document.getElementById('modelSelect'), themeToggle: document.getElementById('themeToggle'), renameConvModal: document.getElementById('renameConvModal'),
             newConvNameInput: document.getElementById('newConvName'), confirmRenameBtn: document.getElementById('confirmRenameBtn'), cancelRenameBtn: document.getElementById('cancelRenameBtn'),
             roleSidebar: document.getElementById('roleSidebar'), sidebarToggleBtn: document.getElementById('sidebarToggleBtn'), editUserMsgModal: document.getElementById('editUserMsgModal'),
-            editUserMsgContent: document.getElementById('editUserMsgContent'), confirmEditMsgBtn: document.getElementById('confirmEditMsgBtn'), cancelEditMsgBtn: document.getElementById('cancelEditMsgBtn')
+            editUserMsgContent: document.getElementById('editUserMsgContent'), confirmEditMsgBtn: document.getElementById('confirmEditMsgBtn'), cancelEditMsgBtn: document.getElementById('cancelEditMsgBtn'),
+            exportBtn: document.getElementById('exportBtn'), importBtn: document.getElementById('importBtn'), importFile: document.getElementById('importFile')
         };
 
         let editingUserMessageIndex = null;
@@ -772,7 +809,7 @@
                             reasoningHtml = `<div class="reasoning-wrapper"><button class="reasoning-toggle" data-index="${globalIdx}">${toggleIcon} <span>思考过程</span></button><div class="reasoning-content ${msg.reasoningCollapsed ? 'collapsed' : ''}">${escapeHtml(reasoning)}</div></div>`;
                         }
 
-                        wrapper.innerHTML = `<div class="assistant-message"><div class="main-content">${escapeHtml(content)}</div>${reasoningHtml}</div><div class="message-timestamp">${dateStr}</div><div class="assistant-actions"><div class="version-control"><button class="icon-btn version-btn" data-index="${globalIdx}" data-delta="-1">${SVGIcons.chevronLeft}</button><span>${msg.currentVersion + 1}/${regenCount + 1}</span><button class="icon-btn version-btn" data-index="${globalIdx}" data-delta="1">${SVGIcons.chevronRight}</button></div><button class="icon-btn regenerate" data-index="${globalIdx}" title="重新生成">${SVGIcons.regenerate}</button></div>`;
+                        wrapper.innerHTML = `<div class="assistant-message">${reasoningHtml}<div class="main-content">${escapeHtml(content)}</div></div><div class="message-timestamp">${dateStr}</div><div class="assistant-actions"><div class="version-control"><button class="icon-btn version-btn" data-index="${globalIdx}" data-delta="-1">${SVGIcons.chevronLeft}</button><span>${msg.currentVersion + 1}/${regenCount + 1}</span><button class="icon-btn version-btn" data-index="${globalIdx}" data-delta="1">${SVGIcons.chevronRight}</button></div><button class="icon-btn regenerate" data-index="${globalIdx}" title="重新生成">${SVGIcons.regenerate}</button></div>`;
                         if (reasoning) wrapper.querySelector('.reasoning-toggle').addEventListener('click', () => this.toggleReasoning(globalIdx));
                         wrapper.querySelectorAll('.version-btn').forEach(btn => btn.addEventListener('click', () => this.changeAssistantVersion(globalIdx, parseInt(btn.dataset.delta))));
                         wrapper.querySelector('.regenerate').addEventListener('click', () => this.regenerateAssistantResponse(globalIdx));
@@ -846,6 +883,57 @@
         });
         DOM.cancelEditMsgBtn.addEventListener('click', () => { DOM.editUserMsgModal.style.display = 'none'; editingUserMessageIndex = null; });
         document.querySelectorAll('.modal').forEach(modal => modal.addEventListener('click', (e) => { if (e.target === modal) modal.style.display = 'none'; }));
+
+        // ---- 导入/导出功能实现 ----
+        DOM.exportBtn.addEventListener('click', () => {
+            if (!DataManager.roles || DataManager.roles.length === 0) {
+                alert('当前没有可导出的数据。'); return;
+            }
+            const dataToExport = { roles: DataManager.roles, version: 1, exportedAt: new Date().toISOString() };
+            const blob = new Blob([JSON.stringify(dataToExport, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `DeepSeek_RP_Data_${new Date().toISOString().slice(0, 10)}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+        });
+
+        DOM.importBtn.addEventListener('click', () => DOM.importFile.click());
+
+        DOM.importFile.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                try {
+                    const data = JSON.parse(event.target.result);
+                    if (data && data.roles && Array.isArray(data.roles)) {
+                        if (confirm('是否覆盖当前所有角色与对话数据？\n点击"确定"覆盖，"取消"则追加到现有列表中。')) {
+                            DataManager.roles = data.roles;
+                            DataManager.currentRoleId = data.roles[0]?.id || null;
+                            DataManager.currentConversationId = data.roles[0]?.conversations[0]?.id || null;
+                        } else {
+                            data.roles.forEach(role => {
+                                role.id = DataManager.generateId();
+                                role.conversations.forEach(c => c.id = DataManager.generateId());
+                                DataManager.roles.push(role);
+                            });
+                        }
+                        DataManager.saveData();
+                        UIManager.renderSidebar();
+                        UIManager.loadConversationToUI();
+                        alert('数据导入成功！');
+                    } else {
+                        alert('文件格式错误：未找到有效的角色数据。');
+                    }
+                } catch (err) {
+                    alert('读取文件失败，可能不是合法的 JSON 文件。\n错误信息: ' + err.message);
+                }
+                e.target.value = ''; // 重置文件选择器
+            };
+            reader.readAsText(file);
+        });
 
         DataManager.loadData(); DataManager.loadSidebarState(); UIManager.loadTheme(); UIManager.renderSidebar(); UIManager.loadConversationToUI(); initThemeFollowSystem();
     })();
