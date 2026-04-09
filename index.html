@@ -8,12 +8,11 @@
         /* ---------- 流体动态极光风 CSS 变量 ---------- */
         :root {
             /* ================= 亮色模式 ================= */
-            /* 极光流体背景色 - 日间淡雅风 */
             --bg-base: #f9faf4;
-            --aurora-1: #d1fcf9; /* 柔和的靛蓝 */
-            --aurora-2: #a8defb; /* 天空蓝 */
-            --aurora-3: #e9d4ff; /* 淡紫 */
-            --aurora-4: #ffe4d1; /* 柔和的桃色 */
+            --aurora-1: #d1fcf9;
+            --aurora-2: #a8defb;
+            --aurora-3: #e9d4ff;
+            --aurora-4: #ffe4d1;
             
             --bg-chat: transparent;
             --bg-sidebar: rgba(255, 255, 255, 0.65);
@@ -33,7 +32,6 @@
             --button-text: #ffffff;
             --badge-bg: rgba(0, 0, 0, 0.04);
             
-            /* 用户消息：磨砂毛玻璃效果 */
             --user-msg-bg: rgba(255, 255, 255, 0.5);
             --user-msg-border: rgba(255, 255, 255, 0.9);
             --user-msg-text: #000000;
@@ -45,13 +43,12 @@
         }
 
         body.dark {
-            /* ================= 暗色模式 (参考图极光风格) ================= */
-            /* 极光流体背景色 - 迷幻深空风 */
+            /* ================= 暗色模式 ================= */
             --bg-base: #0f063c;
-            --aurora-1: #17ecff; /* 深紫色 (右上) */
-            --aurora-2: #0025ce; /* 深蓝色 (中下) */
-            --aurora-3: #cde4ff; /* 明亮的青蓝色 (右下) */
-            --aurora-4: #0d055d; /* 粉红色 (左上) */
+            --aurora-1: #17ecff;
+            --aurora-2: #0025ce;
+            --aurora-3: #cde4ff;
+            --aurora-4: #0d055d;
             
             --bg-chat: transparent;
             --bg-sidebar: rgba(10, 5, 20, 0.4);
@@ -71,7 +68,6 @@
             --button-text: #000000;
             --badge-bg: rgba(255, 255, 255, 0.08);
             
-            /* 用户消息：暗黑磨砂玻璃 */
             --user-msg-bg: rgba(255, 255, 255, 0.08);
             --user-msg-border: rgba(255, 255, 255, 0.15);
             --user-msg-text: #ffffff;
@@ -110,6 +106,22 @@
             background: var(--bg-base);
             transition: background 0.4s ease;
         }
+        
+        /* 自定义背景层 */
+        .custom-bg-layer {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background-size: cover;
+            background-position: center;
+            z-index: 1; /* 盖在极光气泡上方 */
+            opacity: 0;
+            transition: opacity 0.4s ease;
+        }
+        .custom-bg-layer.active {
+            opacity: 1;
+        }
+
         .dynamic-bg .blob {
             position: absolute;
             border-radius: 50%;
@@ -117,135 +129,40 @@
             opacity: 0.8;
             will-change: transform;
         }
-        .blob1 {
-            bottom: 0%; left: -20%;
-            width: 70vw; height: 100vw;
-            background: var(--aurora-1);
-            animation: float1 25s ease-in-out infinite alternate;
-        }
-        .blob2 {
-            top: 50%; left: 10%;
-            width: 80vw; height: 80vw;
-            background: var(--aurora-2);
-            animation: float2 30s ease-in-out infinite alternate;
-        }
-        .blob3 {
-            bottom: -10%; right: -20%;
-            width: 80vw; height: 80vw;
-            background: var(--aurora-3);
-            animation: float3 35s ease-in-out infinite alternate;
-        }
-        .blob4 {
-            top: 0%; left: 50%;
-            width: 40vw; height: 40vw;
-            background: var(--aurora-4);
-            animation: float4 40s ease-in-out infinite alternate;
-        }
+        .blob1 { bottom: 0%; left: -20%; width: 70vw; height: 100vw; background: var(--aurora-1); animation: float1 25s ease-in-out infinite alternate; }
+        .blob2 { top: 50%; left: 10%; width: 80vw; height: 80vw; background: var(--aurora-2); animation: float2 30s ease-in-out infinite alternate; }
+        .blob3 { bottom: -10%; right: -20%; width: 80vw; height: 80vw; background: var(--aurora-3); animation: float3 35s ease-in-out infinite alternate; }
+        .blob4 { top: 0%; left: 50%; width: 40vw; height: 40vw; background: var(--aurora-4); animation: float4 40s ease-in-out infinite alternate; }
 
-        @keyframes float1 {
-            0% { transform: translate(0, 0) scale(1); }
-            100% { transform: translate(15vw, 15vh) scale(1.1); }
-        }
-        @keyframes float2 {
-            0% { transform: translate(0, 0) scale(1); }
-            100% { transform: translate(-20vw, -10vh) scale(1.2); }
-        }
-        @keyframes float3 {
-            0% { transform: translate(0, 0) scale(1); }
-            100% { transform: translate(10vw, -25vh) scale(1.3); }
-        }
-        @keyframes float4 {
-            0% { transform: translate(0, 0) scale(1); }
-            100% { transform: translate(-15vw, 10vh) scale(1.15); }
-        }
+        @keyframes float1 { 0% { transform: translate(0, 0) scale(1); } 100% { transform: translate(15vw, 15vh) scale(1.1); } }
+        @keyframes float2 { 0% { transform: translate(0, 0) scale(1); } 100% { transform: translate(-20vw, -10vh) scale(1.2); } }
+        @keyframes float3 { 0% { transform: translate(0, 0) scale(1); } 100% { transform: translate(10vw, -25vh) scale(1.3); } }
+        @keyframes float4 { 0% { transform: translate(0, 0) scale(1); } 100% { transform: translate(-15vw, 10vh) scale(1.15); } }
 
-        .app-container {
-            display: flex;
-            flex: 1;
-            height: 100%;
-            width: 100%;
-            position: relative;
-        }
+        .app-container { display: flex; flex: 1; height: 100%; width: 100%; position: relative; }
 
         /* ---------- 侧边栏 ---------- */
         .role-sidebar {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 85%;
-            max-width: 320px;
-            height: 100%;
-            background: var(--bg-sidebar);
-            backdrop-filter: blur(40px);
-            -webkit-backdrop-filter: blur(40px);
-            display: flex;
-            flex-direction: column;
-            z-index: 1000;
-            transform: translateX(-100%);
-            transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+            position: absolute; top: 0; left: 0; width: 85%; max-width: 320px; height: 100%;
+            background: var(--bg-sidebar); backdrop-filter: blur(40px); -webkit-backdrop-filter: blur(40px);
+            display: flex; flex-direction: column; z-index: 1000;
+            transform: translateX(-100%); transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
             border-right: 1px solid var(--glass-border);
         }
         .role-sidebar.open { transform: translateX(0); }
         
-        .sidebar-content {
-            flex: 1;
-            overflow-y: auto;
-            -webkit-overflow-scrolling: touch;
-            padding-top: env(safe-area-inset-top);
-        }
-        .sidebar-header {
-            padding: 24px 20px;
-            font-size: 1.1rem;
-            font-weight: 500;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        .add-role-btn {
-            background: transparent;
-            color: var(--text-primary);
-            border: 1px solid var(--glass-border);
-            font-size: 1.2rem;
-            width: 32px;
-            height: 32px;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            transition: background 0.2s;
-        }
+        .sidebar-content { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding-top: env(safe-area-inset-top); }
+        .sidebar-header { padding: 24px 20px; font-size: 1.1rem; font-weight: 500; display: flex; justify-content: space-between; align-items: center; }
+        .add-role-btn { background: transparent; color: var(--text-primary); border: 1px solid var(--glass-border); font-size: 1.2rem; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: background 0.2s; }
         .add-role-btn:active { background: var(--badge-bg); }
 
         .role-list { padding: 0 16px 20px 16px; }
-        .role-card {
-            background: transparent;
-            border-radius: 16px;
-            padding: 16px;
-            margin-bottom: 8px;
-            cursor: pointer;
-            border: 1px solid transparent;
-            transition: all 0.2s;
-        }
-        .role-card.active {
-            background: var(--card-active-bg);
-            border-color: var(--card-active-border);
-        }
+        .role-card { background: transparent; border-radius: 16px; padding: 16px; margin-bottom: 8px; cursor: pointer; border: 1px solid transparent; transition: all 0.2s; }
+        .role-card.active { background: var(--card-active-bg); border-color: var(--card-active-border); }
         .role-name { font-weight: 500; font-size: 0.95rem; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;}
         .role-preview { font-size: 0.8rem; color: var(--text-secondary); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.4;}
         .role-actions { display: flex; gap: 4px; }
-        .icon-btn {
-            background: transparent;
-            border: none;
-            color: var(--text-secondary);
-            cursor: pointer;
-            padding: 4px;
-            border-radius: 8px;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            transition: color 0.2s, opacity 0.2s;
-        }
+        .icon-btn { background: transparent; border: none; color: var(--text-secondary); cursor: pointer; padding: 4px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; transition: color 0.2s, opacity 0.2s; }
         .icon-btn:hover, .icon-btn:active { color: var(--text-primary); }
         .icon-btn svg { width: 16px; height: 16px; }
 
@@ -253,329 +170,146 @@
         .section-title { font-size: 0.75rem; font-weight: 500; color: var(--text-secondary); margin-bottom: 8px; padding: 0 4px; display: flex; justify-content: space-between; align-items: center;}
         .add-conv-btn { background: none; border: none; color: var(--text-primary); cursor: pointer; padding: 4px;}
         
-        .conv-item {
-            padding: 10px 12px;
-            margin-bottom: 4px;
-            border-radius: 12px;
-            font-size: 0.85rem;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            color: var(--text-secondary);
-            transition: background 0.2s;
-        }
+        .conv-item { padding: 10px 12px; margin-bottom: 4px; border-radius: 12px; font-size: 0.85rem; display: flex; justify-content: space-between; align-items: center; color: var(--text-secondary); transition: background 0.2s; }
         .conv-item.active { background: var(--card-active-bg); color: var(--text-primary); }
         .conv-name { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .conv-actions { display: flex; gap: 4px; opacity: 0.6; }
         .conv-item.active .conv-actions { opacity: 1; }
 
         /* 侧边栏底部：导入导出控制区 */
-        .sidebar-footer {
-            padding: 16px 20px calc(16px + env(safe-area-inset-bottom)) 20px;
-            border-top: 1px solid var(--glass-border);
-            display: flex;
-            gap: 10px;
-        }
-        .action-btn {
-            flex: 1;
-            background: var(--badge-bg);
-            border: 1px solid transparent;
-            color: var(--text-primary);
-            padding: 10px;
-            border-radius: 12px;
-            font-size: 0.85rem;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 6px;
-            transition: background 0.2s;
-        }
+        .sidebar-footer { padding: 16px 12px calc(16px + env(safe-area-inset-bottom)) 12px; border-top: 1px solid var(--glass-border); display: flex; gap: 8px; }
+        .action-btn { flex: 1; background: var(--badge-bg); border: 1px solid transparent; color: var(--text-primary); padding: 10px 4px; border-radius: 12px; font-size: 0.8rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 4px; transition: background 0.2s; white-space: nowrap; }
         .action-btn:active, .action-btn:hover { background: var(--card-active-bg); }
         .action-btn svg { width: 16px; height: 16px; }
 
         /* ---------- 主聊天区域 ---------- */
-        .chat-container {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            position: relative;
-            background: var(--bg-chat);
-            width: 100%;
-        }
+        .chat-container { flex: 1; display: flex; flex-direction: column; position: relative; background: var(--bg-chat); width: 100%; }
 
         /* 顶部毛玻璃导航栏 */
-        .chat-header {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            z-index: 100;
-            padding: calc(12px + env(safe-area-inset-top)) 20px 12px 20px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            background: var(--glass-bg);
-            backdrop-filter: blur(24px);
-            -webkit-backdrop-filter: blur(24px);
-            border-bottom: 1px solid var(--glass-border);
-        }
+        .chat-header { position: absolute; top: 0; left: 0; width: 100%; z-index: 100; padding: calc(12px + env(safe-area-inset-top)) 20px 12px 20px; display: flex; justify-content: space-between; align-items: center; background: var(--glass-bg); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); border-bottom: 1px solid var(--glass-border); }
         .header-left { display: flex; align-items: center; gap: 12px; font-weight: 500; font-size: 1rem; letter-spacing: 0.5px;}
         .current-role-badge { font-size: 0.7rem; background: var(--badge-bg); padding: 4px 10px; border-radius: 20px; color: var(--text-secondary);}
-
         .header-right { display: flex; gap: 8px; align-items: center; }
-        .model-selector select {
-            background: var(--badge-bg);
-            border: 1px solid transparent;
-            border-radius: 20px;
-            padding: 6px 14px;
-            font-size: 0.8rem;
-            color: var(--text-primary);
-            font-family: inherit;
-            appearance: none;
-            outline: none;
-            cursor: pointer;
-        }
-        .theme-toggle, .sidebar-toggle-btn {
-            background: transparent;
-            border: 1px solid var(--glass-border);
-            border-radius: 50%;
-            width: 34px;
-            height: 34px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1rem;
-            color: var(--text-primary);
-        }
+        .model-selector select { background: var(--badge-bg); border: 1px solid transparent; border-radius: 20px; padding: 6px 14px; font-size: 0.8rem; color: var(--text-primary); font-family: inherit; appearance: none; outline: none; cursor: pointer; }
+        .theme-toggle, .sidebar-toggle-btn { background: transparent; border: 1px solid var(--glass-border); border-radius: 50%; width: 34px; height: 34px; display: flex; align-items: center; justify-content: center; font-size: 1rem; color: var(--text-primary); }
 
         /* 消息展示区 */
-        .messages-area {
-            flex: 1;
-            overflow-y: auto;
-            -webkit-overflow-scrolling: touch;
-            padding: calc(80px + env(safe-area-inset-top)) 20px calc(110px + env(safe-area-inset-bottom)) 20px;
-            display: flex;
-            flex-direction: column;
-            gap: 16px;
-        }
-        
+        .messages-area { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: calc(80px + env(safe-area-inset-top)) 20px calc(110px + env(safe-area-inset-bottom)) 20px; display: flex; flex-direction: column; gap: 16px; }
         .message-wrapper { display: flex; flex-direction: column; width: 100%; }
         
-        /* 💎 玻璃拟态用户气泡 */
-        .user-message {
-            align-self: flex-end;
-            background: var(--user-msg-bg);
-            color: var(--user-msg-text);
-            font-size: 16px;
-            line-height: 1.5;
-            padding: 12px 18px;
-            border-radius: 20px 20px 4px 20px;
-            max-width: 85%;
-            word-break: break-word;
-            
-            /* 毛玻璃特效 */
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
-            border: 1px solid var(--user-msg-border);
-            box-shadow: 0 8px 32px var(--user-msg-shadow);
-        }
+        .user-message { align-self: flex-end; background: var(--user-msg-bg); color: var(--user-msg-text); font-size: 16px; line-height: 1.5; padding: 12px 18px; border-radius: 20px 20px 4px 20px; max-width: 85%; word-break: break-word; backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border: 1px solid var(--user-msg-border); box-shadow: 0 8px 32px var(--user-msg-shadow); }
+        .assistant-message { align-self: flex-start; color: var(--text-primary); font-size: 16px; line-height: 1.6; max-width: 95%; word-break: break-word; padding: 4px 0; text-shadow: 0 1px 3px rgba(0,0,0,0.1); }
         
-        /* 助手文字 */
-        .assistant-message {
-            align-self: flex-start;
-            color: var(--text-primary);
-            font-size: 16px;
-            line-height: 1.6;
-            max-width: 95%;
-            word-break: break-word;
-            padding: 4px 0;
-            text-shadow: 0 1px 3px rgba(0,0,0,0.1); /* 提升在流体背景上的文字对比度 */
-        }
-        
-        .message-footer {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            margin-top: 6px;
-            font-size: 0.7rem;
-            color: var(--text-secondary);
-            opacity: 0.8;
-        }
+        .message-footer { display: flex; align-items: center; gap: 8px; margin-top: 6px; font-size: 0.7rem; color: var(--text-secondary); opacity: 0.8; }
         .user-footer { justify-content: flex-end; }
         .user-footer .message-actions { order: -1; }
         .assistant-footer { justify-content: flex-start; }
-        .message-actions {
-            display: flex;
-            gap: 6px;
-            align-items: center;
-        }
+        .message-actions { display: flex; gap: 6px; align-items: center; }
 
-        /* 思考过程 - 极简设计 */
         .reasoning-wrapper { margin: 4px 0 12px 0; display: flex; flex-direction: column; align-items: flex-start; }
-        .reasoning-toggle {
-            background: transparent;
-            border: none;
-            font-size: 0.8rem;
-            color: var(--text-secondary);
-            padding: 4px 0;
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            cursor: pointer;
-            transition: color 0.2s;
-        }
+        .reasoning-toggle { background: transparent; border: none; font-size: 0.8rem; color: var(--text-secondary); padding: 4px 0; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; transition: color 0.2s; }
         .reasoning-toggle:hover { color: var(--text-primary); }
         .reasoning-toggle svg { width: 14px; height: 14px; opacity: 0.7;}
-        .reasoning-content {
-            font-size: 0.82rem;
-            color: var(--text-reasoning);
-            padding: 8px 0 8px 14px;
-            margin-top: 4px;
-            border-left: 2px solid var(--reasoning-border);
-            background: transparent;
-            white-space: pre-wrap;
-            line-height: 1.5;
-        }
+        .reasoning-content { font-size: 0.82rem; color: var(--text-reasoning); padding: 8px 0 8px 14px; margin-top: 4px; border-left: 2px solid var(--reasoning-border); background: transparent; white-space: pre-wrap; line-height: 1.5; }
         .reasoning-content.collapsed { display: none; }
 
-        /* 助手与用户底部操作区 */
-        .assistant-actions, .user-actions {
-            display: flex;
-            gap: 6px;
-            align-items: center;
-        }
-        
-        .version-control {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            font-size: 0.75rem;
-            color: var(--text-secondary);
-        }
+        .assistant-actions, .user-actions { display: flex; gap: 6px; align-items: center; }
+        .version-control { display: flex; align-items: center; gap: 6px; font-size: 0.75rem; color: var(--text-secondary); }
 
-        /* ---------- 底部输入区 (完全融入毛玻璃风格) ---------- */
-        .input-area {
-            position: absolute;
-            bottom: 0;
-            left: 0;
-            width: 100%;
-            padding: 12px 20px calc(12px + env(safe-area-inset-bottom)) 20px;
-            background: var(--glass-bg);
-            backdrop-filter: blur(30px);
-            -webkit-backdrop-filter: blur(30px);
-            border-top: 1px solid var(--glass-border);
-            z-index: 100;
-        }
-        /* 去除独立边框，整体作为输入容器 */
-        .input-wrapper {
-            position: relative;
-            width: 100%;
-            display: flex;
-            align-items: flex-end;
-            background: transparent;
-            border: none;
-            box-shadow: none;
-        }
-        #messageInput {
-            width: 100%;
-            padding: 8px 48px 8px 8px;
-            border: none;
-            background: transparent;
-            color: var(--text-primary);
-            font-size: 16px;
-            line-height: 1.4;
-            max-height: 120px;
-            resize: none;
-            outline: none;
-            font-family: inherit;
-        }
+        /* ---------- 底部输入区 ---------- */
+        .input-area { position: absolute; bottom: 0; left: 0; width: 100%; padding: 12px 20px calc(12px + env(safe-area-inset-bottom)) 20px; background: var(--glass-bg); backdrop-filter: blur(30px); -webkit-backdrop-filter: blur(30px); border-top: 1px solid var(--glass-border); border-radius: 12px 12px 0 0; z-index: 100; }
+        .input-wrapper { position: relative; width: 100%; display: flex; align-items: flex-end; background: transparent; border: none; box-shadow: none; }
+        #messageInput { width: 100%; padding: 8px 48px 8px 8px; border: none; background: transparent; color: var(--text-primary); font-size: 16px; line-height: 1.4; max-height: 120px; resize: none; outline: none; font-family: inherit; }
         #messageInput::placeholder { color: var(--text-secondary); opacity: 0.8; }
-        
-        #sendBtn {
-            position: absolute;
-            right: 0px;
-            bottom: 6px;
-            width: 32px;
-            height: 32px;
-            border-radius: 50%;
-            background: var(--button-bg);
-            color: var(--button-text);
-            border: none;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: transform 0.15s ease;
-            cursor: pointer;
-        }
+        #sendBtn { position: absolute; right: 0px; bottom: 6px; width: 32px; height: 32px; border-radius: 50%; background: var(--button-bg); color: var(--button-text); border: none; display: flex; align-items: center; justify-content: center; transition: transform 0.15s ease; cursor: pointer; }
         #sendBtn:active { transform: scale(0.9); }
         #sendBtn svg { width: 16px; height: 16px; stroke: currentColor; stroke-width: 2.5; fill: none; }
 
         /* ---------- 模态框 (弹窗) ---------- */
-        .modal {
-            display: none;
-            position: fixed;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background: var(--modal-overlay);
-            backdrop-filter: blur(8px);
-            -webkit-backdrop-filter: blur(8px);
-            justify-content: center;
-            align-items: center;
-            z-index: 2000;
-            padding: 20px;
-        }
-        .modal-content {
-            background: var(--modal-bg);
-            border: 1px solid var(--glass-border);
-            width: 100%;
-            max-width: 380px;
-            border-radius: 24px;
-            padding: 24px;
-            transform: translateY(-5%); 
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
-        }
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--modal-overlay); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); justify-content: center; align-items: center; z-index: 2000; padding: 20px; }
+        .modal-content { background: var(--modal-bg); border: 1px solid var(--glass-border); width: 100%; max-width: 380px; border-radius: 24px; padding: 24px; transform: translateY(-5%); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); }
         .modal-content h3 { margin-bottom: 20px; font-weight: 500; font-size: 1.1rem; text-align: center; }
-        .modal-content input, .modal-content textarea {
-            width: 100%;
-            padding: 14px;
-            margin-bottom: 16px;
-            border: 1px solid var(--glass-border);
-            border-radius: 12px;
-            background: var(--bg-chat);
-            color: var(--text-primary);
-            font-size: 16px;
-            outline: none;
-        }
+        .modal-content input, .modal-content textarea { width: 100%; padding: 14px; margin-bottom: 16px; border: 1px solid var(--glass-border); border-radius: 12px; background: var(--bg-chat); color: var(--text-primary); font-size: 16px; outline: none; }
         .modal-content textarea { min-height: 350px; resize: none; }
         .modal-buttons { display: flex; gap: 12px; }
-        .modal-buttons button {
-            flex: 1;
-            padding: 12px;
-            border-radius: 12px;
-            border: none;
-            font-size: 1rem;
-            cursor: pointer;
-        }
+        .modal-buttons button { flex: 1; padding: 12px; border-radius: 12px; border: none; font-size: 1rem; cursor: pointer; transition: opacity 0.2s; }
+        .modal-buttons button:active { opacity: 0.7; }
         #saveRoleBtn, #confirmRenameBtn, #confirmEditMsgBtn { background: var(--button-bg); color: var(--button-text); }
         #cancelModalBtn, #cancelRenameBtn, #cancelEditMsgBtn { background: var(--badge-bg); color: var(--text-primary); }
 
-        .pagination-controls {
-            display: flex; justify-content: center; align-items: center; gap: 16px;
-            margin-top: 10px; padding: 10px;
-        }
+        .pagination-controls { display: flex; justify-content: center; align-items: center; gap: 16px; margin-top: 10px; padding: 10px; }
         .pagination-btn { background: none; border: none; color: var(--text-secondary); font-size: 16px; }
         .pagination-btn:disabled { opacity: 0.3; }
-        
         .loading { text-align: center; color: var(--text-secondary); font-size: 0.85rem; margin-top: 10px; display: flex; justify-content: center; align-items: center; gap: 8px;}
         .loading svg { animation: spin 1s linear infinite; width: 14px; height: 14px; }
         @keyframes spin { 100% { transform: rotate(360deg); } }
 
+        /* ---------- 背景历史网格样式 ---------- */
+        .bg-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+            padding: 4px;
+            margin-bottom: 20px;
+        }
+        .bg-grid::-webkit-scrollbar { display: none; }
+        .bg-item {
+            position: relative;
+            aspect-ratio: 9/16;
+            border-radius: 10px;
+            overflow: hidden;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            border: 2px solid transparent;
+            background-size: cover;
+            background-position: center;
+            transition: transform 0.2s, border-color 0.2s;
+        }
+        .bg-item:active { transform: scale(0.95); }
+        .bg-item.active { border-color: #3b82f6; }
+        
+        .bg-item-default {
+            background: linear-gradient(135deg, #d1fcf9, #e9d4ff);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 0.9rem; font-weight: bold; color: rgba(0,0,0,0.5);
+        }
+        .bg-item-default.dark-preview {
+            background: linear-gradient(135deg, #17ecff, #0025ce);
+            color: rgba(255,255,255,0.7);
+        }
+
+        .bg-delete-btn {
+            position: absolute;
+            top: 4px; right: 4px;
+            width: 22px; height: 22px;
+            background: rgba(0, 0, 0, 0.6); color: white;
+            border: none; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer; opacity: 0; transition: opacity 0.2s;
+        }
+        .bg-delete-btn svg { width: 12px; height: 12px; pointer-events: none; }
+        .bg-item:hover .bg-delete-btn { opacity: 1; }
+        /* 移动端常显删除按钮 */
+        @media (hover: none) { .bg-delete-btn { opacity: 1; } }
+
+        .active-badge {
+            position: absolute; bottom: 4px; right: 4px;
+            width: 20px; height: 20px;
+            background: #3b82f6; color: white;
+            border-radius: 50%; display: none;
+            align-items: center; justify-content: center;
+        }
+        .active-badge svg { width: 12px; height: 12px; }
+        .bg-item.active .active-badge { display: flex; }
+
     </style>
 </head>
 <body>
-<!-- 背景极光流体层 -->
+<!-- 背景层 -->
 <div class="dynamic-bg">
+    <div id="customBgLayer" class="custom-bg-layer"></div>
     <div class="blob blob1"></div>
     <div class="blob blob2"></div>
     <div class="blob blob3"></div>
@@ -591,24 +325,28 @@
             </div>
             <div class="role-list" id="roleList"></div>
         </div>
-        <!-- 侧边栏底部导入导出 -->
+        <!-- 侧边栏底部导入导出与背景设置 -->
         <div class="sidebar-footer">
-            <button id="exportBtn" class="action-btn">
+            <button id="exportBtn" class="action-btn" title="导出">
                 <svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="none"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
                 导出
             </button>
-            <button id="importBtn" class="action-btn">
+            <button id="importBtn" class="action-btn" title="导入">
                 <svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="none"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
                 导入
             </button>
+            <button id="bgSettingBtn" class="action-btn" title="设置背景">
+                <svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="none"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+                背景
+            </button>
             <input type="file" id="importFile" accept=".json" style="display:none">
+            <input type="file" id="bgInput" accept="image/*" style="display:none">
         </div>
     </div>
     <div class="chat-container">
         <div class="chat-header">
             <div class="header-left">
-                DeepSeek
-                <span class="current-role-badge" id="currentRoleBadge">未选择</span>
+                <span id="headerRoleName">DeepSeek</span>
             </div>
             <div class="header-right">
                 <div class="model-selector">
@@ -646,6 +384,22 @@
     </div>
 </div>
 
+<!-- 背景管理弹窗 -->
+<div id="bgModal" class="modal">
+    <div class="modal-content" style="max-width: 400px;">
+        <h3>自定义背景</h3>
+        <div class="bg-grid" id="bgGrid">
+            <!-- 动态生成背景列表 -->
+        </div>
+        <div class="modal-buttons">
+            <button id="uploadNewBgBtn" style="background: var(--button-bg); color: var(--button-text); flex: 2;">
+                <svg style="width: 16px; height: 16px; vertical-align: text-bottom; margin-right: 4px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>上传新图片
+            </button>
+            <button id="cancelBgModalBtn" style="background: var(--badge-bg); color: var(--text-primary); flex: 1;">关闭</button>
+        </div>
+    </div>
+</div>
+
 <script>
     (function() {
         "use strict";
@@ -660,6 +414,8 @@
         const SVGIcons = {
             edit: '<svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="none"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>',
             delete: '<svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="none"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>',
+            close: '<svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" fill="none"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>',
+            check: '<svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>',
             regenerate: '<svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="none"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>',
             chevronDown: '<svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="none"><polyline points="6 9 12 15 18 9"></polyline></svg>',
             chevronUp: '<svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="none"><polyline points="18 15 12 9 6 15"></polyline></svg>',
@@ -668,6 +424,56 @@
             moon: '<svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>',
             sun: '<svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>',
             spinner: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="2" x2="12" y2="6"></line><line x1="12" y1="18" x2="12" y2="22"></line><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"></line><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"></line><line x1="2" y1="12" x2="6" y2="12"></line><line x1="18" y1="12" x2="22" y2="12"></line><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"></line><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"></line></svg>'
+        };
+
+        // --- IndexedDB 管理 (用于储存背景历史图库) ---
+        const DBManager = {
+            dbName: 'DeepSeekRP_DB',
+            dbVersion: 1,
+            db: null,
+            init() {
+                return new Promise((resolve, reject) => {
+                    const request = indexedDB.open(this.dbName, this.dbVersion);
+                    request.onupgradeneeded = (e) => {
+                        const db = e.target.result;
+                        if (!db.objectStoreNames.contains('backgrounds')) {
+                            db.createObjectStore('backgrounds', { keyPath: 'id' });
+                        }
+                    };
+                    request.onsuccess = (e) => { this.db = e.target.result; resolve(); };
+                    request.onerror = (e) => reject(e);
+                });
+            },
+            async saveBg(id, dataUrl) {
+                return new Promise((resolve, reject) => {
+                    const tx = this.db.transaction('backgrounds', 'readwrite');
+                    const store = tx.objectStore('backgrounds');
+                    store.put({ id, dataUrl, timestamp: Date.now() });
+                    tx.oncomplete = () => resolve();
+                    tx.onerror = (e) => reject(e);
+                });
+            },
+            async getAllBgs() {
+                return new Promise((resolve, reject) => {
+                    const tx = this.db.transaction('backgrounds', 'readonly');
+                    const store = tx.objectStore('backgrounds');
+                    const request = store.getAll();
+                    request.onsuccess = () => {
+                        const bgs = request.result.sort((a, b) => b.timestamp - a.timestamp);
+                        resolve(bgs);
+                    };
+                    request.onerror = (e) => reject(e);
+                });
+            },
+            async deleteBg(id) {
+                return new Promise((resolve, reject) => {
+                    const tx = this.db.transaction('backgrounds', 'readwrite');
+                    const store = tx.objectStore('backgrounds');
+                    store.delete(id);
+                    tx.oncomplete = () => resolve();
+                    tx.onerror = (e) => reject(e);
+                });
+            }
         };
 
         const Pagination = { currentPage: 1 };
@@ -723,17 +529,23 @@
 
         const DOM = {
             messagesArea: document.getElementById('messagesArea'), messageInput: document.getElementById('messageInput'), sendBtn: document.getElementById('sendBtn'),
-            roleListDiv: document.getElementById('roleList'), currentRoleBadge: document.getElementById('currentRoleBadge'), addRoleBtn: document.getElementById('addRoleBtn'),
+            roleListDiv: document.getElementById('roleList'), addRoleBtn: document.getElementById('addRoleBtn'),
             roleModal: document.getElementById('roleModal'), modalTitle: document.getElementById('modalTitle'), roleNameInput: document.getElementById('roleName'),
             rolePromptInput: document.getElementById('rolePrompt'), saveRoleBtn: document.getElementById('saveRoleBtn'), cancelModalBtn: document.getElementById('cancelModalBtn'),
             modelSelect: document.getElementById('modelSelect'), themeToggle: document.getElementById('themeToggle'), renameConvModal: document.getElementById('renameConvModal'),
             newConvNameInput: document.getElementById('newConvName'), confirmRenameBtn: document.getElementById('confirmRenameBtn'), cancelRenameBtn: document.getElementById('cancelRenameBtn'),
             roleSidebar: document.getElementById('roleSidebar'), sidebarToggleBtn: document.getElementById('sidebarToggleBtn'), editUserMsgModal: document.getElementById('editUserMsgModal'),
             editUserMsgContent: document.getElementById('editUserMsgContent'), confirmEditMsgBtn: document.getElementById('confirmEditMsgBtn'), cancelEditMsgBtn: document.getElementById('cancelEditMsgBtn'),
-            exportBtn: document.getElementById('exportBtn'), importBtn: document.getElementById('importBtn'), importFile: document.getElementById('importFile')
+            exportBtn: document.getElementById('exportBtn'), importBtn: document.getElementById('importBtn'), importFile: document.getElementById('importFile'),
+            
+            // 背景设置相关DOM
+            bgSettingBtn: document.getElementById('bgSettingBtn'), bgModal: document.getElementById('bgModal'), bgGrid: document.getElementById('bgGrid'),
+            uploadNewBgBtn: document.getElementById('uploadNewBgBtn'), cancelBgModalBtn: document.getElementById('cancelBgModalBtn'), 
+            bgInput: document.getElementById('bgInput'), customBgLayer: document.getElementById('customBgLayer')
         };
 
         let editingUserMessageIndex = null;
+        let currentActiveBgId = localStorage.getItem('deepseek_current_bg_id') || 'default';
 
         const UIManager = {
             resetPagination() { Pagination.currentPage = 1; },
@@ -763,9 +575,14 @@
                     }
                     convSection.querySelector('.add-conv-btn').addEventListener('click', (e) => { e.stopPropagation(); this.addConversation(role.id); });
                 }
-                const curRole = DataManager.getCurrentRole(); DOM.currentRoleBadge.innerText = curRole ? curRole.name : '未选择';
+                const curRole = DataManager.getCurrentRole(); 
+                // 新增：更新左上角角色名
+                const headerRoleName = document.getElementById('headerRoleName');
+                if (headerRoleName) {
+                    headerRoleName.textContent = curRole ? curRole.name : 'DeepSeek';
+                }    
             },
-            switchRole(roleId) { if (DataManager.currentRoleId === roleId) return; DataManager.currentRoleId = roleId; DataManager.currentConversationId = DataManager.getCurrentRole()?.conversations[0]?.id || null; DataManager.saveData(); this.resetPagination(); this.renderSidebar(); this.loadConversationToUI(); },
+            switchRole(roleId) { if (DataManager.currentRoleId === roleId) return; DataManager.currentRoleId = roleId; DataManager.currentConversationId = DataManager.getCurrentRole()?.conversations[0]?.id || null; DataManager.saveData(); this.resetPagination(); this.renderSidebar(); this.loadConversationToUI(); const curRole = DataManager.getCurrentRole(); document.getElementById('headerRoleName').textContent = curRole ? curRole.name : 'DeepSeek'; },
             switchConversation(roleId, convId) { if (DataManager.currentRoleId !== roleId) DataManager.currentRoleId = roleId; DataManager.currentConversationId = convId; DataManager.saveData(); this.resetPagination(); this.renderSidebar(); this.loadConversationToUI(); },
             addConversation(roleId) { const role = DataManager.roles.find(r => r.id === roleId); if (role) { const newConv = { id: DataManager.generateId(), name: '新对话', messages: [{ role: 'assistant', content: `你好！我是${role.name}，开始对话吧～`, reasoning: null, regenerations: [], currentVersion: 0, reasoningCollapsed: false, timestamp: new Date().toISOString() }] }; role.conversations.push(newConv); DataManager.currentRoleId = roleId; DataManager.currentConversationId = newConv.id; DataManager.saveData(); this.resetPagination(); this.renderSidebar(); this.loadConversationToUI(); } },
             openEditRoleModal(roleId) {
@@ -780,7 +597,7 @@
             saveRole() { const name = DOM.roleNameInput.value.trim(); const prompt = DOM.rolePromptInput.value.trim(); if (!name || !prompt) { return; } const roleId = DOM.roleModal.dataset.roleId; if (roleId) { const role = DataManager.roles.find(r => r.id === roleId); if (role) { role.name = name; role.systemPrompt = prompt; } } else { const newId = DataManager.generateId(); DataManager.roles.push({ id: newId, name, systemPrompt: prompt, conversations: [] }); DataManager.ensureDefaultRoles(); } DataManager.saveData(); if (!DataManager.currentRoleId && DataManager.roles.length) DataManager.currentRoleId = DataManager.roles[0].id; this.renderSidebar(); if (DataManager.currentRoleId) this.loadConversationToUI(); this.closeModal(); },
             closeModal() { DOM.roleModal.style.display = 'none'; delete DOM.roleModal.dataset.roleId; },
             loadTheme() { const saved = localStorage.getItem('deepseek_theme'); const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches; let isDark = saved ? saved === 'dark' : prefersDark; document.body.classList.toggle('dark', isDark); DOM.themeToggle.innerHTML = isDark ? SVGIcons.sun : SVGIcons.moon; },
-            toggleTheme() { const isDark = document.body.classList.contains('dark'); const newIsDark = !isDark; document.body.classList.toggle('dark', newIsDark); localStorage.setItem('deepseek_theme', newIsDark ? 'dark' : 'light'); DOM.themeToggle.innerHTML = newIsDark ? SVGIcons.sun : SVGIcons.moon; },
+            toggleTheme() { const isDark = document.body.classList.contains('dark'); const newIsDark = !isDark; document.body.classList.toggle('dark', newIsDark); localStorage.setItem('deepseek_theme', newIsDark ? 'dark' : 'light'); DOM.themeToggle.innerHTML = newIsDark ? SVGIcons.sun : SVGIcons.moon; UIManager.updateDefaultBgItemStyle(); },
             onModelChange() { DataManager.currentModel = DOM.modelSelect.value; DataManager.saveData(); },
             adjustTextareaHeight() { DOM.messageInput.style.height = 'auto'; DOM.messageInput.style.height = Math.min(DOM.messageInput.scrollHeight, 120) + 'px'; },
             toggleReasoning(assistantIndex) { const conv = DataManager.getCurrentConversation(); if (!conv) return; const msg = conv.messages[assistantIndex]; if (!msg || msg.role !== 'assistant') return; msg.reasoningCollapsed = !msg.reasoningCollapsed; DataManager.saveData(); this.loadConversationToUI(); },
@@ -807,7 +624,9 @@
             },
             deleteUserMessageAndAssistant(userIndex) { if (!confirm('确定删除此消息及后续回复吗？')) return; const conv = DataManager.getCurrentConversation(); if (!conv) return; if (userIndex + 1 < conv.messages.length && conv.messages[userIndex+1].role === 'assistant') conv.messages.splice(userIndex, 2); else conv.messages.splice(userIndex, 1); DataManager.saveData(); this.adjustPaginationAfterDelete(conv.messages.length); this.loadConversationToUI(); },
             loadConversationToUI() {
-                const conv = DataManager.getCurrentConversation();
+                const conv = DataManager.getCurrentConversation(); const curRole = DataManager.getCurrentRole(); const headerRoleName = document.getElementById('headerRoleName'); if (headerRoleName) {
+                    headerRoleName.textContent = curRole ? curRole.name : 'DeepSeek';
+                }    
                 if (!conv) { DOM.messagesArea.innerHTML = '<div class="assistant-message" style="align-self: center; opacity: 0.6; margin-top: 50px;">👈 从左侧选择一个角色和会话开始</div>'; return; }
                 const allMessages = conv.messages; const totalMessages = allMessages.length; const totalPages = Math.ceil(totalMessages / Config.PAGE_SIZE);
                 if (Pagination.currentPage < 1) Pagination.currentPage = 1; if (totalPages > 0 && Pagination.currentPage > totalPages) Pagination.currentPage = totalPages;
@@ -860,12 +679,25 @@
                     conv.messages.push({ role: 'assistant', content: data.choices[0].message.content, reasoning: (DataManager.currentModel === 'deepseek-reasoner' && data.choices[0].message.reasoning_content) ? data.choices[0].message.reasoning_content : null, regenerations: [], currentVersion: 0, reasoningCollapsed: false, timestamp: new Date().toISOString() });
                     DataManager.saveData(); this.jumpToLastPage(conv.messages.length); this.loadConversationToUI();
                 } catch (err) { if (err.name !== 'AbortError') alert(`生成失败: ${err.message}`); } finally { loadingDiv.remove(); currentAbortController = null; }
+            },
+            updateDefaultBgItemStyle() {
+                const defItem = document.getElementById('bgItem-default');
+                if (defItem) {
+                    if (document.body.classList.contains('dark')) defItem.classList.add('dark-preview');
+                    else defItem.classList.remove('dark-preview');
+                }
             }
         };
 
         function initThemeFollowSystem() {
             const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-            mediaQuery.addEventListener('change', (e) => { if (!localStorage.getItem('deepseek_theme')) { document.body.classList.toggle('dark', e.matches); DOM.themeToggle.innerHTML = e.matches ? SVGIcons.sun : SVGIcons.moon; } });
+            mediaQuery.addEventListener('change', (e) => { 
+                if (!localStorage.getItem('deepseek_theme')) { 
+                    document.body.classList.toggle('dark', e.matches); 
+                    DOM.themeToggle.innerHTML = e.matches ? SVGIcons.sun : SVGIcons.moon; 
+                    UIManager.updateDefaultBgItemStyle();
+                } 
+            });
         }
 
         DOM.sendBtn.addEventListener('click', async () => {
@@ -910,56 +742,170 @@
 
         // ---- 导入/导出功能实现 ----
         DOM.exportBtn.addEventListener('click', () => {
-            if (!DataManager.roles || DataManager.roles.length === 0) {
-                alert('当前没有可导出的数据。'); return;
-            }
+            if (!DataManager.roles || DataManager.roles.length === 0) { alert('当前没有可导出的数据。'); return; }
             const dataToExport = { roles: DataManager.roles, version: 1, exportedAt: new Date().toISOString() };
             const blob = new Blob([JSON.stringify(dataToExport, null, 2)], { type: 'application/json' });
             const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `DeepSeek_RP_Data_${new Date().toISOString().slice(0, 10)}.json`;
-            a.click();
-            URL.revokeObjectURL(url);
+            const a = document.createElement('a'); a.href = url; a.download = `DeepSeek_RP_Data_${new Date().toISOString().slice(0, 10)}.json`; a.click(); URL.revokeObjectURL(url);
         });
 
         DOM.importBtn.addEventListener('click', () => DOM.importFile.click());
 
         DOM.importFile.addEventListener('change', (e) => {
-            const file = e.target.files[0];
-            if (!file) return;
+            const file = e.target.files[0]; if (!file) return;
             const reader = new FileReader();
             reader.onload = (event) => {
                 try {
                     const data = JSON.parse(event.target.result);
                     if (data && data.roles && Array.isArray(data.roles)) {
                         if (confirm('是否覆盖当前所有角色与对话数据？\n点击"确定"覆盖，"取消"则追加到现有列表中。')) {
-                            DataManager.roles = data.roles;
-                            DataManager.currentRoleId = data.roles[0]?.id || null;
-                            DataManager.currentConversationId = data.roles[0]?.conversations[0]?.id || null;
+                            DataManager.roles = data.roles; DataManager.currentRoleId = data.roles[0]?.id || null; DataManager.currentConversationId = data.roles[0]?.conversations[0]?.id || null;
                         } else {
-                            data.roles.forEach(role => {
-                                role.id = DataManager.generateId();
-                                role.conversations.forEach(c => c.id = DataManager.generateId());
-                                DataManager.roles.push(role);
-                            });
+                            data.roles.forEach(role => { role.id = DataManager.generateId(); role.conversations.forEach(c => c.id = DataManager.generateId()); DataManager.roles.push(role); });
                         }
-                        DataManager.saveData();
-                        UIManager.renderSidebar();
-                        UIManager.loadConversationToUI();
-                        alert('数据导入成功！');
-                    } else {
-                        alert('文件格式错误：未找到有效的角色数据。');
-                    }
-                } catch (err) {
-                    alert('读取文件失败，可能不是合法的 JSON 文件。\n错误信息: ' + err.message);
-                }
-                e.target.value = ''; // 重置文件选择器
+                        DataManager.saveData(); UIManager.renderSidebar(); UIManager.loadConversationToUI(); alert('数据导入成功！');
+                    } else { alert('文件格式错误：未找到有效的角色数据。'); }
+                } catch (err) { alert('读取文件失败，可能不是合法的 JSON 文件。\n错误信息: ' + err.message); }
+                e.target.value = ''; 
             };
             reader.readAsText(file);
         });
 
-        DataManager.loadData(); DataManager.loadSidebarState(); UIManager.loadTheme(); UIManager.renderSidebar(); UIManager.loadConversationToUI(); initThemeFollowSystem();
+        // ---- 历史背景管理实现 ----
+        function applyCustomBg(dataUrl) {
+            if (dataUrl) { DOM.customBgLayer.style.backgroundImage = `url(${dataUrl})`; DOM.customBgLayer.classList.add('active'); } 
+            else { DOM.customBgLayer.style.backgroundImage = 'none'; DOM.customBgLayer.classList.remove('active'); }
+        }
+
+        function setCurrentBg(id, dataUrl = null) {
+            currentActiveBgId = id;
+            localStorage.setItem('deepseek_current_bg_id', id);
+            applyCustomBg(dataUrl);
+            renderBgGrid(); // 更新选中状态
+        }
+
+        async function renderBgGrid() {
+            DOM.bgGrid.innerHTML = '';
+            
+            // 1. 默认流体选项
+            const defaultItem = document.createElement('div');
+            defaultItem.className = `bg-item bg-item-default ${currentActiveBgId === 'default' ? 'active' : ''}`;
+            defaultItem.id = 'bgItem-default';
+            if (document.body.classList.contains('dark')) defaultItem.classList.add('dark-preview');
+            defaultItem.innerHTML = `默认流体<div class="active-badge">${SVGIcons.check}</div>`;
+            defaultItem.addEventListener('click', () => setCurrentBg('default', null));
+            DOM.bgGrid.appendChild(defaultItem);
+
+            // 2. 从 IndexedDB 渲染历史记录
+            try {
+                const bgs = await DBManager.getAllBgs();
+                bgs.forEach(bg => {
+                    const item = document.createElement('div');
+                    item.className = `bg-item ${currentActiveBgId === bg.id ? 'active' : ''}`;
+                    item.style.backgroundImage = `url(${bg.dataUrl})`;
+                    item.innerHTML = `
+                        <button class="bg-delete-btn" title="删除">${SVGIcons.close}</button>
+                        <div class="active-badge">${SVGIcons.check}</div>
+                    `;
+                    item.addEventListener('click', () => setCurrentBg(bg.id, bg.dataUrl));
+                    
+                    item.querySelector('.bg-delete-btn').addEventListener('click', async (e) => {
+                        e.stopPropagation();
+                        if (confirm('确认删除这张历史背景吗？')) {
+                            await DBManager.deleteBg(bg.id);
+                            if (currentActiveBgId === bg.id) setCurrentBg('default', null);
+                            renderBgGrid();
+                        }
+                    });
+                    
+                    DOM.bgGrid.appendChild(item);
+                });
+            } catch (err) {
+                console.error("加载历史背景失败", err);
+            }
+        }
+
+        function processAndSaveImage(file) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const img = new Image();
+                img.onload = async function() {
+                    const canvas = document.createElement('canvas');
+                    let width = img.width; let height = img.height;
+                    const MAX_SIZE = 1920; 
+                    if (width > height) { if (width > MAX_SIZE) { height *= MAX_SIZE / width; width = MAX_SIZE; } } 
+                    else { if (height > MAX_SIZE) { width *= MAX_SIZE / height; height = MAX_SIZE; } }
+                    
+                    canvas.width = width; canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, width, height);
+                    const dataUrl = canvas.toDataURL('image/jpeg', 0.85); // 转换为较小体量的 JPEG
+                    
+                    const newId = 'bg_' + Date.now();
+                    try {
+                        await DBManager.saveBg(newId, dataUrl);
+                        setCurrentBg(newId, dataUrl);
+                    } catch (err) {
+                        alert('图片保存失败，数据库写入错误。');
+                        console.error(err);
+                    }
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        DOM.bgSettingBtn.addEventListener('click', () => {
+            renderBgGrid(); // 每次打开时重新渲染
+            DOM.bgModal.style.display = 'flex';
+        });
+
+        DOM.cancelBgModalBtn.addEventListener('click', () => {
+            DOM.bgModal.style.display = 'none';
+        });
+
+        DOM.uploadNewBgBtn.addEventListener('click', () => {
+            DOM.bgInput.click();
+        });
+
+        DOM.bgInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            processAndSaveImage(file);
+            e.target.value = ''; // 重置
+            DOM.bgModal.style.display = 'none'; // 选完自动关闭
+        });
+
+        // ---- 程序初始化 ----
+        DBManager.init().then(async () => {
+            // 初始化时如果选择了非默认背景，加载它
+            if (currentActiveBgId !== 'default') {
+                try {
+                    const bgs = await DBManager.getAllBgs();
+                    const activeBg = bgs.find(b => b.id === currentActiveBgId);
+                    if (activeBg) {
+                        applyCustomBg(activeBg.dataUrl);
+                    } else {
+                        // 如果记录不存在了，降级为默认
+                        setCurrentBg('default', null);
+                    }
+                } catch (err) {
+                    console.error("恢复背景失败", err);
+                }
+            }
+            
+            DataManager.loadData(); 
+            DataManager.loadSidebarState(); 
+            UIManager.loadTheme(); 
+            UIManager.renderSidebar(); 
+            UIManager.loadConversationToUI(); 
+            initThemeFollowSystem();
+        }).catch(err => {
+            alert('本地数据库初始化失败，背景历史功能将受限。');
+            console.error(err);
+            DataManager.loadData(); DataManager.loadSidebarState(); UIManager.loadTheme(); UIManager.renderSidebar(); UIManager.loadConversationToUI(); initThemeFollowSystem();
+        });
+
     })();
 </script>
 </body>
