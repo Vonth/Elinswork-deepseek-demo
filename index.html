@@ -381,9 +381,23 @@
             text-shadow: 0 1px 3px rgba(0,0,0,0.1); /* 提升在流体背景上的文字对比度 */
         }
         
-        .message-timestamp { font-size: 0.7rem; color: var(--text-secondary); margin-top: 6px; opacity: 0.8; }
-        .user-message + .message-timestamp { text-align: right; margin-right: 4px;}
-        .assistant-message + .message-timestamp { text-align: left; margin-left: 4px;}
+        .message-footer {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 6px;
+            font-size: 0.7rem;
+            color: var(--text-secondary);
+            opacity: 0.8;
+        }
+        .user-footer { justify-content: flex-end; }
+        .user-footer .message-actions { order: -1; }
+        .assistant-footer { justify-content: flex-start; }
+        .message-actions {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+        }
 
         /* 思考过程 - 极简设计 */
         .reasoning-wrapper { margin: 4px 0 12px 0; display: flex; flex-direction: column; align-items: flex-start; }
@@ -416,12 +430,9 @@
         /* 助手与用户底部操作区 */
         .assistant-actions, .user-actions {
             display: flex;
-            gap: 8px;
+            gap: 6px;
             align-items: center;
-            margin-top: 4px;
-            opacity: 0.8;
         }
-        .user-actions { justify-content: flex-end; }
         
         .version-control {
             display: flex;
@@ -795,7 +806,7 @@
                     const wrapper = document.createElement('div'); wrapper.className = 'message-wrapper';
                     const dateStr = new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
                     if (msg.role === 'user') {
-                        wrapper.innerHTML = `<div class="user-message">${escapeHtml(msg.content)}</div><div class="message-timestamp">${dateStr}</div><div class="user-actions"><button class="icon-btn edit-user-msg" data-index="${globalIdx}" title="编辑">${SVGIcons.edit}</button><button class="icon-btn delete-user-msg" data-index="${globalIdx}" title="删除">${SVGIcons.delete}</button></div>`;
+                        wrapper.innerHTML = `<div class="user-message">${escapeHtml(msg.content)}</div><div class="message-footer user-footer"><span class="message-timestamp">${dateStr}</span><div class="message-actions user-actions"><button class="icon-btn edit-user-msg" data-index="${globalIdx}" title="编辑">${SVGIcons.edit}</button><button class="icon-btn delete-user-msg" data-index="${globalIdx}" title="删除">${SVGIcons.delete}</button></div></div>`;
                         wrapper.querySelector('.edit-user-msg').addEventListener('click', () => { editingUserMessageIndex = globalIdx; DOM.editUserMsgContent.value = msg.content; DOM.editUserMsgModal.style.display = 'flex'; });
                         wrapper.querySelector('.delete-user-msg').addEventListener('click', () => this.deleteUserMessageAndAssistant(globalIdx));
                     } else if (msg.role === 'assistant') {
@@ -809,7 +820,7 @@
                             reasoningHtml = `<div class="reasoning-wrapper"><button class="reasoning-toggle" data-index="${globalIdx}">${toggleIcon} <span>思考过程</span></button><div class="reasoning-content ${msg.reasoningCollapsed ? 'collapsed' : ''}">${escapeHtml(reasoning)}</div></div>`;
                         }
 
-                        wrapper.innerHTML = `<div class="assistant-message">${reasoningHtml}<div class="main-content">${escapeHtml(content)}</div></div><div class="message-timestamp">${dateStr}</div><div class="assistant-actions"><div class="version-control"><button class="icon-btn version-btn" data-index="${globalIdx}" data-delta="-1">${SVGIcons.chevronLeft}</button><span>${msg.currentVersion + 1}/${regenCount + 1}</span><button class="icon-btn version-btn" data-index="${globalIdx}" data-delta="1">${SVGIcons.chevronRight}</button></div><button class="icon-btn regenerate" data-index="${globalIdx}" title="重新生成">${SVGIcons.regenerate}</button></div>`;
+                        wrapper.innerHTML = `<div class="assistant-message">${reasoningHtml}<div class="main-content">${escapeHtml(content)}</div></div><div class="message-footer assistant-footer"><span class="message-timestamp">${dateStr}</span><div class="message-actions assistant-actions"><div class="version-control"><button class="icon-btn version-btn" data-index="${globalIdx}" data-delta="-1">${SVGIcons.chevronLeft}</button><span>${msg.currentVersion + 1}/${regenCount + 1}</span><button class="icon-btn version-btn" data-index="${globalIdx}" data-delta="1">${SVGIcons.chevronRight}</button></div><button class="icon-btn regenerate" data-index="${globalIdx}" title="重新生成">${SVGIcons.regenerate}</button></div></div>`;
                         if (reasoning) wrapper.querySelector('.reasoning-toggle').addEventListener('click', () => this.toggleReasoning(globalIdx));
                         wrapper.querySelectorAll('.version-btn').forEach(btn => btn.addEventListener('click', () => this.changeAssistantVersion(globalIdx, parseInt(btn.dataset.delta))));
                         wrapper.querySelector('.regenerate').addEventListener('click', () => this.regenerateAssistantResponse(globalIdx));
