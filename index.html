@@ -651,7 +651,7 @@
                 let processedHistory = historyMessages.slice(customStartOffset, endOffset + 1);
                 
                 // 【保护机制】如果选定范围字数仍过多，折叠中间部分防 400
-                const MAX_CHARS_FOR_SUMMARY = 60000;
+                const MAX_CHARS_FOR_SUMMARY = 150000;
                 let sliceChars = processedHistory.reduce((acc, m) => acc + (m.content?.length || 0), 0);
                 
                 if (sliceChars > MAX_CHARS_FOR_SUMMARY && processedHistory.length > 15) {
