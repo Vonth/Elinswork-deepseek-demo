@@ -219,6 +219,17 @@
             animation: slideInUp 0.5s ease-out;
         }
         body.dark .system-summary-message { background: rgba(255, 190, 0, 0.15); border-color: rgba(255, 190, 0, 0.35); box-shadow: 0 8px 24px rgba(0,0,0,0.2); }
+        
+        /* 永久驻留的总结点特殊样式 */
+        .system-summary-message.checkpoint-done {
+            background: rgba(217, 119, 6, 0.05);
+            border: 1.5px solid #d97706;
+        }
+        body.dark .system-summary-message.checkpoint-done {
+            background: rgba(251, 191, 36, 0.05);
+            border-color: #fbbf24;
+        }
+
         .summary-header { font-weight: 600; display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; color: #d97706; font-size: 1rem; }
         body.dark .summary-header { color: #fbbf24; }
         .summary-title-wrap { display: flex; align-items: center; gap: 8px; }
@@ -230,7 +241,7 @@
         .system-summary-message input[type="range"]::-webkit-slider-thumb { appearance: none; width: 16px; height: 16px; border-radius: 50%; background: #d97706; cursor: pointer; border: 2px solid #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.3); }
         body.dark .system-summary-message input[type="range"]::-webkit-slider-thumb { background: #fbbf24; border-color: #222; }
         
-        .summary-btn, .copy-summary-btn {
+        .summary-btn, .copy-summary-btn, .continue-summary-btn {
             background: #d97706; color: #fff;
             border: none; padding: 12px 20px; border-radius: 12px;
             font-size: 0.9rem; cursor: pointer; margin-top: 5px; width: 100%;
@@ -238,7 +249,7 @@
             transition: opacity 0.2s, transform 0.1s; font-weight: 500;
         }
         body.dark .summary-btn, body.dark .copy-summary-btn { background: #fbbf24; color: #000; }
-        .summary-btn:active, .copy-summary-btn:active { transform: scale(0.97); }
+        .summary-btn:active, .copy-summary-btn:active, .continue-summary-btn:active { transform: scale(0.97); }
         .summary-btn:disabled { opacity: 0.7; cursor: not-allowed; }
         
         .summary-text {
@@ -458,7 +469,7 @@
             CUSTOM_SECRET: 'xK9mP2vL7qR4nF8t',
             MAX_REGENERATIONS: 5,
             PAGE_SIZE: 50,
-            TOKEN_WARNING_LIMIT: 80000 // 【新增】8万字符触发范围总结预警
+            TOKEN_WARNING_LIMIT: 80000 // 8万字符触发范围总结预警
         };
 
         const SVGIcons = {
@@ -479,7 +490,7 @@
             sparkles: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>'
         };
 
-        // --- IndexedDB 管理 (用于储存背景历史图库) ---
+        // --- IndexedDB 管理 ---
         const DBManager = {
             dbName: 'DeepSeekRP_DB',
             dbVersion: 1,
@@ -590,8 +601,6 @@
             roleSidebar: document.getElementById('roleSidebar'), sidebarToggleBtn: document.getElementById('sidebarToggleBtn'), editUserMsgModal: document.getElementById('editUserMsgModal'),
             editUserMsgContent: document.getElementById('editUserMsgContent'), confirmEditMsgBtn: document.getElementById('confirmEditMsgBtn'), cancelEditMsgBtn: document.getElementById('cancelEditMsgBtn'),
             exportBtn: document.getElementById('exportBtn'), importBtn: document.getElementById('importBtn'), importFile: document.getElementById('importFile'),
-            
-            // 背景设置相关DOM
             bgSettingBtn: document.getElementById('bgSettingBtn'), bgModal: document.getElementById('bgModal'), bgGrid: document.getElementById('bgGrid'),
             uploadNewBgBtn: document.getElementById('uploadNewBgBtn'), cancelBgModalBtn: document.getElementById('cancelBgModalBtn'), 
             bgInput: document.getElementById('bgInput'), customBgLayer: document.getElementById('customBgLayer')
@@ -605,21 +614,55 @@
             adjustPaginationAfterDelete(totalMessages) { const totalPages = Math.ceil(totalMessages / Config.PAGE_SIZE); if (Pagination.currentPage > totalPages && totalPages > 0) Pagination.currentPage = totalPages; else if (totalPages === 0) Pagination.currentPage = 1; },
             jumpToLastPage(totalMessages) { const totalPages = Math.ceil(totalMessages / Config.PAGE_SIZE); Pagination.currentPage = totalPages > 0 ? totalPages : 1; },
             
-            // 【新增】检测总字数限制
+            // 【核心防 400 机制】：智能提取有效上下文，动态截断长对话
+            getSafeApiMessages(conv, role, userIndex = null) {
+                const rawHistory = userIndex !== null ? conv.messages.slice(0, userIndex + 1) : conv.messages;
+                
+                let apiMsgs = [];
+                // 1. 从所有记录中提取用户发言、助手发言、以及已完成的总结点（让 AI 记忆总结）
+                for (let m of rawHistory) {
+                    if (m.role === 'system_summary' && m.status === 'done') {
+                        apiMsgs.push({ role: 'assistant', content: `[📌 历史剧情总结点]:\n${m.content}` });
+                    } else if (m.role === 'user' || m.role === 'assistant') {
+                        apiMsgs.push({ role: m.role, content: m.content });
+                    }
+                }
+                
+                // 2. 从后往前截断，控制单次发往大模型的字数，防止 400 报错（安全余量设为 45000 字符）
+                const MAX_CHARS_FOR_CHAT = 45000;
+                let charCount = 0;
+                let truncated = [];
+                
+                for (let i = apiMsgs.length - 1; i >= 0; i--) {
+                    charCount += apiMsgs[i].content.length;
+                    if (charCount > MAX_CHARS_FOR_CHAT && truncated.length > 3) {
+                        break; 
+                    }
+                    truncated.unshift(apiMsgs[i]);
+                }
+                
+                // 3. 始终把系统角色设定顶在最前面
+                return [{ role: "system", content: role.systemPrompt }, ...truncated];
+            },
+
+            // 检测总字数限制，以弹出“预警卡片”
             checkConversationLimit() {
                 const conv = DataManager.getCurrentConversation();
                 if (!conv) return;
                 
-                // 仅统计 user 和 assistant 角色的文字内容
-                const totalChars = conv.messages.reduce((acc, msg) => {
+                // 寻找上一个总结点，只计算在那之后的字数
+                const lastSummaryIdx = conv.messages.findLastIndex(m => m.role === 'system_summary');
+                const msgsToCount = lastSummaryIdx !== -1 ? conv.messages.slice(lastSummaryIdx + 1) : conv.messages;
+                
+                const totalChars = msgsToCount.reduce((acc, msg) => {
                     if (msg.role !== 'user' && msg.role !== 'assistant') return acc;
                     return acc + (msg.content?.length || 0) + (msg.reasoning?.length || 0);
                 }, 0);
 
-                // 判断是否已经追加过总结提示块
-                const hasSummaryBlock = conv.messages.some(m => m.role === 'system_summary');
+                // 判断是否已经有正在显示的预警（未完成的总结）
+                const hasPendingSummary = conv.messages.some(m => m.role === 'system_summary' && m.status !== 'done');
 
-                if (totalChars > Config.TOKEN_WARNING_LIMIT && !hasSummaryBlock) {
+                if (totalChars > Config.TOKEN_WARNING_LIMIT && !hasPendingSummary) {
                     conv.messages.push({
                         role: 'system_summary',
                         status: 'warning',
@@ -629,8 +672,8 @@
                 }
             },
             
-            // 【新增】智能生成特定范围的剧情总结
-            async generateStorySummary(summaryIndex, endOffset, customStartOffset = 0) {
+            // 智能生成特定范围的剧情总结
+            async generateStorySummary(summaryIndex, startOffset, endOffset) {
                 const conv = DataManager.getCurrentConversation();
                 const role = DataManager.getCurrentRole();
                 if (!conv || !role) return;
@@ -639,42 +682,48 @@
                 if (!summaryMsg) return;
 
                 summaryMsg.status = 'generating';
-                // 保存结束索引以便后续使用
+                summaryMsg.startOffset = startOffset;
                 summaryMsg.endOffset = endOffset;
                 DataManager.saveData();
                 this.loadConversationToUI();
 
-                // 筛选出所有有效对话（user/assistant）
+                // 筛选出有效对话（只提取到该 summary 卡片之前）
                 const historyMessages = conv.messages.slice(0, summaryIndex).filter(m => m.role === 'user' || m.role === 'assistant');
-
-                // 切片：从 customStartOffset 到 endOffset
-                let processedHistory = historyMessages.slice(customStartOffset, endOffset + 1);
+                let processedHistory = historyMessages.slice(startOffset, endOffset + 1);
                 
-                // 【保护机制】如果选定范围字数仍过多，折叠中间部分防 400
-                const MAX_CHARS_FOR_SUMMARY = 150000;
-                let sliceChars = processedHistory.reduce((acc, m) => acc + (m.content?.length || 0), 0);
+                // 【保护机制】防止这中间切出来的范围依旧过大导致 400
+                const MAX_CHARS_FOR_SUMMARY = 30000;
+                let currentChars = processedHistory.reduce((acc, m) => acc + (m.content?.length || 0), 0);
                 
-                if (sliceChars > MAX_CHARS_FOR_SUMMARY && processedHistory.length > 15) {
-                    const head = processedHistory.slice(0, 4);
-                    const tail = processedHistory.slice(-12);
+                if (currentChars > MAX_CHARS_FOR_SUMMARY && processedHistory.length > 10) {
+                    let head = []; let headChars = 0;
+                    for (let m of processedHistory) {
+                        if (headChars + m.content.length < 3000) { head.push(m); headChars += m.content.length; } else break;
+                    }
+                    let tail = []; let tailChars = 0;
+                    for (let i = processedHistory.length - 1; i >= 0; i--) {
+                        if (tailChars + processedHistory[i].content.length < 25000) { tail.unshift(processedHistory[i]); tailChars += processedHistory[i].content.length; } else break;
+                    }
+                    
                     processedHistory = [
                         ...head, 
-                        { role: 'user', content: '\n...\n（系统提示：因超过大模型上下文限制，漫长的中间部分剧情已被系统折叠省略，请根据头尾上下文合理推测并生成总结）\n...\n' }, 
+                        { role: 'user', content: '\n...\n（系统提示：因内容过长，中间部分剧情已被折叠，请根据前后文推断总结）\n...\n' }, 
                         ...tail
                     ];
                 }
 
-                // 如果起始点不是0（继续总结场景），将初始世界观补入开头
-                if (customStartOffset > 0 && historyMessages.length > 0) {
+                // 若非从头总结，自动注入最初世界观
+                if (startOffset > 0 && historyMessages.length > 0) {
                      processedHistory = [
-                         { role: 'user', content: `[提示：这个故事最开始的设定如下]\n${historyMessages[0].content}`},
-                         { role: 'user', content: `[提示：中间发生了一些事，现在时间线推进到了以下对话]...`},
+                         { role: 'user', content: `[提示：故事的初始设定如下]\n${historyMessages[0].content}`},
+                         { role: 'user', content: `[提示：时间线推进到了以下对话]...`},
                          ...processedHistory
                      ];
                 }
 
-                const summarySystemPrompt = role.systemPrompt + "\n\n【系统指令】：你现在切换为专业的剧情整理助理，请不要继续进行任何角色扮演。你需要严格阅读上述所有历史对话记录，并生成一份极其详尽的剧情复盘报告（字数在2000字左右），这份报告将被作为输入词提供给下一个对话窗口以实现无缝剧情衔接。\n报告必须清晰包含以下四个板块：\n1. 【核心世界观与主线】：故事发生的背景与迄今为止的主线发展全貌。\n2. 【人物设定与状态】：详尽列出主角及所有出场关键人物的性格、外貌特征、身份设定、相互关系以及当前各自所处的具体情况。\n3. 【伏笔与未解之谜】：明确梳理出对话剧情中埋下的所有暗线、未解决的冲突、神秘道具或待揭露的真相。\n4. 【当前焦点事件】：详细且具象地描述故事最后中断在的那一刻的具体场景、角色动作和对话态势。";
+                const summarySystemPrompt = role.systemPrompt + "\n\n【系统指令】：你现在切换为专业的剧情整理助理，请不要继续进行任何角色扮演。你需要严格阅读上述所有历史对话记录，并生成一份极其详尽的剧情复盘报告（字数在2000字左右），这份报告将被作为输入词保留在对话中，以实现无缝剧情衔接。\n报告必须清晰包含以下四个板块：\n1. 【核心世界观与主线】：故事发生的背景与迄今为止的主线发展全貌。\n2. 【人物设定与状态】：详尽列出主角及所有出场关键人物的性格、外貌特征、身份设定、相互关系以及当前各自所处的具体情况。\n3. 【伏笔与未解之谜】：明确梳理出对话剧情中埋下的所有暗线、未解决的冲突、神秘道具或待揭露的真相。\n4. 【当前焦点事件】：详细且具象地描述故事最后中断在的那一刻的具体场景、角色动作和对话态势。";
 
+                // 【去杂质】只传纯净的 role 和 content
                 const apiMessages = [
                     { role: "system", content: summarySystemPrompt },
                     ...processedHistory.map(m => ({ role: m.role, content: m.content }))
@@ -695,10 +744,8 @@
                     const data = await response.json();
                     
                     summaryMsg.content = data.choices[0].message.content;
-                    summaryMsg.status = 'done';
-                    // 如果使用了 customStartOffset，说明是继续总结，此时更新 endOffset 为最新的 endOffset（但这里 summaryMsg.endOffset 应当保持不变，因为我们是追加总结？不，我们是替换内容。继续总结时我们希望新内容覆盖旧总结，并且 endOffset 变为最新的 endOffset）
-                    // 如果是继续总结，我们想要替换原总结内容，并更新 endOffset 为新值。
-                    summaryMsg.endOffset = endOffset;
+                    summaryMsg.status = 'done'; // 转换为常驻 Checkpoint
+                    DataManager.saveData();
                     this.loadConversationToUI();
                 } catch (err) {
                     if (err.name !== 'AbortError') {
@@ -737,7 +784,6 @@
                     convSection.querySelector('.add-conv-btn').addEventListener('click', (e) => { e.stopPropagation(); this.addConversation(role.id); });
                 }
                 const curRole = DataManager.getCurrentRole(); 
-                // 新增：更新左上角角色名
                 const headerRoleName = document.getElementById('headerRoleName');
                 if (headerRoleName) {
                     headerRoleName.textContent = curRole ? curRole.name : 'DeepSeek';
@@ -763,14 +809,16 @@
             adjustTextareaHeight() { DOM.messageInput.style.height = 'auto'; DOM.messageInput.style.height = Math.min(DOM.messageInput.scrollHeight, 120) + 'px'; },
             toggleReasoning(assistantIndex) { const conv = DataManager.getCurrentConversation(); if (!conv) return; const msg = conv.messages[assistantIndex]; if (!msg || msg.role !== 'assistant') return; msg.reasoningCollapsed = !msg.reasoningCollapsed; DataManager.saveData(); this.loadConversationToUI(); },
             changeAssistantVersion(assistantIndex, delta) { const conv = DataManager.getCurrentConversation(); if (!conv) return; const assistantMsg = conv.messages[assistantIndex]; if (!assistantMsg || assistantMsg.role !== 'assistant') return; const totalVers = assistantMsg.regenerations.length + 1; let newVer = assistantMsg.currentVersion + delta; if (newVer < 0) newVer = 0; if (newVer >= totalVers) newVer = totalVers - 1; if (newVer === assistantMsg.currentVersion) return; assistantMsg.currentVersion = newVer; DataManager.saveData(); this.loadConversationToUI(); },
+            
             async regenerateAssistantResponse(assistantIndex) {
                 const conv = DataManager.getCurrentConversation(); const role = DataManager.getCurrentRole(); if (!conv || !role) return;
                 const assistantMsg = conv.messages[assistantIndex]; if (!assistantMsg || assistantMsg.role !== 'assistant') return;
                 if (assistantMsg.regenerations.length + 1 >= Config.MAX_REGENERATIONS + 1) { alert(`已达到最大重新生成次数（${Config.MAX_REGENERATIONS}次）`); return; }
                 let userIndex = assistantIndex - 1; if (userIndex < 0 || conv.messages[userIndex].role !== 'user') return;
-                const historyMessages = conv.messages.slice(0, userIndex + 1);
-                // 【过滤】排除系统总结块
-                const apiMessages = [{ role: "system", content: role.systemPrompt }, ...historyMessages.filter(m => m.role === 'user' || m.role === 'assistant').map(m => ({ role: m.role, content: m.content }))];
+                
+                // 【应用防 400 机制】
+                const apiMessages = this.getSafeApiMessages(conv, role, userIndex);
+                
                 if (currentAbortController) currentAbortController.abort(); currentAbortController = new AbortController();
                 const loadingDiv = document.createElement('div'); loadingDiv.className = 'loading'; loadingDiv.innerHTML = `${SVGIcons.spinner} 生成中...`; DOM.messagesArea.appendChild(loadingDiv); DOM.messagesArea.scrollTop = DOM.messagesArea.scrollHeight;
                 try {
@@ -787,6 +835,7 @@
                 } catch (err) { if (err.name !== 'AbortError') alert(`重新生成失败: ${err.message}`); } finally { loadingDiv.remove(); currentAbortController = null; }
             },
             deleteUserMessageAndAssistant(userIndex) { if (!confirm('确定删除此消息及后续回复吗？')) return; const conv = DataManager.getCurrentConversation(); if (!conv) return; if (userIndex + 1 < conv.messages.length && conv.messages[userIndex+1].role === 'assistant') conv.messages.splice(userIndex, 2); else conv.messages.splice(userIndex, 1); DataManager.saveData(); this.adjustPaginationAfterDelete(conv.messages.length); this.loadConversationToUI(); },
+            
             loadConversationToUI() {
                 const conv = DataManager.getCurrentConversation(); const curRole = DataManager.getCurrentRole(); const headerRoleName = document.getElementById('headerRoleName'); if (headerRoleName) {
                     headerRoleName.textContent = curRole ? curRole.name : 'DeepSeek';
@@ -823,57 +872,65 @@
                         wrapper.querySelectorAll('.version-btn').forEach(btn => btn.addEventListener('click', () => this.changeAssistantVersion(globalIdx, parseInt(btn.dataset.delta))));
                         wrapper.querySelector('.regenerate').addEventListener('click', () => this.regenerateAssistantResponse(globalIdx));
                     } else if (msg.role === 'system_summary') {
-                        // 【渲染】智能总结卡片块
+                        // 【渲染】智能总结驻留卡片
                         const validMsgs = allMessages.slice(0, globalIdx).filter(m => m.role === 'user' || m.role === 'assistant');
                         const totalValid = validMsgs.length;
                         const maxIdx = Math.max(0, totalValid - 1);
-                        // 结束索引：默认为最新进度
-                        const defaultEndIdx = maxIdx;
-                        const currentEndIdx = msg.endOffset !== undefined ? msg.endOffset : defaultEndIdx;
+                        
+                        // 自动定位起点的逻辑：寻找上一个已完成的 Checkpoint
+                        const prevSummaryNodeIdx = allMessages.slice(0, globalIdx).findLastIndex(m => m.role === 'system_summary' && m.status === 'done');
+                        let suggestedStart = 0;
+                        if (prevSummaryNodeIdx !== -1) {
+                            const prevEnd = allMessages[prevSummaryNodeIdx].endOffset;
+                            if (prevEnd !== undefined && prevEnd < maxIdx) { suggestedStart = prevEnd + 1; }
+                        }
+                        
+                        // 起点固定为当前卡片记录的值或自动建议的起点
+                        const startVal = msg.startOffset !== undefined ? msg.startOffset : suggestedStart;
+                        // 终点初始值：如果是完成态则取记录值，否则默认取最新对话
+                        const endVal = msg.endOffset !== undefined ? msg.endOffset : maxIdx;
 
                         wrapper.innerHTML = `
-                            <div class="system-summary-message">
+                            <div class="system-summary-message ${msg.status === 'done' ? 'checkpoint-done' : ''}">
                                 <div class="summary-header">
                                     <div class="summary-title-wrap">
-                                        ${SVGIcons.warning}
-                                        <span>记忆过载预警 (已超 8 万字符)</span>
+                                        ${msg.status === 'done' ? '📌 剧情总结点 (Checkpoint)' : SVGIcons.warning + ' <span>记忆过载预警 (已超 8 万字符)</span>'}
                                     </div>
                                 </div>
                                 ${msg.status === 'warning' ? `
-                                    <p style="opacity:0.9; margin-bottom: 10px;">当前对话长度已逼近上下文极限，长此以往可能导致角色“失忆”或逻辑混乱。建议您对当前剧情进行详细总结，并携带总结结果开启新会话以维持最佳扮演体验。</p>
+                                    <p style="opacity:0.9; margin-bottom: 10px;">当前对话长度已逼近上下文极限。建议您生成总结节点，以便 AI 后续保持清晰的记忆。</p>
                                     
                                     <div class="range-selector">
-                                        <div class="range-info" id="range-text-${globalIdx}">总结范围：从最初 到 第 ${totalValid} 条对话（最新进度）</div>
-                                        <input type="range" id="summary-slider-${globalIdx}" min="0" max="${maxIdx}" value="${maxIdx}">
+                                        <div class="range-info" id="range-text-${globalIdx}">总结范围：从第 ${startVal + 1} 条 到 第 ${endVal + 1} 条</div>
+                                        <input type="range" id="summary-slider-${globalIdx}" min="${startVal}" max="${maxIdx}" value="${endVal}">
                                         <div style="display:flex; justify-content:space-between; font-size:0.75rem; color:var(--text-secondary); margin-top:6px;">
-                                            <span>最早记忆</span>
-                                            <span>最新进度 (第${totalValid}条)</span>
+                                            <span>起点 (第${startVal + 1}条)</span>
+                                            <span>最新进度 (第${maxIdx + 1}条)</span>
                                         </div>
                                     </div>
 
                                     <button class="summary-btn" id="generateSummaryBtn-${globalIdx}">
-                                        ${SVGIcons.sparkles} 生成所选范围总结
+                                        ${SVGIcons.sparkles} 生成本次剧情总结
                                     </button>
                                 ` : msg.status === 'generating' ? `
-                                    <p style="display:flex;align-items:center;gap:8px;opacity:0.9;">${SVGIcons.spinner} 正在深入提取核心剧情与人物状态，请稍候...</p>
+                                    <p style="display:flex;align-items:center;gap:8px;opacity:0.9;">${SVGIcons.spinner} 正在提取核心剧情生成总结点，请稍候...</p>
                                 ` : `
-                                    <p style="opacity:0.9;">✅ 剧情总结已生成。请复制下方内容，在左侧新建会话，并粘贴至“系统提示词”或首句对话中，以实现无缝剧情衔接。</p>
+                                    <p style="opacity:0.9;">已生成从第 ${msg.startOffset + 1} 条至第 ${msg.endOffset + 1} 条的剧情浓缩记录。该范围终点已设为锚点，AI 在后续聊天中会自动纳入此总结。</p>
                                     <div class="summary-text">${escapeHtml(msg.content)}</div>
                                     <div style="display: flex; gap: 8px;">
                                         <button class="copy-summary-btn" id="copySummaryBtn-${globalIdx}" style="flex: 2;">
-                                        ${SVGIcons.copy} 一键复制总结
-                                    </button>
-                                    ${(msg.endOffset !== undefined && msg.endOffset < maxIdx) ? `
-                                        <button class="continue-summary-btn" id="continueSummaryBtn-${globalIdx}" style="flex: 1; background: var(--badge-bg); color: var(--text-primary); border: none; border-radius: 12px; padding: 12px; cursor: pointer;">
-                                            继续总结后续
+                                            ${SVGIcons.copy} 一键复制内容
                                         </button>
-                                    ` : ''}
+                                        ${(msg.endOffset !== undefined && msg.endOffset < maxIdx) ? `
+                                            <button class="continue-summary-btn" id="continueSummaryBtn-${globalIdx}" style="flex: 1.5; background: var(--badge-bg); color: var(--text-primary); border: none; border-radius: 12px; padding: 12px; cursor: pointer; font-size: 0.85rem; font-weight: 500;">
+                                                从总结点继续总结
+                                            </button>
+                                        ` : ''}
                                     </div>
                                 `}
                             </div>
                         `;
                         
-                        // 异步绑定总结事件
                         setTimeout(() => {
                             if (msg.status === 'warning') {
                                 const slider = document.getElementById(`summary-slider-${globalIdx}`);
@@ -881,18 +938,16 @@
                                 const btn = document.getElementById(`generateSummaryBtn-${globalIdx}`);
                                 
                                 if (slider && rangeText) {
-                                    // 绑定实时更新事件
                                     slider.addEventListener('input', (e) => {
-                                        const endIdx = parseInt(e.target.value);      // 滑块当前值（0-based）
-                                        const displayCount = endIdx + 1;              // 显示为第几条（1-based）
-                                        rangeText.innerText = `总结范围：从最初 到 第 ${displayCount} 条对话`;
+                                        const eIdx = parseInt(e.target.value);
+                                        rangeText.innerText = `总结范围：从第 ${startVal + 1} 条 到 第 ${eIdx + 1} 条`;
                                     });
                                 }
                                 
                                 if (btn) {
                                     btn.addEventListener('click', () => {
-                                        const endOffset = slider ? parseInt(slider.value) : maxIdx;
-                                        this.generateStorySummary(globalIdx, endOffset);
+                                        const finalEndOffset = slider ? parseInt(slider.value) : endVal;
+                                        this.generateStorySummary(globalIdx, startVal, finalEndOffset);
                                     });
                                 }
                             }
@@ -905,12 +960,12 @@
                                             const textarea = document.createElement('textarea');
                                             textarea.value = rawText; textarea.style.position = 'fixed'; textarea.style.opacity = '0';
                                             document.body.appendChild(textarea); textarea.select();
-                                            try { document.execCommand('copy'); copyBtn.innerHTML = `${SVGIcons.check} 复制成功！`; setTimeout(() => copyBtn.innerHTML = `${SVGIcons.copy} 一键复制总结`, 2000); } catch(e) {}
+                                            try { document.execCommand('copy'); copyBtn.innerHTML = `${SVGIcons.check} 复制成功！`; setTimeout(() => copyBtn.innerHTML = `${SVGIcons.copy} 一键复制内容`, 2000); } catch(e) {}
                                             document.body.removeChild(textarea);
                                         };
                                         if (navigator.clipboard && navigator.clipboard.writeText) {
                                             navigator.clipboard.writeText(rawText).then(() => {
-                                                copyBtn.innerHTML = `${SVGIcons.check} 复制成功！`; setTimeout(() => copyBtn.innerHTML = `${SVGIcons.copy} 一键复制总结`, 2000);
+                                                copyBtn.innerHTML = `${SVGIcons.check} 复制成功！`; setTimeout(() => copyBtn.innerHTML = `${SVGIcons.copy} 一键复制内容`, 2000);
                                             }).catch(copyFallback);
                                         } else { copyFallback(); }
                                     });
@@ -919,9 +974,26 @@
                                 const continueBtn = document.getElementById(`continueSummaryBtn-${globalIdx}`);
                                 if (continueBtn) {
                                     continueBtn.addEventListener('click', () => {
-                                        // 从上次总结结束点之后开始总结到最新
-                                        const startOffset = (msg.endOffset || 0) + 1;
-                                        this.generateStorySummary(globalIdx, maxIdx, startOffset);
+                                        const conv = DataManager.getCurrentConversation();
+                                        if (!conv) return;
+                                        
+                                        // 检查是否在最新的对话后面已经有了待处理的 warning 或 generating 总结卡片
+                                        const hasPendingSummary = conv.messages.some(m => m.role === 'system_summary' && m.status !== 'done');
+                                        
+                                        if (!hasPendingSummary) {
+                                            // 在对话最末尾推入一个新的预警卡片
+                                            conv.messages.push({
+                                                role: 'system_summary',
+                                                status: 'warning',
+                                                content: '',
+                                                timestamp: new Date().toISOString()
+                                            });
+                                            DataManager.saveData();
+                                            this.loadConversationToUI();
+                                        } else {
+                                            // 如果已经有了，直接滚动到底部
+                                            DOM.messagesArea.scrollTop = DOM.messagesArea.scrollHeight;
+                                        }
                                     });
                                 }
                             }
@@ -938,9 +1010,11 @@
                 }
                 DOM.messagesArea.scrollTop = DOM.messagesArea.scrollHeight;
             },
+            
             async generateReplyForUserIndex(conv, userIndex, systemPrompt) {
-                // 【过滤】排除系统总结块
-                const apiMessages = [{ role: "system", content: systemPrompt }, ...conv.messages.slice(0, userIndex + 1).filter(m => m.role === 'user' || m.role === 'assistant').map(m => ({ role: m.role, content: m.content }))];
+                // 【应用防 400 机制】
+                const apiMessages = this.getSafeApiMessages(conv, { systemPrompt: systemPrompt }, userIndex);
+                
                 if (currentAbortController) currentAbortController.abort(); currentAbortController = new AbortController();
                 const loadingDiv = document.createElement('div'); loadingDiv.className = 'loading'; loadingDiv.innerHTML = `${SVGIcons.spinner} 生成中...`; DOM.messagesArea.appendChild(loadingDiv); DOM.messagesArea.scrollTop = DOM.messagesArea.scrollHeight;
                 try {
@@ -978,10 +1052,14 @@
             if (!DataManager.currentRoleId) { alert('请先选择一个角色'); return; }
             DOM.messageInput.value = ''; UIManager.adjustTextareaHeight();
             const conv = DataManager.getCurrentConversation(); if (!conv) return;
-            conv.messages.push({ role: 'user', content: text, timestamp: new Date().toISOString() }); UIManager.loadConversationToUI();
+            
+            conv.messages.push({ role: 'user', content: text, timestamp: new Date().toISOString() }); 
+            UIManager.loadConversationToUI();
+            
             const role = DataManager.getCurrentRole();
-            // 【过滤】保证传给大模型的数据绝不包含 system_summary 警告块
-            const apiMessages = [{ role: "system", content: role.systemPrompt }, ...conv.messages.filter(m => m.role === 'user' || m.role === 'assistant').map(m => ({ role: m.role, content: m.content }))];
+            // 【应用防 400 机制】确保大模型读取最新的总结点，且总文本不超过上限
+            const apiMessages = UIManager.getSafeApiMessages(conv, role);
+            
             if (currentAbortController) currentAbortController.abort(); currentAbortController = new AbortController();
             const loadingDiv = document.createElement('div'); loadingDiv.className = 'loading'; loadingDiv.innerHTML = `${SVGIcons.spinner} 生成中...`; DOM.messagesArea.appendChild(loadingDiv); DOM.messagesArea.scrollTop = DOM.messagesArea.scrollHeight;
             try {
@@ -1057,13 +1135,12 @@
             currentActiveBgId = id;
             localStorage.setItem('deepseek_current_bg_id', id);
             applyCustomBg(dataUrl);
-            renderBgGrid(); // 更新选中状态
+            renderBgGrid(); 
         }
 
         async function renderBgGrid() {
             DOM.bgGrid.innerHTML = '';
             
-            // 1. 默认流体选项
             const defaultItem = document.createElement('div');
             defaultItem.className = `bg-item bg-item-default ${currentActiveBgId === 'default' ? 'active' : ''}`;
             defaultItem.id = 'bgItem-default';
@@ -1072,7 +1149,6 @@
             defaultItem.addEventListener('click', () => setCurrentBg('default', null));
             DOM.bgGrid.appendChild(defaultItem);
 
-            // 2. 从 IndexedDB 渲染历史记录
             try {
                 const bgs = await DBManager.getAllBgs();
                 bgs.forEach(bg => {
@@ -1115,7 +1191,7 @@
                     canvas.width = width; canvas.height = height;
                     const ctx = canvas.getContext('2d');
                     ctx.drawImage(img, 0, 0, width, height);
-                    const dataUrl = canvas.toDataURL('image/jpeg', 0.85); // 转换为较小体量的 JPEG
+                    const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
                     
                     const newId = 'bg_' + Date.now();
                     try {
@@ -1131,51 +1207,28 @@
             reader.readAsDataURL(file);
         }
 
-        DOM.bgSettingBtn.addEventListener('click', () => {
-            renderBgGrid(); // 每次打开时重新渲染
-            DOM.bgModal.style.display = 'flex';
-        });
-
-        DOM.cancelBgModalBtn.addEventListener('click', () => {
-            DOM.bgModal.style.display = 'none';
-        });
-
-        DOM.uploadNewBgBtn.addEventListener('click', () => {
-            DOM.bgInput.click();
-        });
-
+        DOM.bgSettingBtn.addEventListener('click', () => { renderBgGrid(); DOM.bgModal.style.display = 'flex'; });
+        DOM.cancelBgModalBtn.addEventListener('click', () => { DOM.bgModal.style.display = 'none'; });
+        DOM.uploadNewBgBtn.addEventListener('click', () => { DOM.bgInput.click(); });
         DOM.bgInput.addEventListener('change', (e) => {
             const file = e.target.files[0];
             if (!file) return;
             processAndSaveImage(file);
-            e.target.value = ''; // 重置
-            DOM.bgModal.style.display = 'none'; // 选完自动关闭
+            e.target.value = ''; 
+            DOM.bgModal.style.display = 'none'; 
         });
 
         // ---- 程序初始化 ----
         DBManager.init().then(async () => {
-            // 初始化时如果选择了非默认背景，加载它
             if (currentActiveBgId !== 'default') {
                 try {
                     const bgs = await DBManager.getAllBgs();
                     const activeBg = bgs.find(b => b.id === currentActiveBgId);
-                    if (activeBg) {
-                        applyCustomBg(activeBg.dataUrl);
-                    } else {
-                        // 如果记录不存在了，降级为默认
-                        setCurrentBg('default', null);
-                    }
-                } catch (err) {
-                    console.error("恢复背景失败", err);
-                }
+                    if (activeBg) { applyCustomBg(activeBg.dataUrl); } 
+                    else { setCurrentBg('default', null); }
+                } catch (err) { console.error("恢复背景失败", err); }
             }
-            
-            DataManager.loadData(); 
-            DataManager.loadSidebarState(); 
-            UIManager.loadTheme(); 
-            UIManager.renderSidebar(); 
-            UIManager.loadConversationToUI(); 
-            initThemeFollowSystem();
+            DataManager.loadData(); DataManager.loadSidebarState(); UIManager.loadTheme(); UIManager.renderSidebar(); UIManager.loadConversationToUI(); initThemeFollowSystem();
         }).catch(err => {
             alert('本地数据库初始化失败，背景历史功能将受限。');
             console.error(err);
