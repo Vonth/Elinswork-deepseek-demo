@@ -630,7 +630,7 @@
             },
             
             // 【新增】智能生成特定范围的剧情总结
-            async generateStorySummary(summaryIndex, startOffset) {
+            async generateStorySummary(summaryIndex, endOffset, customStartOffset = 0) {
                 const conv = DataManager.getCurrentConversation();
                 const role = DataManager.getCurrentRole();
                 if (!conv || !role) return;
@@ -639,12 +639,16 @@
                 if (!summaryMsg) return;
 
                 summaryMsg.status = 'generating';
+                // 保存结束索引以便后续使用
+                summaryMsg.endOffset = endOffset;
                 DataManager.saveData();
                 this.loadConversationToUI();
 
-                // 筛选出所有有效对话，并切片
+                // 筛选出所有有效对话（user/assistant）
                 const historyMessages = conv.messages.slice(0, summaryIndex).filter(m => m.role === 'user' || m.role === 'assistant');
-                let processedHistory = historyMessages.slice(startOffset);
+
+                // 切片：从 customStartOffset 到 endOffset
+                let processedHistory = historyMessages.slice(customStartOffset, endOffset + 1);
                 
                 // 【保护机制】如果选定范围字数仍过多，折叠中间部分防 400
                 const MAX_CHARS_FOR_SUMMARY = 60000;
@@ -660,8 +664,8 @@
                     ];
                 }
 
-                // 【保护机制】如果你是从半路截断总结，这里强行把系统最开始的世界观补进最前面
-                if (startOffset > 0 && historyMessages.length > 0) {
+                // 如果起始点不是0（继续总结场景），将初始世界观补入开头
+                if (customStartOffset > 0 && historyMessages.length > 0) {
                      processedHistory = [
                          { role: 'user', content: `[提示：这个故事最开始的设定如下]\n${historyMessages[0].content}`},
                          { role: 'user', content: `[提示：中间发生了一些事，现在时间线推进到了以下对话]...`},
@@ -692,7 +696,9 @@
                     
                     summaryMsg.content = data.choices[0].message.content;
                     summaryMsg.status = 'done';
-                    DataManager.saveData();
+                    // 如果使用了 customStartOffset，说明是继续总结，此时更新 endOffset 为最新的 endOffset（但这里 summaryMsg.endOffset 应当保持不变，因为我们是追加总结？不，我们是替换内容。继续总结时我们希望新内容覆盖旧总结，并且 endOffset 变为最新的 endOffset）
+                    // 如果是继续总结，我们想要替换原总结内容，并更新 endOffset 为新值。
+                    summaryMsg.endOffset = endOffset;
                     this.loadConversationToUI();
                 } catch (err) {
                     if (err.name !== 'AbortError') {
@@ -821,6 +827,9 @@
                         const validMsgs = allMessages.slice(0, globalIdx).filter(m => m.role === 'user' || m.role === 'assistant');
                         const totalValid = validMsgs.length;
                         const maxIdx = Math.max(0, totalValid - 1);
+                        // 结束索引：默认为最新进度
+                        const defaultEndIdx = maxIdx;
+                        const currentEndIdx = msg.endOffset !== undefined ? msg.endOffset : defaultEndIdx;
 
                         wrapper.innerHTML = `
                             <div class="system-summary-message">
@@ -834,11 +843,11 @@
                                     <p style="opacity:0.9; margin-bottom: 10px;">当前对话长度已逼近上下文极限，长此以往可能导致角色“失忆”或逻辑混乱。建议您对当前剧情进行详细总结，并携带总结结果开启新会话以维持最佳扮演体验。</p>
                                     
                                     <div class="range-selector">
-                                        <div class="range-info" id="range-text-${globalIdx}">总结范围：从最初 到 当前进度 (${totalValid} 条对话)</div>
-                                        <input type="range" id="summary-slider-${globalIdx}" min="0" max="${maxIdx}" value="0">
+                                        <div class="range-info" id="range-text-${globalIdx}">总结范围：从最初 到 第 ${totalValid} 条对话（最新进度）</div>
+                                        <input type="range" id="summary-slider-${globalIdx}" min="0" max="${maxIdx}" value="${maxIdx}">
                                         <div style="display:flex; justify-content:space-between; font-size:0.75rem; color:var(--text-secondary); margin-top:6px;">
                                             <span>最早记忆</span>
-                                            <span>最新进度</span>
+                                            <span>最新进度 (第${totalValid}条)</span>
                                         </div>
                                     </div>
 
@@ -850,9 +859,16 @@
                                 ` : `
                                     <p style="opacity:0.9;">✅ 剧情总结已生成。请复制下方内容，在左侧新建会话，并粘贴至“系统提示词”或首句对话中，以实现无缝剧情衔接。</p>
                                     <div class="summary-text">${escapeHtml(msg.content)}</div>
-                                    <button class="copy-summary-btn" id="copySummaryBtn-${globalIdx}">
+                                    <div style="display: flex; gap: 8px;">
+                                        <button class="copy-summary-btn" id="copySummaryBtn-${globalIdx}" style="flex: 2;">
                                         ${SVGIcons.copy} 一键复制总结
                                     </button>
+                                    ${(msg.endOffset !== undefined && msg.endOffset < maxIdx) ? `
+                                        <button class="continue-summary-btn" id="continueSummaryBtn-${globalIdx}" style="flex: 1; background: var(--badge-bg); color: var(--text-primary); border: none; border-radius: 12px; padding: 12px; cursor: pointer;">
+                                            继续总结后续
+                                        </button>
+                                    ` : ''}
+                                    </div>
                                 `}
                             </div>
                         `;
@@ -865,36 +881,47 @@
                                 const btn = document.getElementById(`generateSummaryBtn-${globalIdx}`);
                                 
                                 if (slider && rangeText) {
+                                    // 绑定实时更新事件
                                     slider.addEventListener('input', (e) => {
-                                        const start = parseInt(e.target.value);
-                                        rangeText.innerText = `总结范围：从第 ${start + 1} 条 到 当前进度 (${totalValid - start} 条对话)`;
+                                        const endIdx = parseInt(e.target.value);      // 滑块当前值（0-based）
+                                        const displayCount = endIdx + 1;              // 显示为第几条（1-based）
+                                        rangeText.innerText = `总结范围：从最初 到 第 ${displayCount} 条对话`;
                                     });
                                 }
                                 
                                 if (btn) {
                                     btn.addEventListener('click', () => {
-                                        const startOffset = slider ? parseInt(slider.value) : 0;
-                                        this.generateStorySummary(globalIdx, startOffset);
+                                        const endOffset = slider ? parseInt(slider.value) : maxIdx;
+                                        this.generateStorySummary(globalIdx, endOffset);
                                     });
                                 }
                             }
                             if (msg.status === 'done') {
-                                const btn = document.getElementById(`copySummaryBtn-${globalIdx}`);
-                                if (btn) {
-                                    btn.addEventListener('click', () => {
+                                const copyBtn = document.getElementById(`copySummaryBtn-${globalIdx}`);
+                                if (copyBtn) {
+                                    copyBtn.addEventListener('click', () => {
                                         const rawText = msg.content;
                                         const copyFallback = () => {
                                             const textarea = document.createElement('textarea');
                                             textarea.value = rawText; textarea.style.position = 'fixed'; textarea.style.opacity = '0';
                                             document.body.appendChild(textarea); textarea.select();
-                                            try { document.execCommand('copy'); btn.innerHTML = `${SVGIcons.check} 复制成功！`; setTimeout(() => btn.innerHTML = `${SVGIcons.copy} 一键复制总结`, 2000); } catch(e) {}
+                                            try { document.execCommand('copy'); copyBtn.innerHTML = `${SVGIcons.check} 复制成功！`; setTimeout(() => copyBtn.innerHTML = `${SVGIcons.copy} 一键复制总结`, 2000); } catch(e) {}
                                             document.body.removeChild(textarea);
                                         };
                                         if (navigator.clipboard && navigator.clipboard.writeText) {
                                             navigator.clipboard.writeText(rawText).then(() => {
-                                                btn.innerHTML = `${SVGIcons.check} 复制成功！`; setTimeout(() => btn.innerHTML = `${SVGIcons.copy} 一键复制总结`, 2000);
+                                                copyBtn.innerHTML = `${SVGIcons.check} 复制成功！`; setTimeout(() => copyBtn.innerHTML = `${SVGIcons.copy} 一键复制总结`, 2000);
                                             }).catch(copyFallback);
                                         } else { copyFallback(); }
+                                    });
+                                }
+
+                                const continueBtn = document.getElementById(`continueSummaryBtn-${globalIdx}`);
+                                if (continueBtn) {
+                                    continueBtn.addEventListener('click', () => {
+                                        // 从上次总结结束点之后开始总结到最新
+                                        const startOffset = (msg.endOffset || 0) + 1;
+                                        this.generateStorySummary(globalIdx, maxIdx, startOffset);
                                     });
                                 }
                             }
