@@ -107,17 +107,20 @@
             transition: background 0.4s ease;
         }
         
+        /* 自定义背景层 */
         .custom-bg-layer {
             position: absolute;
             top: 0; left: 0;
             width: 100%; height: 100%;
             background-size: cover;
             background-position: center;
-            z-index: 1;
+            z-index: 1; /* 盖在极光气泡上方 */
             opacity: 0;
             transition: opacity 0.4s ease;
         }
-        .custom-bg-layer.active { opacity: 1; }
+        .custom-bg-layer.active {
+            opacity: 1;
+        }
 
         .dynamic-bg .blob {
             position: absolute;
@@ -173,6 +176,7 @@
         .conv-actions { display: flex; gap: 4px; opacity: 0.6; }
         .conv-item.active .conv-actions { opacity: 1; }
 
+        /* 侧边栏底部：导入导出控制区 */
         .sidebar-footer { padding: 16px 12px calc(16px + env(safe-area-inset-bottom)) 12px; border-top: 1px solid var(--glass-border); display: flex; gap: 8px; }
         .action-btn { flex: 1; background: var(--badge-bg); border: 1px solid transparent; color: var(--text-primary); padding: 10px 4px; border-radius: 12px; font-size: 0.8rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 4px; transition: background 0.2s; white-space: nowrap; }
         .action-btn:active, .action-btn:hover { background: var(--card-active-bg); }
@@ -181,6 +185,7 @@
         /* ---------- 主聊天区域 ---------- */
         .chat-container { flex: 1; display: flex; flex-direction: column; position: relative; background: var(--bg-chat); width: 100%; }
 
+        /* 顶部毛玻璃导航栏 */
         .chat-header { position: absolute; top: 0; left: 0; width: 100%; z-index: 100; padding: calc(12px + env(safe-area-inset-top)) 20px 12px 20px; display: flex; justify-content: space-between; align-items: center; background: var(--glass-bg); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); border-bottom: 1px solid var(--glass-border); }
         .header-left { display: flex; align-items: center; gap: 12px; font-weight: 500; font-size: 1rem; letter-spacing: 0.5px;}
         .current-role-badge { font-size: 0.7rem; background: var(--badge-bg); padding: 4px 10px; border-radius: 20px; color: var(--text-secondary);}
@@ -188,46 +193,61 @@
         .model-selector select { background: var(--badge-bg); border: 1px solid transparent; border-radius: 20px; padding: 6px 14px; font-size: 0.8rem; color: var(--text-primary); font-family: inherit; appearance: none; outline: none; cursor: pointer; }
         .theme-toggle, .sidebar-toggle-btn { background: transparent; border: 1px solid var(--glass-border); border-radius: 50%; width: 34px; height: 34px; display: flex; align-items: center; justify-content: center; font-size: 1rem; color: var(--text-primary); }
 
+        /* 消息展示区 */
         .messages-area { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: calc(80px + env(safe-area-inset-top)) 20px calc(110px + env(safe-area-inset-bottom)) 20px; display: flex; flex-direction: column; gap: 16px; }
         .message-wrapper { display: flex; flex-direction: column; width: 100%; }
         
         .user-message { align-self: flex-end; background: var(--user-msg-bg); color: var(--user-msg-text); font-size: 16px; line-height: 1.5; padding: 12px 18px; border-radius: 20px 20px 4px 20px; max-width: 85%; word-break: break-word; backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border: 1px solid var(--user-msg-border); box-shadow: 0 8px 32px var(--user-msg-shadow); }
         .assistant-message { align-self: flex-start; color: var(--text-primary); font-size: 16px; line-height: 1.6; max-width: 95%; word-break: break-word; padding: 4px 0; text-shadow: 0 1px 3px rgba(0,0,0,0.1); }
         
-        /* 系统总结气泡样式 */
+        /* 智能总结气泡卡片样式 */
         .system-summary-message {
             align-self: center;
             background: rgba(255, 170, 0, 0.12);
             border: 1px solid rgba(255, 170, 0, 0.3);
             border-radius: 20px;
-            padding: 16px 20px;
-            margin: 16px 0;
+            padding: 20px 24px;
+            margin: 20px 0;
             width: 95%;
-            max-width: 650px;
+            max-width: 700px;
             color: var(--text-primary);
             backdrop-filter: blur(12px);
             -webkit-backdrop-filter: blur(12px);
             font-size: 0.9rem;
             line-height: 1.6;
             box-shadow: 0 8px 24px rgba(0,0,0,0.05);
+            animation: slideInUp 0.5s ease-out;
         }
         body.dark .system-summary-message { background: rgba(255, 190, 0, 0.15); border-color: rgba(255, 190, 0, 0.35); box-shadow: 0 8px 24px rgba(0,0,0,0.2); }
-        .summary-header { font-weight: 600; display: flex; align-items: center; gap: 8px; margin-bottom: 12px; color: #d97706; font-size: 1rem; }
+        .summary-header { font-weight: 600; display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; color: #d97706; font-size: 1rem; }
         body.dark .summary-header { color: #fbbf24; }
+        .summary-title-wrap { display: flex; align-items: center; gap: 8px; }
+        .range-selector { background: rgba(255,255,255,0.5); padding: 15px; border-radius: 12px; margin: 15px 0; border: 1px solid rgba(0,0,0,0.05); }
+        body.dark .range-selector { background: rgba(0,0,0,0.2); border-color: rgba(255,255,255,0.1); }
+        .range-info { font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 10px; font-weight: 500; }
+        .system-summary-message input[type="range"] { width: 100%; height: 6px; border-radius: 5px; background: rgba(0,0,0,0.1); outline: none; appearance: none; accent-color: #d97706; cursor: pointer; }
+        body.dark .system-summary-message input[type="range"] { background: rgba(255,255,255,0.1); accent-color: #fbbf24; }
+        .system-summary-message input[type="range"]::-webkit-slider-thumb { appearance: none; width: 16px; height: 16px; border-radius: 50%; background: #d97706; cursor: pointer; border: 2px solid #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.3); }
+        body.dark .system-summary-message input[type="range"]::-webkit-slider-thumb { background: #fbbf24; border-color: #222; }
+        
         .summary-btn, .copy-summary-btn {
-            background: var(--button-bg); color: var(--button-text);
-            border: none; padding: 10px 20px; border-radius: 12px;
-            font-size: 0.9rem; cursor: pointer; margin-top: 14px;
-            display: inline-flex; align-items: center; gap: 8px;
+            background: #d97706; color: #fff;
+            border: none; padding: 12px 20px; border-radius: 12px;
+            font-size: 0.9rem; cursor: pointer; margin-top: 5px; width: 100%;
+            display: inline-flex; align-items: center; justify-content: center; gap: 8px;
             transition: opacity 0.2s, transform 0.1s; font-weight: 500;
         }
+        body.dark .summary-btn, body.dark .copy-summary-btn { background: #fbbf24; color: #000; }
         .summary-btn:active, .copy-summary-btn:active { transform: scale(0.97); }
+        .summary-btn:disabled { opacity: 0.7; cursor: not-allowed; }
+        
         .summary-text {
             white-space: pre-wrap; max-height: 380px; overflow-y: auto;
             padding: 14px; background: var(--bg-chat); border-radius: 12px;
-            margin-top: 14px; border: 1px solid var(--glass-border);
+            margin-top: 14px; margin-bottom: 14px; border: 1px solid var(--glass-border);
             font-size: 0.88rem; line-height: 1.6; color: var(--text-primary);
         }
+        @keyframes slideInUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
 
         .message-footer { display: flex; align-items: center; gap: 8px; margin-top: 6px; font-size: 0.7rem; color: var(--text-secondary); opacity: 0.8; }
         .user-footer { justify-content: flex-end; }
@@ -274,24 +294,69 @@
         @keyframes spin { 100% { transform: rotate(360deg); } }
 
         /* ---------- 背景历史网格样式 ---------- */
-        .bg-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; max-height: 300px; overflow-y: auto; padding: 4px; margin-bottom: 20px; }
+        .bg-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+            padding: 4px;
+            margin-bottom: 20px;
+        }
         .bg-grid::-webkit-scrollbar { display: none; }
-        .bg-item { position: relative; aspect-ratio: 9/16; border-radius: 10px; overflow: hidden; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.1); border: 2px solid transparent; background-size: cover; background-position: center; transition: transform 0.2s, border-color 0.2s; }
+        .bg-item {
+            position: relative;
+            aspect-ratio: 9/16;
+            border-radius: 10px;
+            overflow: hidden;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            border: 2px solid transparent;
+            background-size: cover;
+            background-position: center;
+            transition: transform 0.2s, border-color 0.2s;
+        }
         .bg-item:active { transform: scale(0.95); }
         .bg-item.active { border-color: #3b82f6; }
-        .bg-item-default { background: linear-gradient(135deg, #d1fcf9, #e9d4ff); display: flex; align-items: center; justify-content: center; font-size: 0.9rem; font-weight: bold; color: rgba(0,0,0,0.5); }
-        .bg-item-default.dark-preview { background: linear-gradient(135deg, #17ecff, #0025ce); color: rgba(255,255,255,0.7); }
-        .bg-delete-btn { position: absolute; top: 4px; right: 4px; width: 22px; height: 22px; background: rgba(0, 0, 0, 0.6); color: white; border: none; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; opacity: 0; transition: opacity 0.2s; }
+        
+        .bg-item-default {
+            background: linear-gradient(135deg, #d1fcf9, #e9d4ff);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 0.9rem; font-weight: bold; color: rgba(0,0,0,0.5);
+        }
+        .bg-item-default.dark-preview {
+            background: linear-gradient(135deg, #17ecff, #0025ce);
+            color: rgba(255,255,255,0.7);
+        }
+
+        .bg-delete-btn {
+            position: absolute;
+            top: 4px; right: 4px;
+            width: 22px; height: 22px;
+            background: rgba(0, 0, 0, 0.6); color: white;
+            border: none; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer; opacity: 0; transition: opacity 0.2s;
+        }
         .bg-delete-btn svg { width: 12px; height: 12px; pointer-events: none; }
         .bg-item:hover .bg-delete-btn { opacity: 1; }
+        /* 移动端常显删除按钮 */
         @media (hover: none) { .bg-delete-btn { opacity: 1; } }
-        .active-badge { position: absolute; bottom: 4px; right: 4px; width: 20px; height: 20px; background: #3b82f6; color: white; border-radius: 50%; display: none; align-items: center; justify-content: center; }
+
+        .active-badge {
+            position: absolute; bottom: 4px; right: 4px;
+            width: 20px; height: 20px;
+            background: #3b82f6; color: white;
+            border-radius: 50%; display: none;
+            align-items: center; justify-content: center;
+        }
         .active-badge svg { width: 12px; height: 12px; }
         .bg-item.active .active-badge { display: flex; }
 
     </style>
 </head>
 <body>
+<!-- 背景层 -->
 <div class="dynamic-bg">
     <div id="customBgLayer" class="custom-bg-layer"></div>
     <div class="blob blob1"></div>
@@ -309,10 +374,20 @@
             </div>
             <div class="role-list" id="roleList"></div>
         </div>
+        <!-- 侧边栏底部导入导出与背景设置 -->
         <div class="sidebar-footer">
-            <button id="exportBtn" class="action-btn" title="导出"><svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="none"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>导出</button>
-            <button id="importBtn" class="action-btn" title="导入"><svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="none"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>导入</button>
-            <button id="bgSettingBtn" class="action-btn" title="设置背景"><svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="none"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>背景</button>
+            <button id="exportBtn" class="action-btn" title="导出">
+                <svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="none"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                导出
+            </button>
+            <button id="importBtn" class="action-btn" title="导入">
+                <svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="none"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                导入
+            </button>
+            <button id="bgSettingBtn" class="action-btn" title="设置背景">
+                <svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="none"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+                背景
+            </button>
             <input type="file" id="importFile" accept=".json" style="display:none">
             <input type="file" id="bgInput" accept="image/*" style="display:none">
         </div>
@@ -362,9 +437,13 @@
 <div id="bgModal" class="modal">
     <div class="modal-content" style="max-width: 400px;">
         <h3>自定义背景</h3>
-        <div class="bg-grid" id="bgGrid"></div>
+        <div class="bg-grid" id="bgGrid">
+            <!-- 动态生成背景列表 -->
+        </div>
         <div class="modal-buttons">
-            <button id="uploadNewBgBtn" style="background: var(--button-bg); color: var(--button-text); flex: 2;"><svg style="width: 16px; height: 16px; vertical-align: text-bottom; margin-right: 4px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>上传新图片</button>
+            <button id="uploadNewBgBtn" style="background: var(--button-bg); color: var(--button-text); flex: 2;">
+                <svg style="width: 16px; height: 16px; vertical-align: text-bottom; margin-right: 4px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>上传新图片
+            </button>
             <button id="cancelBgModalBtn" style="background: var(--badge-bg); color: var(--text-primary); flex: 1;">关闭</button>
         </div>
     </div>
@@ -379,7 +458,7 @@
             CUSTOM_SECRET: 'xK9mP2vL7qR4nF8t',
             MAX_REGENERATIONS: 5,
             PAGE_SIZE: 50,
-            TOKEN_WARNING_LIMIT: 120000 // 对话字符限制预警，接近128K上限
+            TOKEN_WARNING_LIMIT: 80000 // 【新增】8万字符触发范围总结预警
         };
 
         const SVGIcons = {
@@ -396,17 +475,23 @@
             sun: '<svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>',
             spinner: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="2" x2="12" y2="6"></line><line x1="12" y1="18" x2="12" y2="22"></line><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"></line><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"></line><line x1="2" y1="12" x2="6" y2="12"></line><line x1="18" y1="12" x2="22" y2="12"></line><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"></line><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"></line></svg>',
             warning: '<svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>',
-            copy: '<svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>'
+            copy: '<svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>',
+            sparkles: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>'
         };
 
+        // --- IndexedDB 管理 (用于储存背景历史图库) ---
         const DBManager = {
-            dbName: 'DeepSeekRP_DB', dbVersion: 1, db: null,
+            dbName: 'DeepSeekRP_DB',
+            dbVersion: 1,
+            db: null,
             init() {
                 return new Promise((resolve, reject) => {
                     const request = indexedDB.open(this.dbName, this.dbVersion);
                     request.onupgradeneeded = (e) => {
                         const db = e.target.result;
-                        if (!db.objectStoreNames.contains('backgrounds')) { db.createObjectStore('backgrounds', { keyPath: 'id' }); }
+                        if (!db.objectStoreNames.contains('backgrounds')) {
+                            db.createObjectStore('backgrounds', { keyPath: 'id' });
+                        }
                     };
                     request.onsuccess = (e) => { this.db = e.target.result; resolve(); };
                     request.onerror = (e) => reject(e);
@@ -415,23 +500,31 @@
             async saveBg(id, dataUrl) {
                 return new Promise((resolve, reject) => {
                     const tx = this.db.transaction('backgrounds', 'readwrite');
-                    tx.objectStore('backgrounds').put({ id, dataUrl, timestamp: Date.now() });
-                    tx.oncomplete = () => resolve(); tx.onerror = (e) => reject(e);
+                    const store = tx.objectStore('backgrounds');
+                    store.put({ id, dataUrl, timestamp: Date.now() });
+                    tx.oncomplete = () => resolve();
+                    tx.onerror = (e) => reject(e);
                 });
             },
             async getAllBgs() {
                 return new Promise((resolve, reject) => {
                     const tx = this.db.transaction('backgrounds', 'readonly');
-                    const request = tx.objectStore('backgrounds').getAll();
-                    request.onsuccess = () => resolve(request.result.sort((a, b) => b.timestamp - a.timestamp));
+                    const store = tx.objectStore('backgrounds');
+                    const request = store.getAll();
+                    request.onsuccess = () => {
+                        const bgs = request.result.sort((a, b) => b.timestamp - a.timestamp);
+                        resolve(bgs);
+                    };
                     request.onerror = (e) => reject(e);
                 });
             },
             async deleteBg(id) {
                 return new Promise((resolve, reject) => {
                     const tx = this.db.transaction('backgrounds', 'readwrite');
-                    tx.objectStore('backgrounds').delete(id);
-                    tx.oncomplete = () => resolve(); tx.onerror = (e) => reject(e);
+                    const store = tx.objectStore('backgrounds');
+                    store.delete(id);
+                    tx.oncomplete = () => resolve();
+                    tx.onerror = (e) => reject(e);
                 });
             }
         };
@@ -441,7 +534,12 @@
 
         function escapeHtml(text) {
             if (!text) return '';
-            return text.replace(/[&<>]/g, function(m) { if (m === '&') return '&amp;'; if (m === '<') return '&lt;'; if (m === '>') return '&gt;'; return m; });
+            return text.replace(/[&<>]/g, function(m) {
+                if (m === '&') return '&amp;';
+                if (m === '<') return '&lt;';
+                if (m === '>') return '&gt;';
+                return m;
+            });
         }
 
         const DataManager = {
@@ -492,6 +590,8 @@
             roleSidebar: document.getElementById('roleSidebar'), sidebarToggleBtn: document.getElementById('sidebarToggleBtn'), editUserMsgModal: document.getElementById('editUserMsgModal'),
             editUserMsgContent: document.getElementById('editUserMsgContent'), confirmEditMsgBtn: document.getElementById('confirmEditMsgBtn'), cancelEditMsgBtn: document.getElementById('cancelEditMsgBtn'),
             exportBtn: document.getElementById('exportBtn'), importBtn: document.getElementById('importBtn'), importFile: document.getElementById('importFile'),
+            
+            // 背景设置相关DOM
             bgSettingBtn: document.getElementById('bgSettingBtn'), bgModal: document.getElementById('bgModal'), bgGrid: document.getElementById('bgGrid'),
             uploadNewBgBtn: document.getElementById('uploadNewBgBtn'), cancelBgModalBtn: document.getElementById('cancelBgModalBtn'), 
             bgInput: document.getElementById('bgInput'), customBgLayer: document.getElementById('customBgLayer')
@@ -504,6 +604,108 @@
             resetPagination() { Pagination.currentPage = 1; },
             adjustPaginationAfterDelete(totalMessages) { const totalPages = Math.ceil(totalMessages / Config.PAGE_SIZE); if (Pagination.currentPage > totalPages && totalPages > 0) Pagination.currentPage = totalPages; else if (totalPages === 0) Pagination.currentPage = 1; },
             jumpToLastPage(totalMessages) { const totalPages = Math.ceil(totalMessages / Config.PAGE_SIZE); Pagination.currentPage = totalPages > 0 ? totalPages : 1; },
+            
+            // 【新增】检测总字数限制
+            checkConversationLimit() {
+                const conv = DataManager.getCurrentConversation();
+                if (!conv) return;
+                
+                // 仅统计 user 和 assistant 角色的文字内容
+                const totalChars = conv.messages.reduce((acc, msg) => {
+                    if (msg.role !== 'user' && msg.role !== 'assistant') return acc;
+                    return acc + (msg.content?.length || 0) + (msg.reasoning?.length || 0);
+                }, 0);
+
+                // 判断是否已经追加过总结提示块
+                const hasSummaryBlock = conv.messages.some(m => m.role === 'system_summary');
+
+                if (totalChars > Config.TOKEN_WARNING_LIMIT && !hasSummaryBlock) {
+                    conv.messages.push({
+                        role: 'system_summary',
+                        status: 'warning',
+                        content: '',
+                        timestamp: new Date().toISOString()
+                    });
+                }
+            },
+            
+            // 【新增】智能生成特定范围的剧情总结
+            async generateStorySummary(summaryIndex, startOffset) {
+                const conv = DataManager.getCurrentConversation();
+                const role = DataManager.getCurrentRole();
+                if (!conv || !role) return;
+
+                const summaryMsg = conv.messages[summaryIndex];
+                if (!summaryMsg) return;
+
+                summaryMsg.status = 'generating';
+                DataManager.saveData();
+                this.loadConversationToUI();
+
+                // 筛选出所有有效对话，并切片
+                const historyMessages = conv.messages.slice(0, summaryIndex).filter(m => m.role === 'user' || m.role === 'assistant');
+                let processedHistory = historyMessages.slice(startOffset);
+                
+                // 【保护机制】如果选定范围字数仍过多，折叠中间部分防 400
+                const MAX_CHARS_FOR_SUMMARY = 60000;
+                let sliceChars = processedHistory.reduce((acc, m) => acc + (m.content?.length || 0), 0);
+                
+                if (sliceChars > MAX_CHARS_FOR_SUMMARY && processedHistory.length > 15) {
+                    const head = processedHistory.slice(0, 4);
+                    const tail = processedHistory.slice(-12);
+                    processedHistory = [
+                        ...head, 
+                        { role: 'user', content: '\n...\n（系统提示：因超过大模型上下文限制，漫长的中间部分剧情已被系统折叠省略，请根据头尾上下文合理推测并生成总结）\n...\n' }, 
+                        ...tail
+                    ];
+                }
+
+                // 【保护机制】如果你是从半路截断总结，这里强行把系统最开始的世界观补进最前面
+                if (startOffset > 0 && historyMessages.length > 0) {
+                     processedHistory = [
+                         { role: 'user', content: `[提示：这个故事最开始的设定如下]\n${historyMessages[0].content}`},
+                         { role: 'user', content: `[提示：中间发生了一些事，现在时间线推进到了以下对话]...`},
+                         ...processedHistory
+                     ];
+                }
+
+                const summarySystemPrompt = role.systemPrompt + "\n\n【系统指令】：你现在切换为专业的剧情整理助理，请不要继续进行任何角色扮演。你需要严格阅读上述所有历史对话记录，并生成一份极其详尽的剧情复盘报告（字数在2000字左右），这份报告将被作为输入词提供给下一个对话窗口以实现无缝剧情衔接。\n报告必须清晰包含以下四个板块：\n1. 【核心世界观与主线】：故事发生的背景与迄今为止的主线发展全貌。\n2. 【人物设定与状态】：详尽列出主角及所有出场关键人物的性格、外貌特征、身份设定、相互关系以及当前各自所处的具体情况。\n3. 【伏笔与未解之谜】：明确梳理出对话剧情中埋下的所有暗线、未解决的冲突、神秘道具或待揭露的真相。\n4. 【当前焦点事件】：详细且具象地描述故事最后中断在的那一刻的具体场景、角色动作和对话态势。";
+
+                const apiMessages = [
+                    { role: "system", content: summarySystemPrompt },
+                    ...processedHistory.map(m => ({ role: m.role, content: m.content }))
+                ];
+
+                if (currentAbortController) currentAbortController.abort();
+                currentAbortController = new AbortController();
+
+                try {
+                    const response = await fetch(Config.WORKER_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'X-API-Key': Config.CUSTOM_SECRET },
+                        body: JSON.stringify({ model: DataManager.currentModel, messages: apiMessages, stream: false }),
+                        signal: currentAbortController.signal
+                    });
+
+                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                    const data = await response.json();
+                    
+                    summaryMsg.content = data.choices[0].message.content;
+                    summaryMsg.status = 'done';
+                    DataManager.saveData();
+                    this.loadConversationToUI();
+                } catch (err) {
+                    if (err.name !== 'AbortError') {
+                        alert(`总结生成失败: ${err.message}`);
+                        summaryMsg.status = 'warning';
+                        DataManager.saveData();
+                        this.loadConversationToUI();
+                    }
+                } finally {
+                    currentAbortController = null;
+                }
+            },
+
             renderSidebar() {
                 DOM.roleListDiv.innerHTML = '';
                 for (let role of DataManager.roles) {
@@ -529,8 +731,11 @@
                     convSection.querySelector('.add-conv-btn').addEventListener('click', (e) => { e.stopPropagation(); this.addConversation(role.id); });
                 }
                 const curRole = DataManager.getCurrentRole(); 
+                // 新增：更新左上角角色名
                 const headerRoleName = document.getElementById('headerRoleName');
-                if (headerRoleName) headerRoleName.textContent = curRole ? curRole.name : 'DeepSeek';
+                if (headerRoleName) {
+                    headerRoleName.textContent = curRole ? curRole.name : 'DeepSeek';
+                }    
             },
             switchRole(roleId) { if (DataManager.currentRoleId === roleId) return; DataManager.currentRoleId = roleId; DataManager.currentConversationId = DataManager.getCurrentRole()?.conversations[0]?.id || null; DataManager.saveData(); this.resetPagination(); this.renderSidebar(); this.loadConversationToUI(); const curRole = DataManager.getCurrentRole(); document.getElementById('headerRoleName').textContent = curRole ? curRole.name : 'DeepSeek'; },
             switchConversation(roleId, convId) { if (DataManager.currentRoleId !== roleId) DataManager.currentRoleId = roleId; DataManager.currentConversationId = convId; DataManager.saveData(); this.resetPagination(); this.renderSidebar(); this.loadConversationToUI(); },
@@ -552,38 +757,14 @@
             adjustTextareaHeight() { DOM.messageInput.style.height = 'auto'; DOM.messageInput.style.height = Math.min(DOM.messageInput.scrollHeight, 120) + 'px'; },
             toggleReasoning(assistantIndex) { const conv = DataManager.getCurrentConversation(); if (!conv) return; const msg = conv.messages[assistantIndex]; if (!msg || msg.role !== 'assistant') return; msg.reasoningCollapsed = !msg.reasoningCollapsed; DataManager.saveData(); this.loadConversationToUI(); },
             changeAssistantVersion(assistantIndex, delta) { const conv = DataManager.getCurrentConversation(); if (!conv) return; const assistantMsg = conv.messages[assistantIndex]; if (!assistantMsg || assistantMsg.role !== 'assistant') return; const totalVers = assistantMsg.regenerations.length + 1; let newVer = assistantMsg.currentVersion + delta; if (newVer < 0) newVer = 0; if (newVer >= totalVers) newVer = totalVers - 1; if (newVer === assistantMsg.currentVersion) return; assistantMsg.currentVersion = newVer; DataManager.saveData(); this.loadConversationToUI(); },
-            
-            checkConversationLimit() {
-                const conv = DataManager.getCurrentConversation();
-                if (!conv) return;
-                
-                const totalChars = conv.messages.reduce((acc, msg) => {
-                    if (msg.role !== 'user' && msg.role !== 'assistant') return acc;
-                    return acc + (msg.content?.length || 0) + (msg.reasoning?.length || 0);
-                }, 0);
-
-                const hasSummaryBlock = conv.messages.some(m => m.role === 'system_summary');
-
-                if (totalChars > Config.TOKEN_WARNING_LIMIT && !hasSummaryBlock) {
-                    conv.messages.push({
-                        role: 'system_summary',
-                        status: 'warning',
-                        content: '',
-                        timestamp: new Date().toISOString()
-                    });
-                }
-            },
-
             async regenerateAssistantResponse(assistantIndex) {
                 const conv = DataManager.getCurrentConversation(); const role = DataManager.getCurrentRole(); if (!conv || !role) return;
                 const assistantMsg = conv.messages[assistantIndex]; if (!assistantMsg || assistantMsg.role !== 'assistant') return;
                 if (assistantMsg.regenerations.length + 1 >= Config.MAX_REGENERATIONS + 1) { alert(`已达到最大重新生成次数（${Config.MAX_REGENERATIONS}次）`); return; }
                 let userIndex = assistantIndex - 1; if (userIndex < 0 || conv.messages[userIndex].role !== 'user') return;
                 const historyMessages = conv.messages.slice(0, userIndex + 1);
-                
-                // 剔除系统总结块
+                // 【过滤】排除系统总结块
                 const apiMessages = [{ role: "system", content: role.systemPrompt }, ...historyMessages.filter(m => m.role === 'user' || m.role === 'assistant').map(m => ({ role: m.role, content: m.content }))];
-                
                 if (currentAbortController) currentAbortController.abort(); currentAbortController = new AbortController();
                 const loadingDiv = document.createElement('div'); loadingDiv.className = 'loading'; loadingDiv.innerHTML = `${SVGIcons.spinner} 生成中...`; DOM.messagesArea.appendChild(loadingDiv); DOM.messagesArea.scrollTop = DOM.messagesArea.scrollHeight;
                 try {
@@ -636,23 +817,38 @@
                         wrapper.querySelectorAll('.version-btn').forEach(btn => btn.addEventListener('click', () => this.changeAssistantVersion(globalIdx, parseInt(btn.dataset.delta))));
                         wrapper.querySelector('.regenerate').addEventListener('click', () => this.regenerateAssistantResponse(globalIdx));
                     } else if (msg.role === 'system_summary') {
-                        // 渲染总结气泡
+                        // 【渲染】智能总结卡片块
+                        const validMsgs = allMessages.slice(0, globalIdx).filter(m => m.role === 'user' || m.role === 'assistant');
+                        const totalValid = validMsgs.length;
+                        const maxIdx = Math.max(0, totalValid - 1);
+
                         wrapper.innerHTML = `
                             <div class="system-summary-message">
                                 <div class="summary-header">
-                                    ${SVGIcons.warning}
-                                    <span>上下文记忆即将到达极限 (128K)</span>
+                                    <div class="summary-title-wrap">
+                                        ${SVGIcons.warning}
+                                        <span>记忆过载预警 (已超 8 万字符)</span>
+                                    </div>
                                 </div>
                                 ${msg.status === 'warning' ? `
-                                    <p style="opacity:0.9;">当前对话已累积大量字数，继续对话可能导致模型遗忘早期设定或回复质量下降。强烈建议您对当前剧情进行详细总结，并携带总结开启新的对话回合。</p>
+                                    <p style="opacity:0.9; margin-bottom: 10px;">当前对话长度已逼近上下文极限，长此以往可能导致角色“失忆”或逻辑混乱。建议您对当前剧情进行详细总结，并携带总结结果开启新会话以维持最佳扮演体验。</p>
+                                    
+                                    <div class="range-selector">
+                                        <div class="range-info" id="range-text-${globalIdx}">总结范围：从最初 到 当前进度 (${totalValid} 条对话)</div>
+                                        <input type="range" id="summary-slider-${globalIdx}" min="0" max="${maxIdx}" value="0">
+                                        <div style="display:flex; justify-content:space-between; font-size:0.75rem; color:var(--text-secondary); margin-top:6px;">
+                                            <span>最早记忆</span>
+                                            <span>最新进度</span>
+                                        </div>
+                                    </div>
+
                                     <button class="summary-btn" id="generateSummaryBtn-${globalIdx}">
-                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
-                                        深度总结当前剧情 (约2000字)
+                                        ${SVGIcons.sparkles} 生成所选范围总结
                                     </button>
                                 ` : msg.status === 'generating' ? `
-                                    <p style="display:flex;align-items:center;gap:8px;opacity:0.9;">${SVGIcons.spinner} 正在深度解析全局剧情与人物羁绊，生成长篇总结中，请稍候...</p>
+                                    <p style="display:flex;align-items:center;gap:8px;opacity:0.9;">${SVGIcons.spinner} 正在深入提取核心剧情与人物状态，请稍候...</p>
                                 ` : `
-                                    <p style="opacity:0.9;">✅ 剧情总结已生成。请复制以下内容，在左侧新建会话，并将其粘贴至“系统提示词”或初始对话中，以无缝衔接当前剧情。</p>
+                                    <p style="opacity:0.9;">✅ 剧情总结已生成。请复制下方内容，在左侧新建会话，并粘贴至“系统提示词”或首句对话中，以实现无缝剧情衔接。</p>
                                     <div class="summary-text">${escapeHtml(msg.content)}</div>
                                     <button class="copy-summary-btn" id="copySummaryBtn-${globalIdx}">
                                         ${SVGIcons.copy} 一键复制总结
@@ -660,29 +856,47 @@
                                 `}
                             </div>
                         `;
-                        // 异步绑定事件
+                        
+                        // 异步绑定总结事件
                         setTimeout(() => {
                             if (msg.status === 'warning') {
+                                const slider = document.getElementById(`summary-slider-${globalIdx}`);
+                                const rangeText = document.getElementById(`range-text-${globalIdx}`);
                                 const btn = document.getElementById(`generateSummaryBtn-${globalIdx}`);
-                                if (btn) btn.addEventListener('click', () => this.generateStorySummary(globalIdx));
+                                
+                                if (slider && rangeText) {
+                                    slider.addEventListener('input', (e) => {
+                                        const start = parseInt(e.target.value);
+                                        rangeText.innerText = `总结范围：从第 ${start + 1} 条 到 当前进度 (${totalValid - start} 条对话)`;
+                                    });
+                                }
+                                
+                                if (btn) {
+                                    btn.addEventListener('click', () => {
+                                        const startOffset = slider ? parseInt(slider.value) : 0;
+                                        this.generateStorySummary(globalIdx, startOffset);
+                                    });
+                                }
                             }
                             if (msg.status === 'done') {
                                 const btn = document.getElementById(`copySummaryBtn-${globalIdx}`);
-                                if (btn) btn.addEventListener('click', () => {
-                                    const rawText = msg.content;
-                                    const copyFallback = () => {
-                                        const textarea = document.createElement('textarea');
-                                        textarea.value = rawText; textarea.style.position = 'fixed'; textarea.style.opacity = '0';
-                                        document.body.appendChild(textarea); textarea.select();
-                                        try { document.execCommand('copy'); btn.innerHTML = `${SVGIcons.check} 复制成功！`; setTimeout(() => btn.innerHTML = `${SVGIcons.copy} 一键复制总结`, 2000); } catch(e) {}
-                                        document.body.removeChild(textarea);
-                                    };
-                                    if (navigator.clipboard && navigator.clipboard.writeText) {
-                                        navigator.clipboard.writeText(rawText).then(() => {
-                                            btn.innerHTML = `${SVGIcons.check} 复制成功！`; setTimeout(() => btn.innerHTML = `${SVGIcons.copy} 一键复制总结`, 2000);
-                                        }).catch(copyFallback);
-                                    } else { copyFallback(); }
-                                });
+                                if (btn) {
+                                    btn.addEventListener('click', () => {
+                                        const rawText = msg.content;
+                                        const copyFallback = () => {
+                                            const textarea = document.createElement('textarea');
+                                            textarea.value = rawText; textarea.style.position = 'fixed'; textarea.style.opacity = '0';
+                                            document.body.appendChild(textarea); textarea.select();
+                                            try { document.execCommand('copy'); btn.innerHTML = `${SVGIcons.check} 复制成功！`; setTimeout(() => btn.innerHTML = `${SVGIcons.copy} 一键复制总结`, 2000); } catch(e) {}
+                                            document.body.removeChild(textarea);
+                                        };
+                                        if (navigator.clipboard && navigator.clipboard.writeText) {
+                                            navigator.clipboard.writeText(rawText).then(() => {
+                                                btn.innerHTML = `${SVGIcons.check} 复制成功！`; setTimeout(() => btn.innerHTML = `${SVGIcons.copy} 一键复制总结`, 2000);
+                                            }).catch(copyFallback);
+                                        } else { copyFallback(); }
+                                    });
+                                }
                             }
                         }, 0);
                     }
@@ -697,59 +911,8 @@
                 }
                 DOM.messagesArea.scrollTop = DOM.messagesArea.scrollHeight;
             },
-            
-            async generateStorySummary(summaryIndex) {
-                const conv = DataManager.getCurrentConversation();
-                const role = DataManager.getCurrentRole();
-                if (!conv || !role) return;
-
-                const summaryMsg = conv.messages[summaryIndex];
-                if (!summaryMsg) return;
-
-                summaryMsg.status = 'generating';
-                DataManager.saveData();
-                this.loadConversationToUI();
-
-                const historyMessages = conv.messages.slice(0, summaryIndex).filter(m => m.role === 'user' || m.role === 'assistant');
-                
-                const summarySystemPrompt = role.systemPrompt + "\n\n【系统指令】：你现在切换为专业的剧情整理助理，请不要继续进行任何角色扮演。你需要严格阅读上述所有历史对话记录，并生成一份极其详尽的剧情复盘报告（字数在2000字左右），这份报告将被作为输入词提供给下一个对话窗口以实现无缝剧情衔接。\n报告必须清晰包含以下四个板块：\n1. 【核心世界观与主线】：故事发生的背景与迄今为止的主线发展全貌。\n2. 【人物设定与状态】：详尽列出主角及所有出场关键人物的性格、外貌特征、身份设定、相互关系以及当前各自所处的具体情况。\n3. 【伏笔与未解之谜】：明确梳理出对话剧情中埋下的所有暗线、未解决的冲突、神秘道具或待揭露的真相。\n4. 【当前焦点事件】：详细且具象地描述故事最后中断在的那一刻的具体场景、角色动作和对话态势。";
-
-                const apiMessages = [
-                    { role: "system", content: summarySystemPrompt },
-                    ...historyMessages.map(m => ({ role: m.role, content: m.content }))
-                ];
-
-                if (currentAbortController) currentAbortController.abort();
-                currentAbortController = new AbortController();
-
-                try {
-                    const response = await fetch(Config.WORKER_URL, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json', 'X-API-Key': Config.CUSTOM_SECRET },
-                        body: JSON.stringify({ model: DataManager.currentModel, messages: apiMessages, stream: false }),
-                        signal: currentAbortController.signal
-                    });
-
-                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-                    const data = await response.json();
-                    
-                    summaryMsg.content = data.choices[0].message.content;
-                    summaryMsg.status = 'done';
-                    DataManager.saveData();
-                    this.loadConversationToUI();
-                } catch (err) {
-                    if (err.name !== 'AbortError') {
-                        alert(`总结生成失败: ${err.message}`);
-                        summaryMsg.status = 'warning';
-                        DataManager.saveData();
-                        this.loadConversationToUI();
-                    }
-                } finally {
-                    currentAbortController = null;
-                }
-            },
-
             async generateReplyForUserIndex(conv, userIndex, systemPrompt) {
+                // 【过滤】排除系统总结块
                 const apiMessages = [{ role: "system", content: systemPrompt }, ...conv.messages.slice(0, userIndex + 1).filter(m => m.role === 'user' || m.role === 'assistant').map(m => ({ role: m.role, content: m.content }))];
                 if (currentAbortController) currentAbortController.abort(); currentAbortController = new AbortController();
                 const loadingDiv = document.createElement('div'); loadingDiv.className = 'loading'; loadingDiv.innerHTML = `${SVGIcons.spinner} 生成中...`; DOM.messagesArea.appendChild(loadingDiv); DOM.messagesArea.scrollTop = DOM.messagesArea.scrollHeight;
@@ -790,6 +953,7 @@
             const conv = DataManager.getCurrentConversation(); if (!conv) return;
             conv.messages.push({ role: 'user', content: text, timestamp: new Date().toISOString() }); UIManager.loadConversationToUI();
             const role = DataManager.getCurrentRole();
+            // 【过滤】保证传给大模型的数据绝不包含 system_summary 警告块
             const apiMessages = [{ role: "system", content: role.systemPrompt }, ...conv.messages.filter(m => m.role === 'user' || m.role === 'assistant').map(m => ({ role: m.role, content: m.content }))];
             if (currentAbortController) currentAbortController.abort(); currentAbortController = new AbortController();
             const loadingDiv = document.createElement('div'); loadingDiv.className = 'loading'; loadingDiv.innerHTML = `${SVGIcons.spinner} 生成中...`; DOM.messagesArea.appendChild(loadingDiv); DOM.messagesArea.scrollTop = DOM.messagesArea.scrollHeight;
@@ -866,11 +1030,13 @@
             currentActiveBgId = id;
             localStorage.setItem('deepseek_current_bg_id', id);
             applyCustomBg(dataUrl);
-            renderBgGrid(); 
+            renderBgGrid(); // 更新选中状态
         }
 
         async function renderBgGrid() {
             DOM.bgGrid.innerHTML = '';
+            
+            // 1. 默认流体选项
             const defaultItem = document.createElement('div');
             defaultItem.className = `bg-item bg-item-default ${currentActiveBgId === 'default' ? 'active' : ''}`;
             defaultItem.id = 'bgItem-default';
@@ -879,13 +1045,17 @@
             defaultItem.addEventListener('click', () => setCurrentBg('default', null));
             DOM.bgGrid.appendChild(defaultItem);
 
+            // 2. 从 IndexedDB 渲染历史记录
             try {
                 const bgs = await DBManager.getAllBgs();
                 bgs.forEach(bg => {
                     const item = document.createElement('div');
                     item.className = `bg-item ${currentActiveBgId === bg.id ? 'active' : ''}`;
                     item.style.backgroundImage = `url(${bg.dataUrl})`;
-                    item.innerHTML = `<button class="bg-delete-btn" title="删除">${SVGIcons.close}</button><div class="active-badge">${SVGIcons.check}</div>`;
+                    item.innerHTML = `
+                        <button class="bg-delete-btn" title="删除">${SVGIcons.close}</button>
+                        <div class="active-badge">${SVGIcons.check}</div>
+                    `;
                     item.addEventListener('click', () => setCurrentBg(bg.id, bg.dataUrl));
                     
                     item.querySelector('.bg-delete-btn').addEventListener('click', async (e) => {
@@ -899,7 +1069,9 @@
                     
                     DOM.bgGrid.appendChild(item);
                 });
-            } catch (err) { console.error("加载历史背景失败", err); }
+            } catch (err) {
+                console.error("加载历史背景失败", err);
+            }
         }
 
         function processAndSaveImage(file) {
@@ -916,45 +1088,70 @@
                     canvas.width = width; canvas.height = height;
                     const ctx = canvas.getContext('2d');
                     ctx.drawImage(img, 0, 0, width, height);
-                    const dataUrl = canvas.toDataURL('image/jpeg', 0.85); 
+                    const dataUrl = canvas.toDataURL('image/jpeg', 0.85); // 转换为较小体量的 JPEG
                     
                     const newId = 'bg_' + Date.now();
                     try {
                         await DBManager.saveBg(newId, dataUrl);
                         setCurrentBg(newId, dataUrl);
-                    } catch (err) { alert('图片保存失败，数据库写入错误。'); console.error(err); }
+                    } catch (err) {
+                        alert('图片保存失败，数据库写入错误。');
+                        console.error(err);
+                    }
                 };
                 img.src = e.target.result;
             };
             reader.readAsDataURL(file);
         }
 
-        DOM.bgSettingBtn.addEventListener('click', () => { renderBgGrid(); DOM.bgModal.style.display = 'flex'; });
-        DOM.cancelBgModalBtn.addEventListener('click', () => DOM.bgModal.style.display = 'none');
-        DOM.uploadNewBgBtn.addEventListener('click', () => DOM.bgInput.click());
+        DOM.bgSettingBtn.addEventListener('click', () => {
+            renderBgGrid(); // 每次打开时重新渲染
+            DOM.bgModal.style.display = 'flex';
+        });
+
+        DOM.cancelBgModalBtn.addEventListener('click', () => {
+            DOM.bgModal.style.display = 'none';
+        });
+
+        DOM.uploadNewBgBtn.addEventListener('click', () => {
+            DOM.bgInput.click();
+        });
+
         DOM.bgInput.addEventListener('change', (e) => {
             const file = e.target.files[0];
             if (!file) return;
             processAndSaveImage(file);
-            e.target.value = ''; 
-            DOM.bgModal.style.display = 'none'; 
+            e.target.value = ''; // 重置
+            DOM.bgModal.style.display = 'none'; // 选完自动关闭
         });
 
         // ---- 程序初始化 ----
         DBManager.init().then(async () => {
+            // 初始化时如果选择了非默认背景，加载它
             if (currentActiveBgId !== 'default') {
                 try {
                     const bgs = await DBManager.getAllBgs();
                     const activeBg = bgs.find(b => b.id === currentActiveBgId);
-                    if (activeBg) { applyCustomBg(activeBg.dataUrl); } 
-                    else { setCurrentBg('default', null); }
-                } catch (err) { console.error("恢复背景失败", err); }
+                    if (activeBg) {
+                        applyCustomBg(activeBg.dataUrl);
+                    } else {
+                        // 如果记录不存在了，降级为默认
+                        setCurrentBg('default', null);
+                    }
+                } catch (err) {
+                    console.error("恢复背景失败", err);
+                }
             }
             
-            DataManager.loadData(); DataManager.loadSidebarState(); UIManager.loadTheme(); 
-            UIManager.renderSidebar(); UIManager.loadConversationToUI(); initThemeFollowSystem();
+            DataManager.loadData(); 
+            DataManager.loadSidebarState(); 
+            UIManager.loadTheme(); 
+            UIManager.renderSidebar(); 
+            UIManager.loadConversationToUI(); 
+            initThemeFollowSystem();
         }).catch(err => {
-            alert('本地数据库初始化失败，背景历史功能将受限。'); console.error(err);
+            alert('本地数据库初始化失败，背景历史功能将受限。');
+            console.error(err);
             DataManager.loadData(); DataManager.loadSidebarState(); UIManager.loadTheme(); UIManager.renderSidebar(); UIManager.loadConversationToUI(); initThemeFollowSystem();
         });
 
