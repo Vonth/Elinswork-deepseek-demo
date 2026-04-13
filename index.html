@@ -705,9 +705,11 @@
                         if (tailChars + processedHistory[i].content.length < 25000) { tail.unshift(processedHistory[i]); tailChars += processedHistory[i].content.length; } else break;
                     }
                     
+                    const lastHeadRole = head.length > 0 ? head[head.length - 1].role : null;
+                    const bridgeRole = lastHeadRole === 'user' ? 'assistant' : 'user';
                     processedHistory = [
                         ...head, 
-                        { role: 'user', content: '\n...\n（系统提示：因内容过长，中间部分剧情已被折叠，请根据前后文推断总结）\n...\n' }, 
+                        { role: bridgeRole, content: '（系统提示：因内容过长，中间部分剧情已被折叠，请根据前后文推断总结）' }, 
                         ...tail
                     ];
                 }
@@ -716,17 +718,26 @@
                 if (startOffset > 0 && historyMessages.length > 0) {
                      processedHistory = [
                          { role: 'user', content: `[提示：故事的初始设定如下]\n${historyMessages[0].content}`},
-                         { role: 'user', content: `[提示：时间线推进到了以下对话]...`},
+                         { role: 'assistant', content: `[已记录初始世界观设定，时间线推进到以下对话片段]`},
                          ...processedHistory
                      ];
                 }
 
                 const summarySystemPrompt = role.systemPrompt + "\n\n【系统指令】：你现在切换为专业的剧情整理助理，请不要继续进行任何角色扮演。你需要严格阅读上述所有历史对话记录，并生成一份极其详尽的剧情复盘报告（字数在2000字左右），这份报告将被作为输入词保留在对话中，以实现无缝剧情衔接。\n报告必须清晰包含以下四个板块：\n1. 【核心世界观与主线】：故事发生的背景与迄今为止的主线发展全貌。\n2. 【人物设定与状态】：详尽列出主角及所有出场关键人物的性格、外貌特征、身份设定、相互关系以及当前各自所处的具体情况。\n3. 【伏笔与未解之谜】：明确梳理出对话剧情中埋下的所有暗线、未解决的冲突、神秘道具或待揭露的真相。\n4. 【当前焦点事件】：详细且具象地描述故事最后中断在的那一刻的具体场景、角色动作和对话态势。";
 
-                // 【去杂质】只传纯净的 role 和 content
+                // 【去杂质】只传纯净的 role 和 content，并合并连续相同 role 防止 400
+                const rawMsgs = processedHistory.map(m => ({ role: m.role, content: m.content }));
+                const mergedMsgs = [];
+                for (const m of rawMsgs) {
+                    if (mergedMsgs.length > 0 && mergedMsgs[mergedMsgs.length - 1].role === m.role) {
+                        mergedMsgs[mergedMsgs.length - 1].content += '\n\n' + m.content;
+                    } else {
+                        mergedMsgs.push({ ...m });
+                    }
+                }
                 const apiMessages = [
                     { role: "system", content: summarySystemPrompt },
-                    ...processedHistory.map(m => ({ role: m.role, content: m.content }))
+                    ...mergedMsgs
                 ];
 
                 if (currentAbortController) currentAbortController.abort();
