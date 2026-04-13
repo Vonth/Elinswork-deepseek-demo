@@ -959,7 +959,8 @@
                                 const copyBtn = document.getElementById(`copySummaryBtn-${globalIdx}`);
                                 if (copyBtn) {
                                     copyBtn.addEventListener('click', () => {
-                                        const rawText = msg.content;
+                                        const prefix = `[系统指令]\n你现在需要扮演该角色。在开始对话之前，请先仔细阅读并内化以下【前情提要】。这份前情提要是你和用户之间已经发生过的所有事情的记录，它不是需要你分析或回应的内容，而是你的记忆。请将这份记忆完全融入你对角色的理解中，并基于此继续与用户进行互动。\n\n【前情提要】\n`;
+                                        const rawText = prefix + msg.content;
                                         const copyFallback = () => {
                                             const textarea = document.createElement('textarea');
                                             textarea.value = rawText; textarea.style.position = 'fixed'; textarea.style.opacity = '0';
