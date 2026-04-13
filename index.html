@@ -740,7 +740,7 @@
                     const response = await fetch(Config.WORKER_URL, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json', 'X-API-Key': Config.CUSTOM_SECRET },
-                        body: JSON.stringify({ model: 'deepseek-chat', messages: apiMessages, stream: false }),
+                        body: JSON.stringify({ model: 'deepseek-reasoner', messages: apiMessages, stream: false }),
                         signal: currentAbortController.signal
                     });
 
