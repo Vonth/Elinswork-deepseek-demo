@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>DeepSeek AI · 角色扮演</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
     <style>
         /* ---------- 流体动态极光风 CSS 变量 ---------- */
         :root {
@@ -364,6 +365,21 @@
         .active-badge svg { width: 12px; height: 12px; }
         .bg-item.active .active-badge { display: flex; }
 
+        /* ---------- Markdown 渲染样式 ---------- */
+        .markdown-body h1,.markdown-body h2,.markdown-body h3 { font-weight: 600; margin: 0.8em 0 0.4em; line-height: 1.3; }
+        .markdown-body h1 { font-size: 1.2em; } .markdown-body h2 { font-size: 1.1em; } .markdown-body h3 { font-size: 1em; }
+        .markdown-body p { margin: 0.4em 0; }
+        .markdown-body ul, .markdown-body ol { padding-left: 1.4em; margin: 0.4em 0; }
+        .markdown-body li { margin: 0.2em 0; }
+        .markdown-body code { font-family: "SF Mono", Menlo, monospace; font-size: 0.85em; background: var(--badge-bg); padding: 2px 5px; border-radius: 4px; }
+        .markdown-body pre { background: var(--badge-bg); border-radius: 10px; padding: 12px; overflow-x: auto; margin: 0.6em 0; }
+        .markdown-body pre code { background: none; padding: 0; font-size: 0.82em; }
+        .markdown-body blockquote { border-left: 3px solid var(--text-secondary); margin: 0.4em 0; padding-left: 12px; color: var(--text-secondary); }
+        .markdown-body hr { border: none; border-top: 1px solid var(--glass-border); margin: 0.8em 0; }
+        .markdown-body strong { font-weight: 600; }
+        .markdown-body em { font-style: italic; }
+        .markdown-body a { color: #3b82f6; text-decoration: none; }
+
     </style>
 </head>
 <body>
@@ -493,7 +509,7 @@
         // --- IndexedDB 管理 ---
         const DBManager = {
             dbName: 'DeepSeekRP_DB',
-            dbVersion: 1,
+            dbVersion: 2,
             db: null,
             init() {
                 return new Promise((resolve, reject) => {
@@ -503,9 +519,29 @@
                         if (!db.objectStoreNames.contains('backgrounds')) {
                             db.createObjectStore('backgrounds', { keyPath: 'id' });
                         }
+                        // v2: 新增对话数据存储，替代 localStorage
+                        if (!db.objectStoreNames.contains('appdata')) {
+                            db.createObjectStore('appdata', { keyPath: 'key' });
+                        }
                     };
                     request.onsuccess = (e) => { this.db = e.target.result; resolve(); };
                     request.onerror = (e) => reject(e);
+                });
+            },
+            async saveAppData(data) {
+                return new Promise((resolve, reject) => {
+                    const tx = this.db.transaction('appdata', 'readwrite');
+                    tx.objectStore('appdata').put({ key: 'main', value: data });
+                    tx.oncomplete = () => resolve();
+                    tx.onerror = (e) => reject(e);
+                });
+            },
+            async loadAppData() {
+                return new Promise((resolve, reject) => {
+                    const tx = this.db.transaction('appdata', 'readonly');
+                    const req = tx.objectStore('appdata').get('main');
+                    req.onsuccess = () => resolve(req.result ? req.result.value : null);
+                    req.onerror = (e) => reject(e);
                 });
             },
             async saveBg(id, dataUrl) {
@@ -553,6 +589,16 @@
             });
         }
 
+        // 配置 marked，渲染 AI 回复中的 Markdown
+        if (typeof marked !== 'undefined') {
+            marked.setOptions({ breaks: true, gfm: true });
+        }
+        function renderMarkdown(text) {
+            if (!text) return '';
+            if (typeof marked === 'undefined') return escapeHtml(text);
+            try { return marked.parse(text); } catch(e) { return escapeHtml(text); }
+        }
+
         const DataManager = {
             roles: [], currentRoleId: null, currentConversationId: null, currentModel: 'deepseek-chat', sidebarOpen: false,
             generateId() { return crypto.randomUUID ? crypto.randomUUID() : Date.now() + '-' + Math.random(); },
@@ -576,10 +622,31 @@
                 }
                 this.saveData();
             },
-            saveData() { localStorage.setItem('deepseek_app_data', JSON.stringify({ roles: this.roles, currentRoleId: this.currentRoleId, currentConversationId: this.currentConversationId, currentModel: this.currentModel })); },
-            loadData() {
-                const saved = localStorage.getItem('deepseek_app_data');
-                if (saved) { try { const data = JSON.parse(saved); this.roles = data.roles || []; this.currentRoleId = data.currentRoleId || null; this.currentConversationId = data.currentConversationId || null; this.currentModel = data.currentModel || 'deepseek-chat'; modelSelect.value = this.currentModel; } catch(e) {} }
+            saveData() {
+                const data = { roles: this.roles, currentRoleId: this.currentRoleId, currentConversationId: this.currentConversationId, currentModel: this.currentModel };
+                // 优先写 IndexedDB，同时保持 localStorage 的轻量备份（只存 ID 和模型，不存消息）
+                DBManager.saveAppData(data).catch(() => {
+                    // IndexedDB 失败时降级写 localStorage（可能超限，仅作最后保障）
+                    try { localStorage.setItem('deepseek_app_data', JSON.stringify(data)); } catch(e) {}
+                });
+                // localStorage 只存轻量索引，不存消息内容
+                try { localStorage.setItem('deepseek_app_index', JSON.stringify({ currentRoleId: this.currentRoleId, currentConversationId: this.currentConversationId, currentModel: this.currentModel })); } catch(e) {}
+            },
+            async loadData() {
+                let data = null;
+                try { data = await DBManager.loadAppData(); } catch(e) {}
+                // 若 IndexedDB 没有数据，尝试从 localStorage 迁移
+                if (!data) {
+                    const saved = localStorage.getItem('deepseek_app_data');
+                    if (saved) { try { data = JSON.parse(saved); } catch(e) {} }
+                }
+                if (data) {
+                    this.roles = data.roles || [];
+                    this.currentRoleId = data.currentRoleId || null;
+                    this.currentConversationId = data.currentConversationId || null;
+                    this.currentModel = data.currentModel || 'deepseek-chat';
+                    modelSelect.value = this.currentModel;
+                }
                 this.ensureDefaultRoles();
                 if (!this.roles.find(r => r.id === this.currentRoleId) && this.roles.length) this.currentRoleId = this.roles[0].id;
                 if (this.currentRoleId) { const role = this.getCurrentRole(); if (role && (!this.currentConversationId || !role.conversations.find(c => c.id === this.currentConversationId))) this.currentConversationId = role.conversations[0]?.id || null; }
@@ -646,7 +713,11 @@
                     truncated.unshift(apiMsgs[i]);
                 }
                 
-                // 3. 始终把系统角色设定顶在最前面
+                // 3. 确保截断后末尾是 user 消息，否则 API 会 400
+                while (truncated.length > 0 && truncated[truncated.length - 1].role !== 'user') {
+                    truncated.pop();
+                }
+                // 4. 始终把系统角色设定顶在最前面
                 return [{ role: "system", content: role.systemPrompt }, ...truncated];
             },
 
@@ -877,7 +948,7 @@
                             reasoningHtml = `<div class="reasoning-wrapper"><button class="reasoning-toggle" data-index="${globalIdx}">${toggleIcon} <span>思考过程</span></button><div class="reasoning-content ${msg.reasoningCollapsed ? 'collapsed' : ''}">${escapeHtml(reasoning)}</div></div>`;
                         }
 
-                        wrapper.innerHTML = `<div class="assistant-message">${reasoningHtml}<div class="main-content">${escapeHtml(content)}</div></div><div class="message-footer assistant-footer"><span class="message-timestamp">${dateStr}</span><div class="message-actions assistant-actions"><div class="version-control"><button class="icon-btn version-btn" data-index="${globalIdx}" data-delta="-1">${SVGIcons.chevronLeft}</button><span>${msg.currentVersion + 1}/${regenCount + 1}</span><button class="icon-btn version-btn" data-index="${globalIdx}" data-delta="1">${SVGIcons.chevronRight}</button></div><button class="icon-btn regenerate" data-index="${globalIdx}" title="重新生成">${SVGIcons.regenerate}</button></div></div>`;
+                        wrapper.innerHTML = `<div class="assistant-message">${reasoningHtml}<div class="main-content markdown-body">${renderMarkdown(content)}</div></div><div class="message-footer assistant-footer"><span class="message-timestamp">${dateStr}</span><div class="message-actions assistant-actions"><div class="version-control"><button class="icon-btn version-btn" data-index="${globalIdx}" data-delta="-1">${SVGIcons.chevronLeft}</button><span>${msg.currentVersion + 1}/${regenCount + 1}</span><button class="icon-btn version-btn" data-index="${globalIdx}" data-delta="1">${SVGIcons.chevronRight}</button></div><button class="icon-btn regenerate" data-index="${globalIdx}" title="重新生成">${SVGIcons.regenerate}</button></div></div>`;
                         if (reasoning) wrapper.querySelector('.reasoning-toggle').addEventListener('click', () => this.toggleReasoning(globalIdx));
                         wrapper.querySelectorAll('.version-btn').forEach(btn => btn.addEventListener('click', () => this.changeAssistantVersion(globalIdx, parseInt(btn.dataset.delta))));
                         wrapper.querySelector('.regenerate').addEventListener('click', () => this.regenerateAssistantResponse(globalIdx));
@@ -1062,6 +1133,7 @@
             const text = DOM.messageInput.value.trim(); if (!text) return;
             if (!DataManager.currentRoleId) { alert('请先选择一个角色'); return; }
             DOM.messageInput.value = ''; UIManager.adjustTextareaHeight();
+            DOM.sendBtn.disabled = true; DOM.messageInput.disabled = true;
             const conv = DataManager.getCurrentConversation(); if (!conv) return;
             
             conv.messages.push({ role: 'user', content: text, timestamp: new Date().toISOString() }); 
@@ -1081,7 +1153,7 @@
                 
                 UIManager.checkConversationLimit();
                 DataManager.saveData(); UIManager.jumpToLastPage(conv.messages.length); UIManager.loadConversationToUI();
-            } catch (err) { if (err.name !== 'AbortError') { alert(`生成失败: ${err.message}`); conv.messages.pop(); UIManager.loadConversationToUI(); } } finally { loadingDiv.remove(); currentAbortController = null; }
+            } catch (err) { if (err.name !== 'AbortError') { alert(`生成失败: ${err.message}`); conv.messages.pop(); UIManager.loadConversationToUI(); } } finally { loadingDiv.remove(); currentAbortController = null; DOM.sendBtn.disabled = false; DOM.messageInput.disabled = false; DOM.messageInput.focus(); }
         });
 
         DOM.messageInput.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); DOM.sendBtn.click(); } });
@@ -1239,11 +1311,11 @@
                     else { setCurrentBg('default', null); }
                 } catch (err) { console.error("恢复背景失败", err); }
             }
-            DataManager.loadData(); DataManager.loadSidebarState(); UIManager.loadTheme(); UIManager.renderSidebar(); UIManager.loadConversationToUI(); initThemeFollowSystem();
-        }).catch(err => {
+            await DataManager.loadData(); DataManager.loadSidebarState(); UIManager.loadTheme(); UIManager.renderSidebar(); UIManager.loadConversationToUI(); initThemeFollowSystem();
+        }).catch(async err => {
             alert('本地数据库初始化失败，背景历史功能将受限。');
             console.error(err);
-            DataManager.loadData(); DataManager.loadSidebarState(); UIManager.loadTheme(); UIManager.renderSidebar(); UIManager.loadConversationToUI(); initThemeFollowSystem();
+            await DataManager.loadData(); DataManager.loadSidebarState(); UIManager.loadTheme(); UIManager.renderSidebar(); UIManager.loadConversationToUI(); initThemeFollowSystem();
         });
 
     })();
