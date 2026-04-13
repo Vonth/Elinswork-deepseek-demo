@@ -687,57 +687,50 @@
                 DataManager.saveData();
                 this.loadConversationToUI();
 
-                // 筛选出有效对话（只提取到该 summary 卡片之前）
-                const historyMessages = conv.messages.slice(0, summaryIndex).filter(m => m.role === 'user' || m.role === 'assistant');
-                let processedHistory = historyMessages.slice(startOffset, endOffset + 1);
-                
-                // 【保护机制】防止这中间切出来的范围依旧过大导致 400
-                const MAX_CHARS_FOR_SUMMARY = 30000;
-                let currentChars = processedHistory.reduce((acc, m) => acc + (m.content?.length || 0), 0);
-                
-                if (currentChars > MAX_CHARS_FOR_SUMMARY && processedHistory.length > 10) {
-                    let head = []; let headChars = 0;
-                    for (let m of processedHistory) {
-                        if (headChars + m.content.length < 3000) { head.push(m); headChars += m.content.length; } else break;
+                // 筛选出该 summary 卡片之前的有效对话
+                const historyMessages = conv.messages.slice(0, summaryIndex)
+                    .filter(m => m.role === 'user' || m.role === 'assistant');
+                const selectedMessages = historyMessages.slice(startOffset, endOffset + 1);
+
+                // 把对话拼成纯文本，AI 以旁观者身份阅读而非参与者
+                const roleLabel = role.name || 'AI角色';
+                const MAX_CHARS = 38000;
+                const totalChars = selectedMessages.reduce((a, m) => a + (m.content?.length || 0), 0);
+                let dialogueText = '';
+
+                if (totalChars > MAX_CHARS) {
+                    // 超长：保留前3条建立背景 + 尽量多的末尾内容
+                    const headMsgs = selectedMessages.slice(0, 3);
+                    let tailMsgs = [];
+                    let tailChars = 0;
+                    for (let i = selectedMessages.length - 1; i >= 3; i--) {
+                        const len = selectedMessages[i].content?.length || 0;
+                        if (tailChars + len > MAX_CHARS - 2000) break;
+                        tailMsgs.unshift(selectedMessages[i]);
+                        tailChars += len;
                     }
-                    let tail = []; let tailChars = 0;
-                    for (let i = processedHistory.length - 1; i >= 0; i--) {
-                        if (tailChars + processedHistory[i].content.length < 25000) { tail.unshift(processedHistory[i]); tailChars += processedHistory[i].content.length; } else break;
-                    }
-                    
-                    const lastHeadRole = head.length > 0 ? head[head.length - 1].role : null;
-                    const bridgeRole = lastHeadRole === 'user' ? 'assistant' : 'user';
-                    processedHistory = [
-                        ...head, 
-                        { role: bridgeRole, content: '（系统提示：因内容过长，中间部分剧情已被折叠，请根据前后文推断总结）' }, 
-                        ...tail
-                    ];
+                    const skipped = selectedMessages.length - headMsgs.length - tailMsgs.length;
+                    const headText = headMsgs.map((m, i) =>
+                        `【第${startOffset + i + 1}条】${m.role === 'user' ? '用户' : roleLabel}：${m.content}`
+                    ).join('\n\n');
+                    const tailStartIdx = startOffset + headMsgs.length + skipped;
+                    const tailText = tailMsgs.map((m, i) =>
+                        `【第${tailStartIdx + i + 1}条】${m.role === 'user' ? '用户' : roleLabel}：${m.content}`
+                    ).join('\n\n');
+                    dialogueText = headText + `\n\n……（中间约${skipped}条消息因篇幅省略）……\n\n` + tailText;
+                } else {
+                    dialogueText = selectedMessages.map((m, i) =>
+                        `【第${startOffset + i + 1}条】${m.role === 'user' ? '用户' : roleLabel}：${m.content}`
+                    ).join('\n\n');
                 }
 
-                // 若非从头总结，自动注入最初世界观
-                if (startOffset > 0 && historyMessages.length > 0) {
-                     processedHistory = [
-                         { role: 'user', content: `[提示：故事的初始设定如下]\n${historyMessages[0].content}`},
-                         { role: 'assistant', content: `[已记录初始世界观设定，时间线推进到以下对话片段]`},
-                         ...processedHistory
-                     ];
-                }
+                const systemPrompt = `你是一位专业的剧情档案整理员。你的工作是阅读用户提供的角色扮演对话记录文本，输出一份结构化的剧情复盘报告。你只能输出报告，绝对不得进行任何角色扮演、续写剧情或回应对话内容。`;
 
-                const summarySystemPrompt = "你是一位专业的剧情整理助理。你的唯一任务是阅读以下对话记录，生成一份详尽的剧情复盘报告（字数在2000字左右），不得进行任何角色扮演或续写剧情。\n报告必须清晰包含以下四个板块：\n1. 【核心世界观与主线】：故事发生的背景与迄今为止的主线发展全貌。\n2. 【人物设定与状态】：详尽列出主角及所有出场关键人物的性格、外貌特征、身份设定、相互关系以及当前各自所处的具体情况。\n3. 【伏笔与未解之谜】：明确梳理出对话剧情中埋下的所有暗线、未解决的冲突、神秘道具或待揭露的真相。\n4. 【当前焦点事件】：详细且具象地描述故事最后中断在的那一刻的具体场景、角色动作和对话态势。\n请直接输出报告正文，不要有任何开场白或角色扮演内容。";
+                const userPrompt = `以下是一段角色扮演对话的完整记录，共 ${selectedMessages.length} 条消息。\n角色名称：${roleLabel}\n角色设定参考：${role.systemPrompt}\n\n${'='.repeat(20)}\n${dialogueText}\n${'='.repeat(20)}\n\n请根据以上对话记录，整理输出一份约 2000 字的剧情复盘报告，包含以下四个板块：\n\n1.【核心世界观与主线】故事背景与主线发展全貌\n2.【人物设定与状态】所有出场人物的性格、外貌、身份、相互关系及当前状态\n3.【伏笔与未解之谜】所有暗线、未解冲突、待揭露的真相\n4.【当前焦点事件】故事最后中断时的具体场景、角色动作和对话态势\n\n直接输出报告正文，不要任何开场白。`;
 
-                // 【去杂质】只传纯净的 role 和 content，并合并连续相同 role 防止 400
-                const rawMsgs = processedHistory.map(m => ({ role: m.role, content: m.content }));
-                const mergedMsgs = [];
-                for (const m of rawMsgs) {
-                    if (mergedMsgs.length > 0 && mergedMsgs[mergedMsgs.length - 1].role === m.role) {
-                        mergedMsgs[mergedMsgs.length - 1].content += '\n\n' + m.content;
-                    } else {
-                        mergedMsgs.push({ ...m });
-                    }
-                }
                 const apiMessages = [
-                    { role: "system", content: summarySystemPrompt },
-                    ...mergedMsgs
+                    { role: 'system', content: systemPrompt },
+                    { role: 'user', content: userPrompt }
                 ];
 
                 if (currentAbortController) currentAbortController.abort();
@@ -747,18 +740,18 @@
                     const response = await fetch(Config.WORKER_URL, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json', 'X-API-Key': Config.CUSTOM_SECRET },
-                        body: JSON.stringify({ model: DataManager.currentModel, messages: apiMessages, stream: false }),
+                        body: JSON.stringify({ model: 'deepseek-chat', messages: apiMessages, stream: false }),
                         signal: currentAbortController.signal
                     });
 
                     if (!response.ok) throw new Error(`HTTP ${response.status}`);
                     const data = await response.json();
-                    
+
                     summaryMsg.content = data.choices[0].message.content;
-                    summaryMsg.status = 'done'; // 转换为常驻 Checkpoint
+                    summaryMsg.status = 'done';
                     DataManager.saveData();
                     this.loadConversationToUI();
-                } catch (err) {
+                                } catch (err) {
                     if (err.name !== 'AbortError') {
                         alert(`总结生成失败: ${err.message}`);
                         summaryMsg.status = 'warning';
