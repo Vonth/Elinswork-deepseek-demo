@@ -253,7 +253,7 @@
         }
         @keyframes slideInUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
 
-        .message-footer { display: flex; align-items: center; gap: 8px; margin-top: 6px; font-size: 0.7rem; color: var(--text-secondary); opacity: 0.8; }
+        .message-footer { display: flex; align-items: center; gap: 8px; margin-top: 2px; font-size: 0.7rem; color: var(--text-secondary); opacity: 0.8; }
         .user-footer { justify-content: flex-end; }
         .user-footer .message-actions { order: -1; }
         .assistant-footer { justify-content: flex-start; }
