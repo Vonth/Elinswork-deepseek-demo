@@ -190,8 +190,8 @@
         .messages-area { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: calc(80px + env(safe-area-inset-top)) 20px calc(110px + env(safe-area-inset-bottom)) 20px; display: flex; flex-direction: column; gap: 16px; }
         .message-wrapper { display: flex; flex-direction: column; width: 100%; }
         
-        .user-message { align-self: flex-end; background: var(--user-msg-bg); color: var(--user-msg-text); font-size: 16px; line-height: 1.5; padding: 12px 18px; border-radius: 20px 20px 4px 20px; max-width: 85%; word-break: break-word; backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border: 1px solid var(--user-msg-border); box-shadow: 0 8px 32px var(--user-msg-shadow); }
-        .assistant-message { align-self: flex-start; color: var(--text-primary); font-size: 16px; line-height: 1.6; max-width: 95%; word-break: break-word; padding: 4px 0; text-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        .user-message { align-self: flex-end; background: var(--user-msg-bg); color: var(--user-msg-text); font-size: 15px; line-height: 1.5; padding: 12px 18px; border-radius: 20px 20px 4px 20px; max-width: 85%; word-break: break-word; backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border: 1px solid var(--user-msg-border); box-shadow: 0 8px 32px var(--user-msg-shadow); }
+        .assistant-message { align-self: flex-start; color: var(--text-primary); font-size: 15px; line-height: 1.6; max-width: 95%; word-break: break-word; padding: 4px 0; text-shadow: 0 1px 3px rgba(0,0,0,0.1); }
         
         /* 智能总结气泡卡片样式 */
         .system-summary-message {
