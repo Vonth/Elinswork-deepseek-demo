@@ -1,9 +1,7 @@
-    (function() {
-        "use strict";
+"use strict";
 
         const Config = {
             WORKER_URL: 'https://still-bread-327a.liaoyilin826.workers.dev/',
-            CUSTOM_SECRET: 'xK9mP2vL7qR4nF8t',
             MAX_REGENERATIONS: 5,
             PAGE_SIZE: 50,
             TOKEN_WARNING_LIMIT: 80000 // 8万字符触发范围总结预警
@@ -336,7 +334,7 @@
                 try {
                     const response = await fetch(Config.WORKER_URL, {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json', 'X-API-Key': Config.CUSTOM_SECRET },
+                        headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ model: 'deepseek-chat', messages: apiMessages, stream: false }),
                         signal: currentAbortController.signal
                     });
@@ -423,7 +421,7 @@
                 if (currentAbortController) currentAbortController.abort(); currentAbortController = new AbortController();
                 const loadingDiv = document.createElement('div'); loadingDiv.className = 'loading'; loadingDiv.innerHTML = `${SVGIcons.spinner} 生成中...`; DOM.messagesArea.appendChild(loadingDiv); DOM.messagesArea.scrollTop = DOM.messagesArea.scrollHeight;
                 try {
-                    const response = await fetch(Config.WORKER_URL, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-API-Key': Config.CUSTOM_SECRET }, body: JSON.stringify({ model: DataManager.currentModel, messages: apiMessages, stream: false }), signal: currentAbortController.signal });
+                    const response = await fetch(Config.WORKER_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model: DataManager.currentModel, messages: apiMessages, stream: false }), signal: currentAbortController.signal });
                     if (!response.ok) throw new Error(`HTTP ${response.status}`);
                     const data = await response.json();
                     // 新版本追加到 regenerations 末尾，保持 1=原始 2=第一次重生成... 的正序
@@ -621,7 +619,7 @@
                 if (currentAbortController) currentAbortController.abort(); currentAbortController = new AbortController();
                 const loadingDiv = document.createElement('div'); loadingDiv.className = 'loading'; loadingDiv.innerHTML = `${SVGIcons.spinner} 生成中...`; DOM.messagesArea.appendChild(loadingDiv); DOM.messagesArea.scrollTop = DOM.messagesArea.scrollHeight;
                 try {
-                    const response = await fetch(Config.WORKER_URL, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-API-Key': Config.CUSTOM_SECRET }, body: JSON.stringify({ model: DataManager.currentModel, messages: apiMessages, stream: false }), signal: currentAbortController.signal });
+                    const response = await fetch(Config.WORKER_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model: DataManager.currentModel, messages: apiMessages, stream: false }), signal: currentAbortController.signal });
                     if (!response.ok) throw new Error(`HTTP ${response.status}`);
                     const data = await response.json();
                     conv.messages.push({ role: 'assistant', content: data.choices[0].message.content, reasoning: (DataManager.currentModel === 'deepseek-reasoner' && data.choices[0].message.reasoning_content) ? data.choices[0].message.reasoning_content : null, regenerations: [], currentVersion: 0, reasoningCollapsed: false, timestamp: new Date().toISOString() });
@@ -667,7 +665,7 @@
             if (currentAbortController) currentAbortController.abort(); currentAbortController = new AbortController();
             const loadingDiv = document.createElement('div'); loadingDiv.className = 'loading'; loadingDiv.innerHTML = `${SVGIcons.spinner} 生成中...`; DOM.messagesArea.appendChild(loadingDiv); DOM.messagesArea.scrollTop = DOM.messagesArea.scrollHeight;
             try {
-                const response = await fetch(Config.WORKER_URL, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-API-Key': Config.CUSTOM_SECRET }, body: JSON.stringify({ model: DataManager.currentModel, messages: apiMessages, stream: false }), signal: currentAbortController.signal });
+                const response = await fetch(Config.WORKER_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model: DataManager.currentModel, messages: apiMessages, stream: false }), signal: currentAbortController.signal });
                 if (!response.ok) throw new Error(`HTTP ${response.status}`);
                 const data = await response.json();
                 conv.messages.push({ role: 'assistant', content: data.choices[0].message.content, reasoning: (DataManager.currentModel === 'deepseek-reasoner' && data.choices[0].message.reasoning_content) ? data.choices[0].message.reasoning_content : null, regenerations: [], currentVersion: 0, reasoningCollapsed: false, timestamp: new Date().toISOString() });
@@ -822,21 +820,29 @@
             DOM.bgModal.style.display = 'none'; 
         });
 
-        // ---- 程序初始化 ----
-        DBManager.init().then(async () => {
-            if (currentActiveBgId !== 'default') {
-                try {
-                    const bgs = await DBManager.getAllBgs();
-                    const activeBg = bgs.find(b => b.id === currentActiveBgId);
-                    if (activeBg) { applyCustomBg(activeBg.dataUrl); } 
-                    else { setCurrentBg('default', null); }
-                } catch (err) { console.error("恢复背景失败", err); }
+        // ---- 程序入口 ----
+        async function init() {
+            try {
+                await DBManager.init();
+                if (currentActiveBgId !== 'default') {
+                    try {
+                        const bgs = await DBManager.getAllBgs();
+                        const activeBg = bgs.find(b => b.id === currentActiveBgId);
+                        if (activeBg) { applyCustomBg(activeBg.dataUrl); }
+                        else { setCurrentBg('default', null); }
+                    } catch (err) { console.error("恢复背景失败", err); }
+                }
+            } catch (err) {
+                alert('本地数据库初始化失败，背景历史功能将受限。');
+                console.error(err);
+            } finally {
+                await DataManager.loadData();
+                DataManager.loadSidebarState();
+                UIManager.loadTheme();
+                UIManager.renderSidebar();
+                UIManager.loadConversationToUI();
+                initThemeFollowSystem();
             }
-            await DataManager.loadData(); DataManager.loadSidebarState(); UIManager.loadTheme(); UIManager.renderSidebar(); UIManager.loadConversationToUI(); initThemeFollowSystem();
-        }).catch(async err => {
-            alert('本地数据库初始化失败，背景历史功能将受限。');
-            console.error(err);
-            await DataManager.loadData(); DataManager.loadSidebarState(); UIManager.loadTheme(); UIManager.renderSidebar(); UIManager.loadConversationToUI(); initThemeFollowSystem();
-        });
+        }
 
-    })();
+        init();
