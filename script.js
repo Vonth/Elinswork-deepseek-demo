@@ -243,6 +243,7 @@
 
         const DataManager = {
             roles: [], currentRoleId: null, currentConversationId: null, currentModel: 'deepseek-chat', sidebarOpen: false,
+            normalizeModel(model) { return model === 'v4flash' ? 'deepseek-v4-flash' : (model || 'deepseek-chat'); },
             generateId() { return crypto.randomUUID ? crypto.randomUUID() : Date.now() + '-' + Math.random(); },
             defaultRole: { id: 'default_role', name: '新角色', systemPrompt: '你是一个乐于助人的AI助手。', conversations: [] },
             ensureDefaultRoles() {
@@ -286,7 +287,7 @@
                     this.roles = data.roles || [];
                     this.currentRoleId = data.currentRoleId || null;
                     this.currentConversationId = data.currentConversationId || null;
-                    this.currentModel = data.currentModel || 'deepseek-chat';
+                    this.currentModel = this.normalizeModel(data.currentModel);
                     modelSelect.value = this.currentModel;
                 }
                 this.ensureDefaultRoles();
