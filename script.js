@@ -115,7 +115,130 @@
         function renderMarkdown(text) {
             if (!text) return '';
             if (typeof marked === 'undefined') return escapeHtml(text);
-            try { return marked.parse(text); } catch(e) { return escapeHtml(text); }
+            try { return sanitizeHtml(marked.parse(text)); } catch(e) { return escapeHtml(text); }
+        }
+
+        function sanitizeHtml(html) {
+            const template = document.createElement('template');
+            template.innerHTML = html;
+            const allowedTags = new Set(['A', 'B', 'BLOCKQUOTE', 'BR', 'CODE', 'DEL', 'EM', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'HR', 'I', 'IMG', 'LI', 'OL', 'P', 'PRE', 'S', 'STRONG', 'TABLE', 'TBODY', 'TD', 'TH', 'THEAD', 'TR', 'UL']);
+            const allowedAttrs = {
+                A: new Set(['href', 'title']),
+                IMG: new Set(['src', 'alt', 'title']),
+                TH: new Set(['align']),
+                TD: new Set(['align'])
+            };
+
+            template.content.querySelectorAll('*').forEach((node) => {
+                if (!allowedTags.has(node.tagName)) {
+                    node.replaceWith(...node.childNodes);
+                    return;
+                }
+
+                [...node.attributes].forEach((attr) => {
+                    const allowed = allowedAttrs[node.tagName]?.has(attr.name);
+                    if (!allowed) {
+                        node.removeAttribute(attr.name);
+                        return;
+                    }
+                    if ((attr.name === 'href' || attr.name === 'src') && !isSafeUrl(attr.value)) {
+                        node.removeAttribute(attr.name);
+                    }
+                });
+
+                if (node.tagName === 'A') {
+                    node.setAttribute('target', '_blank');
+                    node.setAttribute('rel', 'noopener noreferrer');
+                }
+            });
+
+            return template.innerHTML;
+        }
+
+        function isSafeUrl(value) {
+            const trimmed = String(value || '').trim().toLowerCase();
+            return trimmed.startsWith('http://') || trimmed.startsWith('https://') || trimmed.startsWith('mailto:') || trimmed.startsWith('#') || trimmed.startsWith('/');
+        }
+
+        async function callChatApi({ model, messages, signal }) {
+            const response = await fetch(Config.WORKER_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ model, messages, stream: false }),
+                signal
+            });
+
+            let data = null;
+            try { data = await response.json(); } catch(e) {}
+
+            if (!response.ok) {
+                const message = data?.error?.message || data?.message || `HTTP ${response.status}`;
+                throw new Error(message);
+            }
+
+            const message = data?.choices?.[0]?.message;
+            if (!message || typeof message.content !== 'string') {
+                throw new Error('API 返回格式异常，未找到有效回复内容');
+            }
+
+            return {
+                content: message.content,
+                reasoning: typeof message.reasoning_content === 'string' ? message.reasoning_content : null
+            };
+        }
+
+        function normalizeImportedRoles(data) {
+            if (!data || !Array.isArray(data.roles)) return [];
+
+            return data.roles
+                .filter(role => role && typeof role === 'object')
+                .map(role => {
+                    const normalizedRole = {
+                        id: role.id || DataManager.generateId(),
+                        name: typeof role.name === 'string' && role.name.trim() ? role.name.trim() : '未命名角色',
+                        systemPrompt: typeof role.systemPrompt === 'string' && role.systemPrompt.trim() ? role.systemPrompt.trim() : '你是一个乐于助人的AI助手。',
+                        conversations: Array.isArray(role.conversations) ? role.conversations.map(conv => ({
+                            id: conv?.id || DataManager.generateId(),
+                            name: typeof conv?.name === 'string' && conv.name.trim() ? conv.name.trim() : '新对话',
+                            messages: Array.isArray(conv?.messages) ? conv.messages.map(normalizeImportedMessage).filter(Boolean) : []
+                        })) : []
+                    };
+                    if (normalizedRole.conversations.length === 0) {
+                        normalizedRole.conversations.push({ id: DataManager.generateId(), name: '新对话', messages: [] });
+                    }
+                    return normalizedRole;
+                });
+        }
+
+        function normalizeImportedMessage(msg) {
+            if (!msg || typeof msg !== 'object') return null;
+            const allowedRoles = new Set(['user', 'assistant', 'system_summary']);
+            if (!allowedRoles.has(msg.role)) return null;
+
+            const normalized = {
+                role: msg.role,
+                content: typeof msg.content === 'string' ? msg.content : '',
+                timestamp: msg.timestamp || new Date().toISOString()
+            };
+
+            if (msg.role === 'assistant') {
+                normalized.reasoning = typeof msg.reasoning === 'string' ? msg.reasoning : null;
+                normalized.regenerations = Array.isArray(msg.regenerations) ? msg.regenerations.map(regen => ({
+                    content: typeof regen?.content === 'string' ? regen.content : '',
+                    reasoning: typeof regen?.reasoning === 'string' ? regen.reasoning : null,
+                    timestamp: regen?.timestamp || Date.now()
+                })) : [];
+                normalized.currentVersion = Number.isInteger(msg.currentVersion) ? Math.max(0, Math.min(msg.currentVersion, normalized.regenerations.length)) : 0;
+                normalized.reasoningCollapsed = Boolean(msg.reasoningCollapsed);
+            }
+
+            if (msg.role === 'system_summary') {
+                normalized.status = ['warning', 'generating', 'done'].includes(msg.status) ? msg.status : 'warning';
+                if (Number.isInteger(msg.startOffset)) normalized.startOffset = msg.startOffset;
+                if (Number.isInteger(msg.endOffset)) normalized.endOffset = msg.endOffset;
+            }
+
+            return normalized;
         }
 
         const DataManager = {
@@ -332,17 +455,9 @@
                 currentAbortController = new AbortController();
 
                 try {
-                    const response = await fetch(Config.WORKER_URL, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ model: 'deepseek-chat', messages: apiMessages, stream: false }),
-                        signal: currentAbortController.signal
-                    });
+                    const reply = await callChatApi({ model: 'deepseek-chat', messages: apiMessages, signal: currentAbortController.signal });
 
-                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-                    const data = await response.json();
-
-                    summaryMsg.content = data.choices[0].message.content;
+                    summaryMsg.content = reply.content;
                     summaryMsg.status = 'done';
                     DataManager.saveData();
                     this.loadConversationToUI();
@@ -421,12 +536,10 @@
                 if (currentAbortController) currentAbortController.abort(); currentAbortController = new AbortController();
                 const loadingDiv = document.createElement('div'); loadingDiv.className = 'loading'; loadingDiv.innerHTML = `${SVGIcons.spinner} 生成中...`; DOM.messagesArea.appendChild(loadingDiv); DOM.messagesArea.scrollTop = DOM.messagesArea.scrollHeight;
                 try {
-                    const response = await fetch(Config.WORKER_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model: DataManager.currentModel, messages: apiMessages, stream: false }), signal: currentAbortController.signal });
-                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-                    const data = await response.json();
+                    const reply = await callChatApi({ model: DataManager.currentModel, messages: apiMessages, signal: currentAbortController.signal });
                     // 新版本追加到 regenerations 末尾，保持 1=原始 2=第一次重生成... 的正序
-                    const newContent = data.choices[0].message.content;
-                    const newReasoning = (DataManager.currentModel === 'deepseek-reasoner' && data.choices[0].message.reasoning_content) ? data.choices[0].message.reasoning_content : null;
+                    const newContent = reply.content;
+                    const newReasoning = DataManager.currentModel === 'deepseek-reasoner' ? reply.reasoning : null;
                     assistantMsg.regenerations.push({ content: newContent, reasoning: newReasoning, timestamp: Date.now() });
                     assistantMsg.currentVersion = assistantMsg.regenerations.length; // 自动跳到最新版本
                     
@@ -619,10 +732,8 @@
                 if (currentAbortController) currentAbortController.abort(); currentAbortController = new AbortController();
                 const loadingDiv = document.createElement('div'); loadingDiv.className = 'loading'; loadingDiv.innerHTML = `${SVGIcons.spinner} 生成中...`; DOM.messagesArea.appendChild(loadingDiv); DOM.messagesArea.scrollTop = DOM.messagesArea.scrollHeight;
                 try {
-                    const response = await fetch(Config.WORKER_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model: DataManager.currentModel, messages: apiMessages, stream: false }), signal: currentAbortController.signal });
-                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-                    const data = await response.json();
-                    conv.messages.push({ role: 'assistant', content: data.choices[0].message.content, reasoning: (DataManager.currentModel === 'deepseek-reasoner' && data.choices[0].message.reasoning_content) ? data.choices[0].message.reasoning_content : null, regenerations: [], currentVersion: 0, reasoningCollapsed: false, timestamp: new Date().toISOString() });
+                    const reply = await callChatApi({ model: DataManager.currentModel, messages: apiMessages, signal: currentAbortController.signal });
+                    conv.messages.push({ role: 'assistant', content: reply.content, reasoning: DataManager.currentModel === 'deepseek-reasoner' ? reply.reasoning : null, regenerations: [], currentVersion: 0, reasoningCollapsed: false, timestamp: new Date().toISOString() });
                     
                     this.checkConversationLimit();
                     DataManager.saveData(); this.jumpToLastPage(conv.messages.length); this.loadConversationToUI();
@@ -665,10 +776,8 @@
             if (currentAbortController) currentAbortController.abort(); currentAbortController = new AbortController();
             const loadingDiv = document.createElement('div'); loadingDiv.className = 'loading'; loadingDiv.innerHTML = `${SVGIcons.spinner} 生成中...`; DOM.messagesArea.appendChild(loadingDiv); DOM.messagesArea.scrollTop = DOM.messagesArea.scrollHeight;
             try {
-                const response = await fetch(Config.WORKER_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model: DataManager.currentModel, messages: apiMessages, stream: false }), signal: currentAbortController.signal });
-                if (!response.ok) throw new Error(`HTTP ${response.status}`);
-                const data = await response.json();
-                conv.messages.push({ role: 'assistant', content: data.choices[0].message.content, reasoning: (DataManager.currentModel === 'deepseek-reasoner' && data.choices[0].message.reasoning_content) ? data.choices[0].message.reasoning_content : null, regenerations: [], currentVersion: 0, reasoningCollapsed: false, timestamp: new Date().toISOString() });
+                const reply = await callChatApi({ model: DataManager.currentModel, messages: apiMessages, signal: currentAbortController.signal });
+                conv.messages.push({ role: 'assistant', content: reply.content, reasoning: DataManager.currentModel === 'deepseek-reasoner' ? reply.reasoning : null, regenerations: [], currentVersion: 0, reasoningCollapsed: false, timestamp: new Date().toISOString() });
                 
                 UIManager.checkConversationLimit();
                 DataManager.saveData(); UIManager.jumpToLastPage(conv.messages.length); UIManager.loadConversationToUI();
@@ -713,13 +822,14 @@
             reader.onload = (event) => {
                 try {
                     const data = JSON.parse(event.target.result);
-                    if (data && data.roles && Array.isArray(data.roles)) {
+                    const importedRoles = normalizeImportedRoles(data);
+                    if (importedRoles.length > 0) {
                         if (confirm('是否覆盖当前所有角色与对话数据？\n点击"确定"覆盖，"取消"则追加到现有列表中。')) {
-                            DataManager.roles = data.roles; DataManager.currentRoleId = data.roles[0]?.id || null; DataManager.currentConversationId = data.roles[0]?.conversations[0]?.id || null;
+                            DataManager.roles = importedRoles; DataManager.currentRoleId = importedRoles[0]?.id || null; DataManager.currentConversationId = importedRoles[0]?.conversations[0]?.id || null;
                         } else {
-                            data.roles.forEach(role => { role.id = DataManager.generateId(); role.conversations.forEach(c => c.id = DataManager.generateId()); DataManager.roles.push(role); });
+                            importedRoles.forEach(role => { role.id = DataManager.generateId(); role.conversations.forEach(c => c.id = DataManager.generateId()); DataManager.roles.push(role); });
                         }
-                        DataManager.saveData(); UIManager.renderSidebar(); UIManager.loadConversationToUI(); alert('数据导入成功！');
+                        DataManager.ensureDefaultRoles(); DataManager.saveData(); UIManager.renderSidebar(); UIManager.loadConversationToUI(); alert('数据导入成功！');
                     } else { alert('文件格式错误：未找到有效的角色数据。'); }
                 } catch (err) { alert('读取文件失败，可能不是合法的 JSON 文件。\n错误信息: ' + err.message); }
                 e.target.value = ''; 
