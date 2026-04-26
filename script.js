@@ -630,16 +630,19 @@
                                     <p style="display:flex;align-items:center;gap:8px;opacity:0.9;">${SVGIcons.spinner} 正在提取核心剧情生成总结点，请稍候...</p>
                                 ` : `
                                     <p style="opacity:0.9;">已生成从第 ${msg.startOffset + 1} 条至第 ${msg.endOffset + 1} 条的剧情浓缩记录。该范围终点已设为锚点，AI 在后续聊天中会自动纳入此总结。</p>
-                                    <div class="summary-text">${escapeHtml(msg.content)}</div>
-                                    <div style="display: flex; gap: 8px;">
-                                        <button class="copy-summary-btn" id="copySummaryBtn-${globalIdx}" style="flex: 2;">
-                                            ${SVGIcons.copy} 一键复制内容
-                                        </button>
-                                        ${(msg.endOffset !== undefined && msg.endOffset < maxIdx) ? `
-                                            <button class="continue-summary-btn" id="continueSummaryBtn-${globalIdx}" style="flex: 1.5; background: var(--badge-bg); color: var(--text-primary); border: none; border-radius: 12px; padding: 12px; cursor: pointer; font-size: 0.85rem; font-weight: 500;">
-                                                从总结点继续总结
-                                            </button>
-                                        ` : ''}
+                                     <div class="summary-text">${escapeHtml(msg.content)}</div>
+                                     <div style="display: flex; gap: 8px;">
+                                         <button class="copy-summary-btn" id="copySummaryBtn-${globalIdx}" style="flex: 2;">
+                                             ${SVGIcons.copy} 一键复制内容
+                                         </button>
+                                         <button class="regenerate-summary-btn" id="regenerateSummaryBtn-${globalIdx}" style="flex: 1.2;">
+                                             ${SVGIcons.regenerate} 重新生成
+                                         </button>
+                                         ${(msg.endOffset !== undefined && msg.endOffset < maxIdx) ? `
+                                             <button class="continue-summary-btn" id="continueSummaryBtn-${globalIdx}" style="flex: 1.5; background: var(--badge-bg); color: var(--text-primary); border: none; border-radius: 12px; padding: 12px; cursor: pointer; font-size: 0.85rem; font-weight: 500;">
+                                                 从总结点继续总结
+                                             </button>
+                                         ` : ''}
                                     </div>
                                 `}
                             </div>
@@ -684,11 +687,20 @@
                                             }).catch(copyFallback);
                                         } else { copyFallback(); }
                                     });
-                                }
+                                 }
 
-                                const continueBtn = document.getElementById(`continueSummaryBtn-${globalIdx}`);
-                                if (continueBtn) {
-                                    continueBtn.addEventListener('click', () => {
+                                 const regenerateBtn = document.getElementById(`regenerateSummaryBtn-${globalIdx}`);
+                                 if (regenerateBtn) {
+                                     regenerateBtn.addEventListener('click', () => {
+                                         if (msg.startOffset === undefined || msg.endOffset === undefined) return;
+                                         if (!confirm('重新生成会覆盖当前剧情总结，是否继续？')) return;
+                                         this.generateStorySummary(globalIdx, msg.startOffset, msg.endOffset);
+                                     });
+                                 }
+
+                                 const continueBtn = document.getElementById(`continueSummaryBtn-${globalIdx}`);
+                                 if (continueBtn) {
+                                     continueBtn.addEventListener('click', () => {
                                         const conv = DataManager.getCurrentConversation();
                                         if (!conv) return;
                                         

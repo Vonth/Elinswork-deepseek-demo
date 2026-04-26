@@ -234,15 +234,15 @@
         .system-summary-message input[type="range"]::-webkit-slider-thumb { appearance: none; width: 16px; height: 16px; border-radius: 50%; background: #d97706; cursor: pointer; border: 2px solid #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.3); }
         body.dark .system-summary-message input[type="range"]::-webkit-slider-thumb { background: #fbbf24; border-color: #222; }
         
-        .summary-btn, .copy-summary-btn, .continue-summary-btn {
+        .summary-btn, .copy-summary-btn, .continue-summary-btn, .regenerate-summary-btn {
             background: #d97706; color: #fff;
             border: none; padding: 12px 20px; border-radius: 12px;
             font-size: 0.9rem; cursor: pointer; margin-top: 5px; width: 100%;
             display: inline-flex; align-items: center; justify-content: center; gap: 8px;
             transition: opacity 0.2s, transform 0.1s; font-weight: 500;
         }
-        body.dark .summary-btn, body.dark .copy-summary-btn { background: #fbbf24; color: #000; }
-        .summary-btn:active, .copy-summary-btn:active, .continue-summary-btn:active { transform: scale(0.97); }
+        body.dark .summary-btn, body.dark .copy-summary-btn, body.dark .regenerate-summary-btn { background: #fbbf24; color: #000; }
+        .summary-btn:active, .copy-summary-btn:active, .continue-summary-btn:active, .regenerate-summary-btn:active { transform: scale(0.97); }
         .summary-btn:disabled { opacity: 0.7; cursor: not-allowed; }
         
         .summary-text {
@@ -371,4 +371,3 @@
         .markdown-body strong { font-weight: 600; }
         .markdown-body em { font-style: italic; }
         .markdown-body a { color: #3b82f6; text-decoration: none; }
-
