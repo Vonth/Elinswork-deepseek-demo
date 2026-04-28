@@ -323,6 +323,18 @@
             resetPagination() { Pagination.currentPage = 1; },
             adjustPaginationAfterDelete(totalMessages) { const totalPages = Math.ceil(totalMessages / Config.PAGE_SIZE); if (Pagination.currentPage > totalPages && totalPages > 0) Pagination.currentPage = totalPages; else if (totalPages === 0) Pagination.currentPage = 1; },
             jumpToLastPage(totalMessages) { const totalPages = Math.ceil(totalMessages / Config.PAGE_SIZE); Pagination.currentPage = totalPages > 0 ? totalPages : 1; },
+            getActiveAssistantVersion(msg) {
+                if (!msg || msg.role !== 'assistant') return msg;
+                if (msg.currentVersion > 0 && msg.regenerations?.length) {
+                    return msg.regenerations[msg.currentVersion - 1] || msg;
+                }
+                return msg;
+            },
+            getDialogueContent(msg) {
+                if (!msg) return '';
+                if (msg.role === 'assistant') return this.getActiveAssistantVersion(msg)?.content || '';
+                return msg.content || '';
+            },
             
             // 【核心防 400 机制】：智能提取有效上下文，动态截断长对话
             getSafeApiMessages(conv, role, userIndex = null) {
@@ -335,10 +347,7 @@
                         apiMsgs.push({ role: 'assistant', content: `[📌 历史剧情总结点]:\n${m.content}` });
                     } else if (m.role === 'user' || m.role === 'assistant') {
                         // 使用当前页面展示的版本内容，而非总是最新生成的内容
-                        let displayContent = m.content;
-                        if (m.role === 'assistant' && m.currentVersion > 0 && m.regenerations?.length) {
-                            displayContent = m.regenerations[m.currentVersion - 1]?.content || m.content;
-                        }
+                        let displayContent = this.getDialogueContent(m);
                         apiMsgs.push({ role: m.role, content: displayContent });
                     }
                 }
@@ -370,12 +379,12 @@
                 if (!conv) return;
                 
                 // 寻找上一个总结点，只计算在那之后的字数
-                const lastSummaryIdx = conv.messages.findLastIndex(m => m.role === 'system_summary');
+                const lastSummaryIdx = conv.messages.findLastIndex(m => m.role === 'system_summary' && m.status === 'done');
                 const msgsToCount = lastSummaryIdx !== -1 ? conv.messages.slice(lastSummaryIdx + 1) : conv.messages;
                 
                 const totalChars = msgsToCount.reduce((acc, msg) => {
                     if (msg.role !== 'user' && msg.role !== 'assistant') return acc;
-                    return acc + (msg.content?.length || 0) + (msg.reasoning?.length || 0);
+                    return acc + this.getDialogueContent(msg).length;
                 }, 0);
 
                 // 判断是否已经有正在显示的预警（未完成的总结）
@@ -388,6 +397,13 @@
                         content: '',
                         timestamp: new Date().toISOString()
                     });
+                } else if (totalChars <= Config.TOKEN_WARNING_LIMIT) {
+                    for (let i = conv.messages.length - 1; i > lastSummaryIdx; i--) {
+                        const msg = conv.messages[i];
+                        if (msg.role === 'system_summary' && msg.status === 'warning') {
+                            conv.messages.splice(i, 1);
+                        }
+                    }
                 }
             },
             
@@ -408,7 +424,8 @@
 
                 // 筛选出该 summary 卡片之前的有效对话
                 const historyMessages = conv.messages.slice(0, summaryIndex)
-                    .filter(m => m.role === 'user' || m.role === 'assistant');
+                    .filter(m => m.role === 'user' || m.role === 'assistant')
+                    .map(m => ({ role: m.role, content: this.getDialogueContent(m) }));
                 const selectedMessages = historyMessages.slice(startOffset, endOffset + 1);
 
                 // 把对话拼成纯文本，AI 以旁观者身份阅读而非参与者
@@ -523,7 +540,7 @@
             onModelChange() { DataManager.currentModel = DOM.modelSelect.value; DataManager.saveData(); },
             adjustTextareaHeight() { DOM.messageInput.style.height = 'auto'; DOM.messageInput.style.height = Math.min(DOM.messageInput.scrollHeight, 120) + 'px'; },
             toggleReasoning(assistantIndex) { const conv = DataManager.getCurrentConversation(); if (!conv) return; const msg = conv.messages[assistantIndex]; if (!msg || msg.role !== 'assistant') return; msg.reasoningCollapsed = !msg.reasoningCollapsed; DataManager.saveData(); this.loadConversationToUI(); },
-            changeAssistantVersion(assistantIndex, delta) { const conv = DataManager.getCurrentConversation(); if (!conv) return; const assistantMsg = conv.messages[assistantIndex]; if (!assistantMsg || assistantMsg.role !== 'assistant') return; const totalVers = assistantMsg.regenerations.length + 1; let newVer = assistantMsg.currentVersion + delta; if (newVer < 0) newVer = 0; if (newVer >= totalVers) newVer = totalVers - 1; if (newVer === assistantMsg.currentVersion) return; assistantMsg.currentVersion = newVer; DataManager.saveData(); this.loadConversationToUI(); },
+            changeAssistantVersion(assistantIndex, delta) { const conv = DataManager.getCurrentConversation(); if (!conv) return; const assistantMsg = conv.messages[assistantIndex]; if (!assistantMsg || assistantMsg.role !== 'assistant') return; const totalVers = assistantMsg.regenerations.length + 1; let newVer = assistantMsg.currentVersion + delta; if (newVer < 0) newVer = 0; if (newVer >= totalVers) newVer = totalVers - 1; if (newVer === assistantMsg.currentVersion) return; assistantMsg.currentVersion = newVer; this.checkConversationLimit(); DataManager.saveData(); this.loadConversationToUI(); },
             
             async regenerateAssistantResponse(assistantIndex) {
                 const conv = DataManager.getCurrentConversation(); const role = DataManager.getCurrentRole(); if (!conv || !role) return;
