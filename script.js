@@ -4,6 +4,8 @@
             WORKER_URL: 'https://still-bread-327a.liaoyilin826.workers.dev/',
             MAX_REGENERATIONS: 5,
             PAGE_SIZE: 50,
+            MAX_API_MESSAGES: 20,
+            MAX_COMPLETION_TOKENS: 1500,
             TOKEN_WARNING_LIMIT: 80000 // 8万字符触发范围总结预警
         };
 
@@ -164,7 +166,7 @@
             const response = await fetch(Config.WORKER_URL, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ model, messages, stream: false }),
+                body: JSON.stringify({ model, messages, stream: false, max_tokens: Config.MAX_COMPLETION_TOKENS }),
                 signal
             });
 
@@ -172,8 +174,11 @@
             try { data = await response.json(); } catch(e) {}
 
             if (!response.ok) {
-                const message = data?.error?.message || data?.message || `HTTP ${response.status}`;
-                throw new Error(message);
+                const error = data?.error || {};
+                const status = error.status || response.status;
+                const message = error.message || data?.message || `HTTP ${response.status}`;
+                const details = formatErrorDetails(error.details);
+                throw new Error(details ? `[${status}] ${message}\n${details}` : `[${status}] ${message}`);
             }
 
             const message = data?.choices?.[0]?.message;
@@ -185,6 +190,12 @@
                 content: message.content,
                 reasoning: typeof message.reasoning_content === 'string' ? message.reasoning_content : null
             };
+        }
+
+        function formatErrorDetails(details) {
+            if (!details) return '';
+            const text = typeof details === 'string' ? details : JSON.stringify(details);
+            return text.length > 800 ? `${text.slice(0, 800)}...` : text;
         }
 
         function normalizeImportedRoles(data) {
@@ -347,8 +358,8 @@
                         apiMsgs.push({ role: 'assistant', content: `[📌 历史剧情总结点]:\n${m.content}` });
                     } else if (m.role === 'user' || m.role === 'assistant') {
                         // 使用当前页面展示的版本内容，而非总是最新生成的内容
-                        let displayContent = this.getDialogueContent(m);
-                        apiMsgs.push({ role: m.role, content: displayContent });
+                        let displayContent = this.getDialogueContent(m).trim();
+                        if (displayContent) apiMsgs.push({ role: m.role, content: displayContent });
                     }
                 }
                 
@@ -370,7 +381,8 @@
                     truncated.pop();
                 }
                 // 4. 始终把系统角色设定顶在最前面
-                return [{ role: "system", content: role.systemPrompt }, ...truncated];
+                const recentMessages = truncated.slice(-Config.MAX_API_MESSAGES);
+                return [{ role: "system", content: role.systemPrompt || '' }, ...recentMessages];
             },
 
             // 检测总字数限制，以弹出“预警卡片”
