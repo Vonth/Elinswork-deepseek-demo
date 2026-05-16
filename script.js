@@ -253,8 +253,18 @@
         }
 
         const DataManager = {
-            roles: [], currentRoleId: null, currentConversationId: null, currentModel: 'deepseek-chat', sidebarOpen: false,
-            normalizeModel(model) { return model === 'v4flash' ? 'deepseek-v4-flash' : (model || 'deepseek-chat'); },
+            roles: [], currentRoleId: null, currentConversationId: null, currentModel: 'deepseek-v4-pro', sidebarOpen: false,
+            normalizeModel(model) {
+                const aliases = {
+                    'v4flash': 'deepseek-v4-flash',
+                    'v4pro': 'deepseek-v4-pro',
+                    'deepseek-chat': 'deepseek-chat',
+                    'deepseek-reasoner': 'deepseek-reasoner',
+                    'deepseek-v4-flash': 'deepseek-v4-flash',
+                    'deepseek-v4-pro': 'deepseek-v4-pro'
+                };
+                return aliases[model] || 'deepseek-chat';
+            },
             generateId() { return crypto.randomUUID ? crypto.randomUUID() : Date.now() + '-' + Math.random(); },
             defaultRole: { id: 'default_role', name: '新角色', systemPrompt: '你是一个乐于助人的AI助手。', conversations: [] },
             ensureDefaultRoles() {
@@ -299,8 +309,8 @@
                     this.currentRoleId = data.currentRoleId || null;
                     this.currentConversationId = data.currentConversationId || null;
                     this.currentModel = this.normalizeModel(data.currentModel);
-                    modelSelect.value = this.currentModel;
                 }
+                modelSelect.value = this.currentModel;
                 this.ensureDefaultRoles();
                 if (!this.roles.find(r => r.id === this.currentRoleId) && this.roles.length) this.currentRoleId = this.roles[0].id;
                 if (this.currentRoleId) { const role = this.getCurrentRole(); if (role && (!this.currentConversationId || !role.conversations.find(c => c.id === this.currentConversationId))) this.currentConversationId = role.conversations[0]?.id || null; }
