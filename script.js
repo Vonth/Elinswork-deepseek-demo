@@ -14,6 +14,8 @@
             SUMMARY_SEGMENT_THINKING_MODE: 'fast',
             SUMMARY_FINAL_MODEL: 'deepseek-v4-pro',
             SUMMARY_FINAL_THINKING_MODE: 'thinking',
+            SUMMARY_LONG_FINAL_MODEL: 'deepseek-v4-pro',
+            SUMMARY_LONG_FINAL_THINKING_MODE: 'fast',
             STORY_ARCHIVE_TRIGGER_CHARS: 100000 // 10万字符触发本卷剧情存档建议
         };
 
@@ -373,7 +375,19 @@
                 `【分段摘要 ${idx + 1}/${segmentSummaries.length}｜第 ${item.segment.startOffset + 1} 条至第 ${item.segment.endOffset + 1} 条】\n${item.content}`
             ).join('\n\n');
 
-            const sourceDescription = `以下是按完整消息边界覆盖第 ${startOffset + 1} 条至第 ${endOffset + 1} 条对话后生成的全部分段摘要，共 ${segmentSummaries.length} 段。请根据所有分段摘要整合成本卷完整存档，不要机械拼接；要去重、合并、按时间顺序整理。必须覆盖所有分段，不能只总结最后一段。必须特别保留跨段关系变化、伏笔演进、设定变化、角色心理变化。不得续写剧情，不得新增未发生内容。`;
+            const sourceDescription = `以下是按完整消息边界覆盖第 ${startOffset + 1} 条至第 ${endOffset + 1} 条对话后生成的全部分段摘要，共 ${segmentSummaries.length} 段。请根据所有分段摘要整合成本卷完整存档，不要机械拼接；要去重、合并、按时间顺序整理。必须覆盖所有分段，不能只总结最后一段。必须特别保留跨段关系变化、伏笔演进、设定变化、角色心理变化。不得续写剧情，不得新增未发生内容。
+
+长范围合并输出必须压缩：
+- USER_ARCHIVE 控制在 1200～1800 中文字。
+- CONTINUATION_PROMPT 控制在 1200～1800 中文字。
+- 主要剧情节点最多 10 条。
+- 角色状态每个主要角色最多 3～5 条。
+- 关系进展最多 8 条。
+- 已确认设定最多 10 条。
+- 未回收伏笔最多 10 条。
+- 关键原文摘录最多 5 条。
+- 必须覆盖所有分段，但合并同类项，避免重复描述同一情绪、同一关系变化、同一伏笔。
+- 不要输出冗长解释，不要补写剧情。`;
             return buildFinalArchiveMessages({ sourceText, sourceDescription, roleLabel, role });
         }
 
@@ -766,10 +780,10 @@
                         });
 
                         reply = await callChatApi({
-                            model: Config.SUMMARY_FINAL_MODEL,
+                            model: Config.SUMMARY_LONG_FINAL_MODEL,
                             messages: apiMessages,
                             signal: currentAbortController.signal,
-                            thinkingMode: Config.SUMMARY_FINAL_THINKING_MODE,
+                            thinkingMode: Config.SUMMARY_LONG_FINAL_THINKING_MODE,
                             maxTokens: Config.SUMMARY_FINAL_MAX_TOKENS
                         });
                     }
