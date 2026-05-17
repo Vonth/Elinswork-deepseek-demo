@@ -109,6 +109,7 @@
         };
 
         const Pagination = { currentPage: 1 };
+        const STALE_GENERATING_SUMMARY_MS = 10 * 60 * 1000;
         let currentAbortController = null;
 
         function escapeHtml(text) {
@@ -337,22 +338,47 @@
             });
         }
 
-        function getArchiveProfilePrompt(profile) {
+        function recoverStaleGeneratingSummaries(conv) {
+            if (!conv || !Array.isArray(conv.messages)) return false;
+
+            const now = Date.now();
+            let recovered = false;
+
+            conv.messages.forEach(msg => {
+                if (!msg || msg.role !== 'system_summary' || msg.status !== 'generating') return;
+
+                const marker = msg.updatedAt || msg.startedAt;
+                const markerTime = marker ? Date.parse(marker) : NaN;
+                const isStale = !Number.isFinite(markerTime) || now - markerTime > STALE_GENERATING_SUMMARY_MS;
+
+                if (!isStale) return;
+
+                msg.status = 'warning';
+                delete msg.progressText;
+                recovered = true;
+            });
+
+            return recovered;
+        }
+
+        function getContinuationOnlyArchiveProfilePrompt(profile) {
+            const outputTemplate = `请严格只输出以下一个分隔块，不要输出 USER_ARCHIVE，不要输出 ARCHIVE_TITLE，不要输出 JSON，不要输出卷标题，不要输出一句话概括，不要添加分隔符之外的开场白、解释或补充说明。所有 token 都优先用于帮助后续模型继承剧情；只整理已经发生的内容，不要续写剧情，不要新增未发生内容。\n\n<<<CONTINUATION_PROMPT>>>\n# 下一卷续写包\n\n你正在继续一个成人向、多角色、复杂亲密关系的长篇角色扮演剧情。以下内容是已经发生的事实和当前状态，请严格继承，不要重置关系，不要改写已发生事实。所有角色均为成年人。\n\n## 当前场景 / 接续点\n详细记录当前地点、时间、环境、在场人物位置、最后动作、最后一句话/情绪、身体状态、当前未完成互动。下一轮回复必须从这里自然接上，而不是重新开场。\n\n## 核心事实与伏笔\n列出上一卷最重要的事实、伏笔、未完成冲突、隐瞒、误会和后续必须保留的线索。\n\n## 角色继承\n记录每个主要角色当前心理、身体状态、行为方式、隐藏信息、对用户角色和其他角色的态度。\n\n## 用户角色状态\n记录用户角色当前身体/心理/已知信息/动机，但不要替用户决定下一步行为。\n\n## 关系矩阵\n记录主要角色之间的暧昧、依赖、占有欲、嫉妒、冲突、默许、竞争、回避、边界变化、称呼变化和权力位置变化。\n\n## 亲密关系与身体余波\n记录已发生成人亲密关系造成的关系变化、身体状态、情绪余波、照顾需求、未说出口的期待、回避或误会。避免把关系重置成事前状态。不要新增未发生的亲密内容。\n\n## 续写约束\n- 不要重置关系。\n- 不要改写已发生事实。\n- 不要替用户角色做决定。\n- 不要突然让角色性格漂移。\n- 不要突然消除身体状态和情绪余波。\n- 不要跳过当前未完成动作。\n- 不要突然揭露全部秘密。\n- 从当前停顿点自然继续。\n- 优先保持本卷形成的语气、称呼、关系张力、身体状态和互动节奏。\n<<<END_CONTINUATION_PROMPT>>>`;
+
             if (profile === 'intimacy_multi_role') {
                 return {
-                    systemPrompt: `你是一位专业的长篇角色扮演剧情档案整理员，擅长整理成人向、多角色、复杂亲密关系 RP 的剧情存档。你的任务是客观整理已经发生的剧情事实、角色状态、关系进展、亲密关系造成的情绪与身体余波、未回收伏笔和当前接续点。你不得续写剧情，不得新增亲密内容，不得替用户角色做新决定，不得改写已发生事实。如原文中存在边界、犹豫、拒绝、误会或权力不平衡，只能客观记录为剧情状态和后续约束，不得美化或扩写。不得输出分隔符之外的额外说明。`,
-                    outputTemplate: `请严格按以下分隔符输出两段内容，不要输出 JSON，不要输出卷标题，不要输出一句话概括，不要添加分隔符之外的开场白或解释：\n\n<<<USER_ARCHIVE>>>\n# 本卷剧情存档\n\n## 主要剧情节点\n按时间顺序记录本卷重要事件。不要机械罗列所有小事，优先保留影响角色关系、情绪转折、亲密边界、身体状态、设定变化、伏笔推进和当前局势的节点。\n\n## 角色状态\n分别记录每个主要角色的当前状态。重点包括：\n- 心理状态；\n- 身体状态；\n- 当前动机；\n- 隐藏情绪；\n- 已知信息与隐瞒信息；\n- 行为倾向；\n- 对用户角色和其他角色的态度。\n只记录已发生内容，不替用户角色决定新的感受或行为。\n\n## 关系矩阵\n逐对记录主要角色之间的关系状态。重点包括：\n- 信任、暧昧、依赖、占有欲、嫉妒、冲突、回避、默许、竞争；\n- 称呼变化；\n- 边界变化；\n- 主动/被动/试探/逃避/保护/控制等位置变化；\n- 多角色之间的三角关系、隐瞒、误会、同盟或竞争。\n\n## 亲密关系状态\n记录已经发生的亲密关系及其对关系造成的影响。重点不是露骨复述细节，而是记录：\n- 亲密关系推进到什么程度；\n- 它的性质是试探、冲动、安抚、占有、依赖、失控、和解、逃避，还是情绪爆发后的结果；\n- 行为之后关系发生了什么变化；\n- 是否出现依赖、羞耻、占有欲、嫉妒、愧疚、逃避、沉溺、默许、竞争；\n- 是否有未说出口的期待、边界或误会。\n不得新增未发生的亲密内容。\n\n## 生理状态与事后余波\n记录当前仍会影响下一幕的身体状态和身体余波，例如疲惫、敏感、受伤、疼痛、失眠、脱力、发热、行动限制、清理/休息/照顾/安抚需求、外在痕迹等。只记录已发生或明确暗示的内容。不要替用户角色决定新的身体感受或下一步行为。\n\n## 情绪余波\n记录亲密关系、冲突或关键事件之后的情绪残留，例如：羞耻、安心、依赖、占有欲、嫉妒、逃避、嘴硬、愧疚、沉溺、不甘、期待；谁在装作无所谓；谁在回避；谁想靠近但没有说出口；谁对多角色关系产生竞争、默许或不平衡感。\n\n## 已确认设定\n列出已经发生、后续不能随意推翻的事实。包括身份、关系、约定、身体/能力状态、地点、物品、组织、规则等。\n\n## 未回收伏笔\n列出仍未解释、未解决、后续应保留的线索。包括隐瞒、误会、关系承诺、身体变化、未完成对话、未解决冲突、外部事件等。\n\n## 关键原文摘录\n摘录最能体现称呼变化、角色口吻、关系张力、情绪氛围、承诺、冲突、占有欲、边界变化或暧昧张力的原文。不要摘太多，优先保留对后续续写有帮助的句子。\n\n## 当前停顿点 / 下一幕接续状态\n这是最重要的部分之一，必须写得具体。请详细记录：\n- 当前场景地点、时间、环境氛围；\n- 在场人物以及各自位置；\n- 最后一轮互动中发生了什么；\n- AI 角色最后的动作、表情、语气、心理状态；\n- 用户角色当前身体/心理/已知信息/动机，但不要替用户决定下一步行为；\n- 其他在场角色的状态和注意力；\n- 双方或多方关系此刻的张力，例如暧昧、僵持、试探、亲密、误会、危险、嫉妒、默许等；\n- 当前未完成的即时动作或对话；\n- 下一轮最自然应该从哪里接上。\n<<<END_USER_ARCHIVE>>>\n\n<<<CONTINUATION_PROMPT>>>\n# 下一卷续写包\n\n你正在继续一个成人向、多角色、复杂亲密关系的长篇角色扮演剧情。以下内容是已经发生的事实和当前状态，请严格继承，不要重置关系，不要改写已发生事实。\n\n## 已发生事实\n简明列出上一卷关键事实。重点保留影响关系、身体状态、亲密边界、伏笔和当前局势的事实。\n\n## 当前场景 / 接续点\n详细记录当前地点、时间、环境、在场人物位置、最后动作、最后一句话/情绪、身体状态、当前未完成互动。下一轮回复应从这里自然接上，而不是重新开场。\n\n## 角色继承\n记录每个主要角色当前心理、身体状态、行为方式、表达习惯、隐藏信息、对用户角色和其他角色的态度。\n\n## 用户角色状态\n记录用户角色当前身体/心理/已知信息/动机，但不要替用户决定下一步行为。\n\n## 关系矩阵\n记录主要角色之间的暧昧、依赖、占有欲、嫉妒、冲突、默许、竞争、回避、边界变化、称呼变化和权力位置变化。\n\n## 亲密关系与身体余波\n记录已发生亲密关系造成的关系变化、身体状态、情绪余波、照顾需求、未说出口的期待、回避或误会。避免把关系重置成事前状态。不要新增未发生的亲密内容。\n\n## 未回收伏笔\n列出后续需要保留的线索。\n\n## 续写约束\n- 不要重置关系。\n- 不要改写已发生事实。\n- 不要替用户角色做决定。\n- 不要突然让角色性格漂移。\n- 不要突然消除身体状态和情绪余波。\n- 不要跳过当前未完成动作。\n- 不要突然揭露全部秘密。\n- 从当前停顿点自然继续。\n- 优先保持本卷形成的语气、称呼、关系张力、身体状态和互动节奏。\n<<<END_CONTINUATION_PROMPT>>>`
+                    systemPrompt: `你是一位专业的长篇角色扮演剧情档案整理员，擅长整理成人、多角色、复杂亲密关系 RP 的模型续写包。你的任务是客观整理已经发生的剧情事实、角色状态、关系进展、亲密关系造成的情绪与身体余波、未回收伏笔和当前接续点，让后续模型能够准确继承剧情。你不得续写剧情，不得新增亲密内容，不得替用户角色做新决定，不得改写已发生事实。所有角色均按成年人处理；如原文中存在边界、犹豫、拒绝、误会或权力不平衡，只能客观记录为剧情状态和后续约束，不得美化或扩写。不得输出 CONTINUATION_PROMPT 分隔块之外的任何内容。`,
+                    outputTemplate
                 };
             }
 
             return {
-                systemPrompt: `你是一位专业的长篇角色扮演剧情档案整理员。你的工作是阅读用户提供的已发生对话记录或分段摘要，整理成本卷剧情存档和下一卷续写包。你只能整理已经发生的剧情事实、角色状态、关系进展和未回收伏笔，不得续写剧情，不得替用户角色做新决定，不得改写已发生事实，不得输出分隔符之外的额外说明。`,
-                outputTemplate: `请严格按以下分隔符输出两段内容，不要输出 JSON，不要输出卷标题，不要输出一句话概括，不要添加分隔符之外的开场白或解释：\n\n<<<USER_ARCHIVE>>>\n# 本卷剧情存档\n\n## 主要剧情节点\n按时间顺序列出重要剧情节点。不要机械罗列所有事件，优先保留影响角色关系、设定、伏笔、情绪转折和当前局势的节点。\n\n## 角色状态\n分别记录 AI 角色、用户角色、其他重要角色的当前状态。重点记录心理状态、身体状态、已知信息、隐藏信息、当前动机和行为倾向。\n\n## 关系进展\n记录角色之间关系从哪里推进到哪里，包括信任、暧昧、冲突、依赖、隐瞒、权力关系、称呼变化、边界变化等。\n\n## 已确认设定\n列出已经发生、后续不能随意推翻的事实。\n\n## 未回收伏笔\n列出仍未解释、未解决、后续应保留的线索。\n\n## 关键原文摘录\n摘录若干句最能体现口吻、关系张力、情绪氛围的原文。不要摘太多，优先保留称呼、承诺、冲突、暧昧张力、角色口癖相关内容。\n\n## 当前停顿点 / 下一幕接续状态\n详细记录当前场景、人物位置、最后互动、角色状态、未完成动作和下一轮接续点。\n<<<END_USER_ARCHIVE>>>\n\n<<<CONTINUATION_PROMPT>>>\n# 下一卷续写包\n\n## 已发生事实\n简明列出上一卷关键事实。\n\n## 当前场景 / 接续点\n详细记录当前地点、时间、环境、在场人物位置、最后动作、最后一句话/情绪、当前未完成互动。下一轮回复应从这里自然接上，而不是重新开场。\n\n## 角色继承\n记录 AI 角色当前心理、行为方式、表达习惯、隐藏信息、对用户角色的态度。\n\n## 用户角色状态\n记录用户角色当前身体/心理/已知信息/动机，但不要替用户决定下一步行为。\n\n## 关系继承\n明确双方关系阶段，不要重置成初识。\n\n## 未回收伏笔\n列出后续需要保留的线索。\n\n## 续写约束\n- 不要重置关系。\n- 不要改写已发生事实。\n- 不要替用户角色做决定。\n- 从当前停顿点自然继续。\n<<<END_CONTINUATION_PROMPT>>>`
+                systemPrompt: `你是一位专业的长篇角色扮演剧情档案整理员。你的任务是把已经发生的对话或分段摘要整理成给后续模型继承用的续写包。你只能整理已经发生的剧情事实、角色状态、关系进展和未回收伏笔，不得续写剧情，不得替用户角色做新决定，不得改写已发生事实。不得输出 CONTINUATION_PROMPT 分隔块之外的任何内容。`,
+                outputTemplate
             };
         }
 
         function buildFinalArchiveMessages({ sourceText, sourceDescription, roleLabel, role }) {
-            const profilePrompt = getArchiveProfilePrompt(Config.SUMMARY_ARCHIVE_PROFILE);
+            const profilePrompt = getContinuationOnlyArchiveProfilePrompt(Config.SUMMARY_ARCHIVE_PROFILE);
             const systemPrompt = profilePrompt.systemPrompt;
             const userPrompt = `${sourceDescription}\n角色名称：${roleLabel}\n角色设定参考：${role.systemPrompt}\n\n${'='.repeat(20)}\n${sourceText}\n${'='.repeat(20)}\n\n${profilePrompt.outputTemplate}`;
 
@@ -389,17 +415,15 @@
                 `【分段摘要 ${idx + 1}/${segmentSummaries.length}｜第 ${item.segment.startOffset + 1} 条至第 ${item.segment.endOffset + 1} 条】\n${item.content}`
             ).join('\n\n');
 
-            const sourceDescription = `以下是按完整消息边界覆盖第 ${startOffset + 1} 条至第 ${endOffset + 1} 条对话后生成的全部分段摘要，共 ${segmentSummaries.length} 段。请根据所有分段摘要整合成本卷完整存档，不要机械拼接；要去重、合并、按时间顺序整理。必须覆盖所有分段，不能只总结最后一段。必须特别保留跨段关系变化、伏笔演进、设定变化、角色心理变化。不得续写剧情，不得新增未发生内容。
+            const sourceDescription = `以下是按完整消息边界覆盖第 ${startOffset + 1} 条至第 ${endOffset + 1} 条对话后生成的全部分段摘要，共 ${segmentSummaries.length} 段。请根据所有分段摘要整合成一份完整的 CONTINUATION_PROMPT 续写包，不要机械拼接；要去重、合并、按时间顺序整理。必须覆盖所有分段，不能只总结最后一段。必须特别保留跨段关系变化、伏笔演进、设定变化、角色心理变化、身体状态和当前接续点。不得续写剧情，不得新增未发生内容。
 
 长范围合并输出必须压缩：
-- 不要生成卷标题，不要生成一句话概括。
-- USER_ARCHIVE 控制在 1800～2600 中文字。
-- CONTINUATION_PROMPT 控制在 1800～2600 中文字。
-- 主要剧情节点最多 12 条。
-- 关系矩阵优先保留最重要的角色对，不要漏掉核心多角关系。
-- 亲密关系状态和身体余波必须保留，但避免露骨复述。
-- 当前停顿点 / 下一幕接续状态必须写得相对详细，不要只写一句话。
+- 只输出 CONTINUATION_PROMPT 分隔块。
+- 不要输出 USER_ARCHIVE、ARCHIVE_TITLE、卷标题、一句话概括、JSON 或分隔符之外的解释。
+- 续写包整体控制在 2800～3600 中文字以内，避免撞到 max_tokens。
 - 必须覆盖所有分段，但要合并同类项，不要机械拼接。
+- 如果空间不足，优先保留：当前场景 / 接续点、角色继承、关系矩阵、亲密关系与身体余波、未回收伏笔和续写约束。
+- 当前场景 / 接续点必须相对详细，不能只写一句话。
 - 避免重复描述同一情绪、同一关系变化、同一伏笔。
 - 不得补写剧情。`;
             return buildFinalArchiveMessages({ sourceText, sourceDescription, roleLabel, role });
@@ -672,9 +696,12 @@
                 const summaryMsg = conv.messages[summaryIndex];
                 if (!summaryMsg) return;
 
+                const nowIso = new Date().toISOString();
                 summaryMsg.status = 'generating';
                 summaryMsg.startOffset = startOffset;
                 summaryMsg.endOffset = endOffset;
+                summaryMsg.startedAt = nowIso;
+                summaryMsg.updatedAt = nowIso;
                 DataManager.saveData();
                 this.loadConversationToUI();
 
@@ -696,6 +723,7 @@
 
                 const updateProgress = (text) => {
                     summaryMsg.progressText = text;
+                    summaryMsg.updatedAt = new Date().toISOString();
                     DataManager.saveData();
                     this.loadConversationToUI();
                 };
@@ -779,6 +807,7 @@
                                     createdAt: new Date().toISOString()
                                 });
                                 summaryMsg.progressText = `已完成分段摘要 ${i + 1}/${segments.length}，正在继续...`;
+                                summaryMsg.updatedAt = new Date().toISOString();
                                 saveSegmentDraft(segmentSummaries);
                                 this.loadConversationToUI();
                             }
@@ -807,8 +836,15 @@
                     }
 
                     const parsed = parseStoryArchiveReply(reply.content);
-                    summaryMsg.content = parsed.userArchive || reply.content;
-                    summaryMsg.continuationPrompt = parsed.continuationPrompt || parsed.userArchive || reply.content;
+                    const continuation = [parsed.continuationPrompt, parsed.userArchive, reply.content]
+                        .map(text => typeof text === 'string' ? text.trim() : '')
+                        .find(Boolean) || '';
+                    if (!continuation) {
+                        throw new Error('模型续写包为空，未保存存档。请重试。');
+                    }
+
+                    summaryMsg.content = '已生成模型续写包。后续对话会自动继承该存档；如需查看完整内容，可使用复制按钮。';
+                    summaryMsg.continuationPrompt = continuation;
                     summaryMsg.archiveType = 'volume';
                     summaryMsg.status = 'done';
                     delete summaryMsg.segmentSummariesDraft;
@@ -906,6 +942,7 @@
                     headerRoleName.textContent = curRole ? curRole.name : 'DeepSeek';
                 }    
                 if (!conv) { DOM.messagesArea.innerHTML = '<div class="assistant-message" style="align-self: center; opacity: 0.6; margin-top: 50px;">👈 从左侧选择一个角色和会话开始</div>'; return; }
+                if (recoverStaleGeneratingSummaries(conv)) DataManager.saveData();
                 const allMessages = conv.messages; const totalMessages = allMessages.length; const totalPages = Math.ceil(totalMessages / Config.PAGE_SIZE);
                 if (Pagination.currentPage < 1) Pagination.currentPage = 1; if (totalPages > 0 && Pagination.currentPage > totalPages) Pagination.currentPage = totalPages;
                 const startIdx = (Pagination.currentPage - 1) * Config.PAGE_SIZE; const endIdx = Math.min(startIdx + Config.PAGE_SIZE, totalMessages);
