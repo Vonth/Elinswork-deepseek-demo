@@ -6,7 +6,7 @@
             PAGE_SIZE: 50,
             MAX_API_MESSAGES: 20,
             MAX_COMPLETION_TOKENS: 1500,
-            TOKEN_WARNING_LIMIT: 80000 // 8万字符触发范围总结预警
+            STORY_ARCHIVE_TRIGGER_CHARS: 100000 // 10万字符触发本卷剧情存档建议
         };
 
         const SVGIcons = {
@@ -217,6 +217,14 @@
             return typeof reply?.reasoning === 'string' && reply.reasoning.trim() ? reply.reasoning : null;
         }
 
+        function getSummaryMemoryText(msg) {
+            return msg.continuationPrompt || msg.content || '';
+        }
+
+        function getSummaryTitle(msg, fallbackIndex) {
+            return msg.title || `历史剧情总结点 ${fallbackIndex + 1}`;
+        }
+
         function formatErrorDetails(details) {
             if (!details) return '';
             const text = typeof details === 'string' ? details : JSON.stringify(details);
@@ -387,10 +395,14 @@
                 const rawHistory = userIndex !== null ? conv.messages.slice(0, userIndex + 1) : conv.messages;
                 
                 let apiMsgs = [];
+                let doneSummaryCount = 0;
                 // 1. 从所有记录中提取用户发言、助手发言、以及已完成的总结点（让 AI 记忆总结）
                 for (let m of rawHistory) {
                     if (m.role === 'system_summary' && m.status === 'done') {
-                        apiMsgs.push({ role: 'assistant', content: `[📌 历史剧情总结点]:\n${m.content}` });
+                        const summaryTitle = getSummaryTitle(m, doneSummaryCount);
+                        const summaryText = getSummaryMemoryText(m);
+                        doneSummaryCount++;
+                        if (summaryText.trim()) apiMsgs.push({ role: 'assistant', content: `[📌 ${summaryTitle}]:\n${summaryText}` });
                     } else if (m.role === 'user' || m.role === 'assistant') {
                         // 使用当前页面展示的版本内容，而非总是最新生成的内容
                         let displayContent = this.getDialogueContent(m).trim();
@@ -420,12 +432,12 @@
                 return [{ role: "system", content: role.systemPrompt || '' }, ...recentMessages];
             },
 
-            // 检测总字数限制，以弹出“预警卡片”
+            // 检测本卷剧情存档建议阈值，以弹出“存档建议卡片”
             checkConversationLimit() {
                 const conv = DataManager.getCurrentConversation();
                 if (!conv) return;
                 
-                // 寻找上一个总结点，只计算在那之后的字数
+                // 寻找上一个已完成存档点，只计算在那之后的字数
                 const lastSummaryIdx = conv.messages.findLastIndex(m => m.role === 'system_summary' && m.status === 'done');
                 const msgsToCount = lastSummaryIdx !== -1 ? conv.messages.slice(lastSummaryIdx + 1) : conv.messages;
                 
@@ -434,17 +446,17 @@
                     return acc + this.getDialogueContent(msg).length;
                 }, 0);
 
-                // 判断是否已经有正在显示的预警（未完成的总结）
+                // 判断是否已经有正在显示的存档建议（未完成的总结）
                 const hasPendingSummary = conv.messages.some(m => m.role === 'system_summary' && m.status !== 'done');
 
-                if (totalChars > Config.TOKEN_WARNING_LIMIT && !hasPendingSummary) {
+                if (totalChars > Config.STORY_ARCHIVE_TRIGGER_CHARS && !hasPendingSummary) {
                     conv.messages.push({
                         role: 'system_summary',
                         status: 'warning',
                         content: '',
                         timestamp: new Date().toISOString()
                     });
-                } else if (totalChars <= Config.TOKEN_WARNING_LIMIT) {
+                } else if (totalChars <= Config.STORY_ARCHIVE_TRIGGER_CHARS) {
                     for (let i = conv.messages.length - 1; i > lastSummaryIdx; i--) {
                         const msg = conv.messages[i];
                         if (msg.role === 'system_summary' && msg.status === 'warning') {
@@ -654,6 +666,7 @@
                         const validMsgs = allMessages.slice(0, globalIdx).filter(m => m.role === 'user' || m.role === 'assistant');
                         const totalValid = validMsgs.length;
                         const maxIdx = Math.max(0, totalValid - 1);
+                        const doneSummaryOrdinal = allMessages.slice(0, globalIdx + 1).filter(m => m.role === 'system_summary' && m.status === 'done').length - 1;
                         
                         // 自动定位起点的逻辑：寻找上一个已完成的 Checkpoint
                         const prevSummaryNodeIdx = allMessages.slice(0, globalIdx).findLastIndex(m => m.role === 'system_summary' && m.status === 'done');
@@ -672,14 +685,14 @@
                             <div class="system-summary-message ${msg.status === 'done' ? 'checkpoint-done' : ''}">
                                 <div class="summary-header">
                                     <div class="summary-title-wrap">
-                                        ${msg.status === 'done' ? '📌 剧情总结点 (Checkpoint)' : SVGIcons.warning + ' <span>记忆过载预警 (已超 8 万字符)</span>'}
+                                        ${msg.status === 'done' ? `📌 ${escapeHtml(getSummaryTitle(msg, doneSummaryOrdinal))}` : SVGIcons.warning + ' <span>本卷剧情已适合存档</span>'}
                                     </div>
                                 </div>
                                 ${msg.status === 'warning' ? `
-                                    <p style="opacity:0.9; margin-bottom: 10px;">当前对话长度已逼近上下文极限。建议您生成总结节点，以便 AI 后续保持清晰的记忆。</p>
+                                    <p style="opacity:0.9; margin-bottom: 10px;">当前剧情已经积累较多内容，建议生成本卷剧情存档，以便后续继承剧情、角色状态、关系进展和未回收伏笔。</p>
                                     
                                     <div class="range-selector">
-                                        <div class="range-info" id="range-text-${globalIdx}">总结范围：从第 ${startVal + 1} 条 到 第 ${endVal + 1} 条</div>
+                                        <div class="range-info" id="range-text-${globalIdx}">存档范围：从第 ${startVal + 1} 条 到 第 ${endVal + 1} 条</div>
                                         <input type="range" id="summary-slider-${globalIdx}" min="${startVal}" max="${maxIdx}" value="${endVal}">
                                         <div style="display:flex; justify-content:space-between; font-size:0.75rem; color:var(--text-secondary); margin-top:6px;">
                                             <span>起点 (第${startVal + 1}条)</span>
@@ -688,7 +701,7 @@
                                     </div>
 
                                     <button class="summary-btn" id="generateSummaryBtn-${globalIdx}">
-                                        ${SVGIcons.sparkles} 生成本次剧情总结
+                                        ${SVGIcons.sparkles} 生成本卷剧情存档
                                     </button>
                                 ` : msg.status === 'generating' ? `
                                     <p style="display:flex;align-items:center;gap:8px;opacity:0.9;">${SVGIcons.spinner} 正在提取核心剧情生成总结点，请稍候...</p>
@@ -721,7 +734,7 @@
                                 if (slider && rangeText) {
                                     slider.addEventListener('input', (e) => {
                                         const eIdx = parseInt(e.target.value);
-                                        rangeText.innerText = `总结范围：从第 ${startVal + 1} 条 到 第 ${eIdx + 1} 条`;
+                                        rangeText.innerText = `存档范围：从第 ${startVal + 1} 条 到 第 ${eIdx + 1} 条`;
                                     });
                                 }
                                 
