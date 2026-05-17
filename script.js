@@ -6,6 +6,14 @@
             PAGE_SIZE: 50,
             MAX_API_MESSAGES: 20,
             MAX_COMPLETION_TOKENS: 1500,
+            SUMMARY_SINGLE_PASS_CHARS: 30000,
+            SUMMARY_SEGMENT_CHARS: 18000,
+            SUMMARY_SEGMENT_MAX_TOKENS: 1800,
+            SUMMARY_FINAL_MAX_TOKENS: 3500,
+            SUMMARY_SEGMENT_MODEL: 'deepseek-v4-pro',
+            SUMMARY_SEGMENT_THINKING_MODE: 'fast',
+            SUMMARY_FINAL_MODEL: 'deepseek-v4-pro',
+            SUMMARY_FINAL_THINKING_MODE: 'thinking',
             STORY_ARCHIVE_TRIGGER_CHARS: 100000 // 10万字符触发本卷剧情存档建议
         };
 
@@ -168,13 +176,14 @@
             return 'fast';
         }
 
-        async function callChatApi({ model, messages, signal, thinkingMode }) {
+        async function callChatApi({ model, messages, signal, thinkingMode, maxTokens }) {
             const normalizedThinkingMode = normalizeRequestThinkingMode(model, thinkingMode);
+            const safeMaxTokens = Number.isFinite(maxTokens) && maxTokens > 0 ? maxTokens : Config.MAX_COMPLETION_TOKENS;
             const requestBody = {
                 model,
                 messages,
                 stream: false,
-                max_tokens: Config.MAX_COMPLETION_TOKENS
+                max_tokens: safeMaxTokens
             };
 
             if (normalizedThinkingMode === 'thinking') {
@@ -264,6 +273,89 @@
             const continuationPrompt = extractBlock(source, '<<<CONTINUATION_PROMPT>>>', '<<<END_CONTINUATION_PROMPT>>>');
 
             return { title, userArchive, continuationPrompt };
+        }
+
+        function formatDialogueMessages(messages, absoluteStartOffset, roleLabel) {
+            return messages.map((m, i) =>
+                `【第${absoluteStartOffset + i + 1}条】${m.role === 'user' ? '用户' : roleLabel}：${m.content}`
+            ).join('\n\n');
+        }
+
+        function splitMessagesIntoSegments(selectedMessages, startOffset, roleLabel, maxChars) {
+            const segments = [];
+            let current = [];
+            let currentChars = 0;
+            let currentStart = startOffset;
+
+            const pushCurrent = () => {
+                if (!current.length) return;
+                const segmentStartOffset = currentStart;
+                const segmentEndOffset = currentStart + current.length - 1;
+                segments.push({
+                    segmentIndex: segments.length,
+                    startOffset: segmentStartOffset,
+                    endOffset: segmentEndOffset,
+                    messages: current,
+                    text: formatDialogueMessages(current, segmentStartOffset, roleLabel),
+                    charCount: currentChars
+                });
+            };
+
+            for (let i = 0; i < selectedMessages.length; i++) {
+                const msg = selectedMessages[i];
+                const len = msg.content?.length || 0;
+
+                if (current.length > 0 && currentChars + len > maxChars) {
+                    pushCurrent();
+                    current = [];
+                    currentChars = 0;
+                    currentStart = startOffset + i;
+                }
+
+                current.push(msg);
+                currentChars += len;
+            }
+
+            pushCurrent();
+            return segments;
+        }
+
+        function buildFinalArchiveMessages({ sourceText, sourceDescription, roleLabel, role }) {
+            const systemPrompt = `你是一位专业的长篇角色扮演剧情档案整理员。你的工作是阅读用户提供的已发生对话记录或分段摘要，整理成本卷剧情存档和下一卷续写包。你只能整理已经发生的剧情事实、角色状态、关系进展和未回收伏笔，不得续写剧情，不得替用户角色做新决定，不得改写已发生事实，不得输出分隔符之外的额外说明。`;
+
+            const userPrompt = `${sourceDescription}\n角色名称：${roleLabel}\n角色设定参考：${role.systemPrompt}\n\n${'='.repeat(20)}\n${sourceText}\n${'='.repeat(20)}\n\n请严格按以下分隔符输出三段内容，不要输出 JSON，不要添加分隔符之外的开场白或解释：\n\n<<<ARCHIVE_TITLE>>>\n给本卷剧情起一个简短标题\n<<<END_ARCHIVE_TITLE>>>\n\n<<<USER_ARCHIVE>>>\n# 本卷剧情存档\n\n## 卷标题\n简短标题。\n\n## 一句话概括\n一句话概括本卷主线。\n\n## 主要剧情节点\n按时间顺序列出重要剧情节点。\n\n## 角色状态\n分别记录 AI 角色、用户角色、其他重要角色的当前状态。\n\n## 关系进展\n记录角色之间关系从哪里推进到哪里，包括信任、暧昧、冲突、依赖、隐瞒等。\n\n## 已确认设定\n列出已经发生、后续不能随意推翻的事实。\n\n## 未回收伏笔\n列出仍未解释、未解决、后续应保留的线索。\n\n## 关键原文摘录\n摘录若干句最能体现口吻、关系张力、情绪氛围的原文。\n\n## 当前停顿点\n精确描述本卷最后停在什么场景、动作、语气和情绪上。\n<<<END_USER_ARCHIVE>>>\n\n<<<CONTINUATION_PROMPT>>>\n# 下一卷续写包\n\n你正在继续一个长篇角色扮演剧情。以下内容是已经发生的事实和当前状态，请严格继承，不要重置关系，不要改写已发生事实。\n\n## 已发生事实\n简明列出上一卷关键事实。\n\n## 当前场景\n从上一卷最后停顿点继续，说明场景、人物位置、动作、气氛。\n\n## 角色继承\n记录 AI 角色当前心理、行为方式、表达习惯、隐藏信息、对用户角色的态度。\n\n## 用户角色状态\n记录用户角色当前身体/心理/已知信息/动机，但不要替用户决定下一步行为。\n\n## 关系继承\n明确双方关系阶段，不要重置成初识。\n\n## 未回收伏笔\n列出后续需要保留的线索。\n\n## 续写约束\n- 不要重置关系。\n- 不要改写已发生事实。\n- 不要突然揭露全部秘密。\n- 不要突然让角色性格漂移。\n- 不要替用户角色做决定。\n- 从当前停顿点自然继续。\n- 优先保持本卷形成的语气、称呼、关系张力和互动节奏。\n<<<END_CONTINUATION_PROMPT>>>`;
+
+            return [
+                { role: 'system', content: systemPrompt },
+                { role: 'user', content: userPrompt }
+            ];
+        }
+
+        async function generateSegmentSummary({ segment, segmentCount, roleLabel, role, signal }) {
+            const systemPrompt = `你是一位长篇角色扮演剧情分段摘要员。你只负责总结当前片段中已经发生的剧情事实。不得续写剧情，不得替用户做新决定，不得改写事实。请尽量保留角色状态、关系变化、伏笔、设定变化和当前片段结尾状态。输出要结构化、简明，但不能漏掉关键剧情。`;
+            const userPrompt = `角色名称：${roleLabel}\n角色设定参考：${role.systemPrompt}\n当前是第 ${segment.segmentIndex + 1}/${segmentCount} 段。\n本段覆盖第 ${segment.startOffset + 1} 条到第 ${segment.endOffset + 1} 条。\n\n${'='.repeat(20)}\n${segment.text}\n${'='.repeat(20)}\n\n请按以下结构输出：\n\n# 分段摘要 ${segment.segmentIndex + 1}/${segmentCount}\n\n## 本段范围\n第 ${segment.startOffset + 1} 条至第 ${segment.endOffset + 1} 条。\n\n## 关键剧情节点\n\n## 角色状态变化\n\n## 关系进展\n\n## 已确认设定\n\n## 未回收伏笔\n\n## 关键原文/口吻\n\n## 本段结尾状态`;
+
+            const reply = await callChatApi({
+                model: Config.SUMMARY_SEGMENT_MODEL,
+                messages: [
+                    { role: 'system', content: systemPrompt },
+                    { role: 'user', content: userPrompt }
+                ],
+                signal,
+                thinkingMode: Config.SUMMARY_SEGMENT_THINKING_MODE,
+                maxTokens: Config.SUMMARY_SEGMENT_MAX_TOKENS
+            });
+
+            return reply.content;
+        }
+
+        function buildFinalArchivePromptFromSegments({ segmentSummaries, roleLabel, role, startOffset, endOffset }) {
+            const sourceText = segmentSummaries.map((item, idx) =>
+                `【分段摘要 ${idx + 1}/${segmentSummaries.length}｜第 ${item.segment.startOffset + 1} 条至第 ${item.segment.endOffset + 1} 条】\n${item.content}`
+            ).join('\n\n');
+
+            const sourceDescription = `以下是按完整消息边界覆盖第 ${startOffset + 1} 条至第 ${endOffset + 1} 条对话后生成的全部分段摘要，共 ${segmentSummaries.length} 段。请根据所有分段摘要整合成本卷完整存档，不要机械拼接；要去重、合并、按时间顺序整理。必须覆盖所有分段，不能只总结最后一段。必须特别保留跨段关系变化、伏笔演进、设定变化、角色心理变化。不得续写剧情，不得新增未发生内容。`;
+            return buildFinalArchiveMessages({ sourceText, sourceDescription, roleLabel, role });
         }
 
         function formatErrorDetails(details) {
@@ -528,52 +620,86 @@
                     .map(m => ({ role: m.role, content: this.getDialogueContent(m) }));
                 const selectedMessages = historyMessages.slice(startOffset, endOffset + 1);
 
-                // 把对话拼成纯文本，AI 以旁观者身份阅读而非参与者
                 const roleLabel = role.name || 'AI角色';
-                const MAX_CHARS = 38000;
                 const totalChars = selectedMessages.reduce((a, m) => a + (m.content?.length || 0), 0);
-                let dialogueText = '';
 
-                if (totalChars > MAX_CHARS) {
-                    // 超长：保留前3条建立背景 + 尽量多的末尾内容
-                    const headMsgs = selectedMessages.slice(0, 3);
-                    let tailMsgs = [];
-                    let tailChars = 0;
-                    for (let i = selectedMessages.length - 1; i >= 3; i--) {
-                        const len = selectedMessages[i].content?.length || 0;
-                        if (tailChars + len > MAX_CHARS - 2000) break;
-                        tailMsgs.unshift(selectedMessages[i]);
-                        tailChars += len;
+                const restoreWarning = () => {
+                    summaryMsg.status = 'warning';
+                    delete summaryMsg.progressText;
+                    DataManager.saveData();
+                    this.loadConversationToUI();
+                };
+
+                const updateProgress = (text) => {
+                    summaryMsg.progressText = text;
+                    DataManager.saveData();
+                    this.loadConversationToUI();
+                };
+
+                let segments = null;
+                if (totalChars > Config.SUMMARY_SINGLE_PASS_CHARS) {
+                    segments = splitMessagesIntoSegments(selectedMessages, startOffset, roleLabel, Config.SUMMARY_SEGMENT_CHARS);
+                    if (segments.length > 1 && !confirm(`本次存档范围较长，将分 ${segments.length} 段生成摘要并合并，可能耗时更久，是否继续？`)) {
+                        restoreWarning();
+                        return;
                     }
-                    const skipped = selectedMessages.length - headMsgs.length - tailMsgs.length;
-                    const headText = headMsgs.map((m, i) =>
-                        `【第${startOffset + i + 1}条】${m.role === 'user' ? '用户' : roleLabel}：${m.content}`
-                    ).join('\n\n');
-                    const tailStartIdx = startOffset + headMsgs.length + skipped;
-                    const tailText = tailMsgs.map((m, i) =>
-                        `【第${tailStartIdx + i + 1}条】${m.role === 'user' ? '用户' : roleLabel}：${m.content}`
-                    ).join('\n\n');
-                    dialogueText = headText + `\n\n……（中间约${skipped}条消息因篇幅省略）……\n\n` + tailText;
-                } else {
-                    dialogueText = selectedMessages.map((m, i) =>
-                        `【第${startOffset + i + 1}条】${m.role === 'user' ? '用户' : roleLabel}：${m.content}`
-                    ).join('\n\n');
                 }
-
-                const systemPrompt = `你是一位专业的长篇角色扮演剧情档案整理员。你的工作是阅读用户提供的已发生对话记录，整理成本卷剧情存档和下一卷续写包。你只能整理已经发生的剧情事实、角色状态、关系进展和未回收伏笔，不得续写剧情，不得替用户角色做新决定，不得改写已发生事实，不得输出分隔符之外的额外说明。`;
-
-                const userPrompt = `以下是一段角色扮演对话记录，共 ${selectedMessages.length} 条消息。\n角色名称：${roleLabel}\n角色设定参考：${role.systemPrompt}\n\n${'='.repeat(20)}\n${dialogueText}\n${'='.repeat(20)}\n\n请严格按以下分隔符输出三段内容，不要输出 JSON，不要添加分隔符之外的开场白或解释：\n\n<<<ARCHIVE_TITLE>>>\n给本卷剧情起一个简短标题\n<<<END_ARCHIVE_TITLE>>>\n\n<<<USER_ARCHIVE>>>\n# 本卷剧情存档\n\n## 卷标题\n简短标题。\n\n## 一句话概括\n一句话概括本卷主线。\n\n## 主要剧情节点\n按时间顺序列出重要剧情节点。\n\n## 角色状态\n分别记录 AI 角色、用户角色、其他重要角色的当前状态。\n\n## 关系进展\n记录角色之间关系从哪里推进到哪里，包括信任、暧昧、冲突、依赖、隐瞒等。\n\n## 已确认设定\n列出已经发生、后续不能随意推翻的事实。\n\n## 未回收伏笔\n列出仍未解释、未解决、后续应保留的线索。\n\n## 关键原文摘录\n摘录若干句最能体现口吻、关系张力、情绪氛围的原文。\n\n## 当前停顿点\n精确描述本卷最后停在什么场景、动作、语气和情绪上。\n<<<END_USER_ARCHIVE>>>\n\n<<<CONTINUATION_PROMPT>>>\n# 下一卷续写包\n\n你正在继续一个长篇角色扮演剧情。以下内容是已经发生的事实和当前状态，请严格继承，不要重置关系，不要改写已发生事实。\n\n## 已发生事实\n简明列出上一卷关键事实。\n\n## 当前场景\n从上一卷最后停顿点继续，说明场景、人物位置、动作、气氛。\n\n## 角色继承\n记录 AI 角色当前心理、行为方式、表达习惯、隐藏信息、对用户角色的态度。\n\n## 用户角色状态\n记录用户角色当前身体/心理/已知信息/动机，但不要替用户决定下一步行为。\n\n## 关系继承\n明确双方关系阶段，不要重置成初识。\n\n## 未回收伏笔\n列出后续需要保留的线索。\n\n## 续写约束\n- 不要重置关系。\n- 不要改写已发生事实。\n- 不要突然揭露全部秘密。\n- 不要突然让角色性格漂移。\n- 不要替用户角色做决定。\n- 从当前停顿点自然继续。\n- 优先保持本卷形成的语气、称呼、关系张力和互动节奏。\n<<<END_CONTINUATION_PROMPT>>>`;
-
-                const apiMessages = [
-                    { role: 'system', content: systemPrompt },
-                    { role: 'user', content: userPrompt }
-                ];
 
                 if (currentAbortController) currentAbortController.abort();
                 currentAbortController = new AbortController();
 
                 try {
-                    const reply = await callChatApi({ model: 'deepseek-chat', messages: apiMessages, signal: currentAbortController.signal });
+                    let reply;
+
+                    if (!segments) {
+                        updateProgress('正在生成本卷剧情存档...');
+                        const dialogueText = formatDialogueMessages(selectedMessages, startOffset, roleLabel);
+                        const apiMessages = buildFinalArchiveMessages({
+                            sourceText: dialogueText,
+                            sourceDescription: `以下是一段角色扮演对话记录，共 ${selectedMessages.length} 条消息。`,
+                            roleLabel,
+                            role
+                        });
+
+                        reply = await callChatApi({
+                            model: Config.SUMMARY_FINAL_MODEL,
+                            messages: apiMessages,
+                            signal: currentAbortController.signal,
+                            thinkingMode: Config.SUMMARY_FINAL_THINKING_MODE,
+                            maxTokens: Config.SUMMARY_FINAL_MAX_TOKENS
+                        });
+                    } else {
+                        const segmentSummaries = [];
+
+                        for (let i = 0; i < segments.length; i++) {
+                            updateProgress(`正在生成分段摘要 ${i + 1}/${segments.length}...`);
+                            const content = await generateSegmentSummary({
+                                segment: segments[i],
+                                segmentCount: segments.length,
+                                roleLabel,
+                                role,
+                                signal: currentAbortController.signal
+                            });
+                            segmentSummaries.push({ segment: segments[i], content });
+                        }
+
+                        updateProgress('正在合并分段摘要，生成本卷剧情存档...');
+                        const apiMessages = buildFinalArchivePromptFromSegments({
+                            segmentSummaries,
+                            roleLabel,
+                            role,
+                            startOffset,
+                            endOffset
+                        });
+
+                        reply = await callChatApi({
+                            model: Config.SUMMARY_FINAL_MODEL,
+                            messages: apiMessages,
+                            signal: currentAbortController.signal,
+                            thinkingMode: Config.SUMMARY_FINAL_THINKING_MODE,
+                            maxTokens: Config.SUMMARY_FINAL_MAX_TOKENS
+                        });
+                    }
 
                     const parsed = parseStoryArchiveReply(reply.content);
                     summaryMsg.title = parsed.title || summaryMsg.title || '';
@@ -581,15 +707,14 @@
                     summaryMsg.continuationPrompt = parsed.continuationPrompt || parsed.userArchive || reply.content;
                     summaryMsg.archiveType = 'volume';
                     summaryMsg.status = 'done';
+                    delete summaryMsg.progressText;
                     DataManager.saveData();
                     this.loadConversationToUI();
-                                } catch (err) {
+                } catch (err) {
                     if (err.name !== 'AbortError') {
                         alert(`总结生成失败: ${err.message}`);
-                        summaryMsg.status = 'warning';
-                        DataManager.saveData();
-                        this.loadConversationToUI();
                     }
+                    restoreWarning();
                 } finally {
                     currentAbortController = null;
                 }
@@ -749,7 +874,7 @@
                                         ${SVGIcons.sparkles} 生成本卷剧情存档
                                     </button>
                                 ` : msg.status === 'generating' ? `
-                                    <p style="display:flex;align-items:center;gap:8px;opacity:0.9;">${SVGIcons.spinner} 正在提取核心剧情生成总结点，请稍候...</p>
+                                    <p style="display:flex;align-items:center;gap:8px;opacity:0.9;">${SVGIcons.spinner} ${escapeHtml(msg.progressText || '正在提取核心剧情生成总结点，请稍候...')}</p>
                                 ` : `
                                     <p style="opacity:0.9;">已生成从第 ${msg.startOffset + 1} 条至第 ${msg.endOffset + 1} 条的剧情浓缩记录。该范围终点已设为锚点，AI 在后续聊天中会自动纳入此总结。</p>
                                      <div class="summary-text">${escapeHtml(msg.content)}</div>
