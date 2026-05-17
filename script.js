@@ -362,7 +362,7 @@
         }
 
         function getContinuationOnlyArchiveProfilePrompt(profile) {
-            const outputTemplate = `请严格只输出以下一个分隔块，不要输出 USER_ARCHIVE，不要输出 ARCHIVE_TITLE，不要输出 JSON，不要输出卷标题，不要输出一句话概括，不要添加分隔符之外的开场白、解释或补充说明。所有 token 都优先用于帮助后续模型继承剧情；只整理已经发生的内容，不要续写剧情，不要新增未发生内容。\n\n<<<CONTINUATION_PROMPT>>>\n# 下一卷续写包\n\n你正在继续一个成人向、多角色、复杂亲密关系的长篇角色扮演剧情。以下内容是已经发生的事实和当前状态，请严格继承，不要重置关系，不要改写已发生事实。所有角色均为成年人。\n\n## 当前场景 / 接续点\n详细记录当前地点、时间、环境、在场人物位置、最后动作、最后一句话/情绪、身体状态、当前未完成互动。下一轮回复必须从这里自然接上，而不是重新开场。\n\n## 核心事实与伏笔\n列出上一卷最重要的事实、伏笔、未完成冲突、隐瞒、误会和后续必须保留的线索。\n\n## 角色继承\n记录每个主要角色当前心理、身体状态、行为方式、隐藏信息、对用户角色和其他角色的态度。\n\n## 用户角色状态\n记录用户角色当前身体/心理/已知信息/动机，但不要替用户决定下一步行为。\n\n## 关系矩阵\n记录主要角色之间的暧昧、依赖、占有欲、嫉妒、冲突、默许、竞争、回避、边界变化、称呼变化和权力位置变化。\n\n## 亲密关系与身体余波\n记录已发生成人亲密关系造成的关系变化、身体状态、情绪余波、照顾需求、未说出口的期待、回避或误会。避免把关系重置成事前状态。不要新增未发生的亲密内容。\n\n## 续写约束\n- 不要重置关系。\n- 不要改写已发生事实。\n- 不要替用户角色做决定。\n- 不要突然让角色性格漂移。\n- 不要突然消除身体状态和情绪余波。\n- 不要跳过当前未完成动作。\n- 不要突然揭露全部秘密。\n- 从当前停顿点自然继续。\n- 优先保持本卷形成的语气、称呼、关系张力、身体状态和互动节奏。\n<<<END_CONTINUATION_PROMPT>>>`;
+            const outputTemplate = `请基于全部输入生成仅供模型续写的记忆包。禁止续写剧情，禁止替用户角色做决定，禁止添加原文未发生的内容。\n\n重要原则：请先按输入或分段摘要的顺序串联剧情时间线，再从完整时间线中提取关系、状态、亲密余波和伏笔。不要直接按主题合并所有内容。连续事件必须保持连续。若原文时间标签冲突或存疑，请标注“存疑”，禁止自行理顺或重排。\n\nAI侧角色/角色组说明：该名称可能是单一角色，也可能包含多个由 assistant 同时扮演的角色。请根据角色设定和对话内容判断实际主要角色。若只有一个 AI侧角色，不要凭空拆出多个角色；若有多个 AI侧角色，不要把他们合并成一个人。不要默认一定是多角色，也不要默认一定是单角色；单角色时按单角色总结，多角色时逐人记录行为、心理、身体状态、关系变化和接续状态。不要凭空创造原文没有的角色。\n\n请严格只输出以下一个分隔块，不要输出 USER_ARCHIVE，不要输出 ARCHIVE_TITLE，不要输出 JSON，不要输出卷标题，不要输出一句话概括，不要添加分隔符之外的开场白、解释或补充说明。\n\n<<<CONTINUATION_PROMPT>>>\n# 下一卷续写包\n\n## 剧情时间线\n依时序串联全部核心事件，保留原时间标签，按实际出现的各角色分别记录关键行动。冲突处标注“存疑”，禁止理顺或重排。\n\n## 关键关系变化\n仅列本卷发生的关系状态演变（如疏远→依赖），并注明触发事件。含称呼、边界、占有欲等变化；多角色时按实际角色对分别记录，单角色时不要虚构关系对象。\n\n## 角色状态继承\n逐人记录 AI侧角色组、用户角色、其他主要角色的卷末状态：心理状态、身体状态、当前动机、隐藏情绪、已知/隐瞒信息、对他人的态度。仅记录原文和设定中实际存在的角色；若只有一个 AI侧角色，不要凭空拆出多个角色；若有多个 AI侧角色，不要把他们合并成一个人。\n\n## 亲密余波\n记录亲密行为造成的关系变化、身体痕迹/疲惫、情绪后遗（羞耻/依赖/逃避等）。禁露骨复述，禁推测未发生的反应。\n\n## 未回收伏笔\n列明未解决的误会、谎言、未完成对话、已预告事件及未响应的线索。\n\n## 接续点\n详述卷末：地点、时间、各实际角色的位置与姿势、最后台词/动作、情绪与张力、未完成动作。依此指出最直接的接续方向，严禁写出后续剧情。\n\n## 续写约束\n禁止：重置关系、改写事实、替用户角色决定、角色性格漂移、消除身体/情绪余波、跳过未完成动作、突然揭露所有秘密、把多个角色合并成一个人、凭空创造原文没有的角色。\n必须：从当前停顿点自然衔接，保持本卷语气、称呼、张力与节奏；单角色按单角色继承，多角色按各主要角色逐人继承。\n<<<END_CONTINUATION_PROMPT>>>`;
 
             if (profile === 'intimacy_multi_role') {
                 return {
@@ -380,7 +380,7 @@
         function buildFinalArchiveMessages({ sourceText, sourceDescription, roleLabel, role }) {
             const profilePrompt = getContinuationOnlyArchiveProfilePrompt(Config.SUMMARY_ARCHIVE_PROFILE);
             const systemPrompt = profilePrompt.systemPrompt;
-            const userPrompt = `${sourceDescription}\n角色名称：${roleLabel}\n角色设定参考：${role.systemPrompt}\n\n${'='.repeat(20)}\n${sourceText}\n${'='.repeat(20)}\n\n${profilePrompt.outputTemplate}`;
+            const userPrompt = `${sourceDescription}\nAI侧角色/角色组名称：${roleLabel}\n说明：该名称可能是单一角色，也可能包含多个由 assistant 同时扮演的角色。请根据角色设定和对话内容判断实际主要角色。若只有一个 AI侧角色，不要凭空拆出多个角色；若有多个 AI侧角色，不要把他们合并成一个人。\n角色设定参考：${role.systemPrompt}\n\n${'='.repeat(20)}\n${sourceText}\n${'='.repeat(20)}\n\n${profilePrompt.outputTemplate}`;
 
             return [
                 { role: 'system', content: systemPrompt },
@@ -389,8 +389,8 @@
         }
 
         async function generateSegmentSummary({ segment, segmentCount, roleLabel, role, signal }) {
-            const systemPrompt = `你是一位长篇角色扮演剧情分段摘要员。你只负责总结当前片段中已经发生的剧情事实。不得续写剧情，不得新增亲密内容，不得替用户做新决定，不得改写事实。请尽量保留多角色关系变化、亲密边界、身体状态、情绪余波、伏笔、设定变化和当前片段结尾接续状态。输出要结构化、简明，但不能漏掉关键剧情。`;
-            const userPrompt = `角色名称：${roleLabel}\n角色设定参考：${role.systemPrompt}\n当前是第 ${segment.segmentIndex + 1}/${segmentCount} 段。\n本段覆盖第 ${segment.startOffset + 1} 条到第 ${segment.endOffset + 1} 条。\n\n${'='.repeat(20)}\n${segment.text}\n${'='.repeat(20)}\n\n请按以下结构输出：\n\n# 分段摘要 ${segment.segmentIndex + 1}/${segmentCount}\n\n## 本段范围\n第 ${segment.startOffset + 1} 条至第 ${segment.endOffset + 1} 条。\n\n## 关键剧情节点\n\n## 角色状态变化\n记录心理、身体、动机、隐藏信息和行为倾向的变化。\n\n## 关系矩阵变化\n记录主要角色对之间的信任、暧昧、依赖、占有欲、嫉妒、冲突、默许、竞争、边界和称呼变化。\n\n## 亲密边界 / 身体状态 / 情绪余波\n只记录已发生或明确暗示的内容，避免露骨复述，不新增亲密内容。\n\n## 已确认设定\n\n## 未回收伏笔\n\n## 关键原文/口吻\n\n## 本段结尾接续状态\n记录本段最后的场景、人物位置、动作、身体/情绪余波和下一段应接上的位置。`;
+            const systemPrompt = `你是一位长篇角色扮演剧情的分段叙事复盘员。你的任务是严格按照原文发生顺序，复盘当前片段发生了什么。你不能按主题重排，不能表格化拆分，不能提前交代后文，不能新增未发生内容，不能续写剧情。若出现成人亲密行为，只记录其剧情性质、关系影响、身体/情绪余波，不露骨复述动作细节。AI侧可能是单一角色，也可能是多个由 assistant 同时扮演的角色；不要默认一定是多角色，也不要默认一定是单角色。请根据角色设定和对话内容判断实际主要角色，单角色时按单角色复盘，多角色时分别识别各主要角色的行为、心理、身体状态、关系变化、最后位置和接续状态，不要凭空创造原文没有的角色。`;
+            const userPrompt = `AI侧角色/角色组名称：${roleLabel}\n说明：该名称可能是单一角色，也可能包含多个由 assistant 同时扮演的角色。请根据角色设定和对话内容判断实际主要角色。若只有一个 AI侧角色，不要凭空拆出多个角色；若有多个 AI侧角色，不要把他们合并成一个人。\n角色设定参考：${role.systemPrompt}\n当前是第 ${segment.segmentIndex + 1}/${segmentCount} 段。\n本段覆盖第 ${segment.startOffset + 1} 条到第 ${segment.endOffset + 1} 条。\n\n${'='.repeat(20)}\n${segment.text}\n${'='.repeat(20)}\n\n为以下剧情生成叙事复盘式分段摘要。严格按原文时序，禁止任何主题重排、表格拆分或提前交代后文。\n\n必须包含：\n1. 起点：场景、时间、在场人物初始状态。\n2. 发展：严格依序复述事件。写清每个实际主要角色的言行、态度变化、事件间的因果。单角色时按单角色总结；多角色时逐人记录行为、心理、身体状态、关系变化和接续状态。\n3. 时间与场景：若原文出现明确时间词、日期、昼夜、场景切换，请原样保留；如时间信息看似矛盾，不要自行理顺，只记录“时间表达存疑”。\n4. 亲密行为（若有）：仅记录其性质、关系影响与身体/情绪余波。严禁露骨复述动作细节，严禁新增未发生内容。\n5. 终点：当前场景、各实际角色位置、最后动作/台词/情绪、未完成互动、最终张力。\n\n格式：\n纯叙事段落，无编号，无标题，不概括全文。摘要可以压缩语言，但不能牺牲终点状态、人物位置、最后动作和未完成互动。\n\n注意：\n- 不要输出“角色状态”“关系矩阵”“伏笔列表”这类分栏结构；\n- 不要把后发生的事件提前；\n- 不要把连续事件拆散；\n- 不要把多个角色合并为一个人；\n- 不要凭空创造原文没有的角色；\n- 分段摘要只负责讲清这一段剧情如何一步步发展到结尾。`;
 
             const reply = await callChatApi({
                 model: Config.SUMMARY_SEGMENT_MODEL,
@@ -415,15 +415,17 @@
                 `【分段摘要 ${idx + 1}/${segmentSummaries.length}｜第 ${item.segment.startOffset + 1} 条至第 ${item.segment.endOffset + 1} 条】\n${item.content}`
             ).join('\n\n');
 
-            const sourceDescription = `以下是按完整消息边界覆盖第 ${startOffset + 1} 条至第 ${endOffset + 1} 条对话后生成的全部分段摘要，共 ${segmentSummaries.length} 段。请根据所有分段摘要整合成一份完整的 CONTINUATION_PROMPT 续写包，不要机械拼接；要去重、合并、按时间顺序整理。必须覆盖所有分段，不能只总结最后一段。必须特别保留跨段关系变化、伏笔演进、设定变化、角色心理变化、身体状态和当前接续点。不得续写剧情，不得新增未发生内容。
+            const sourceDescription = `以下是按完整消息边界覆盖第 ${startOffset + 1} 条至第 ${endOffset + 1} 条对话后生成的全部分段叙事复盘，共 ${segmentSummaries.length} 段。请基于所有分段摘要，生成仅供模型续写的记忆包。禁止续写剧情，禁止替用户角色做决定，禁止添加原文未发生的内容。
 
 长范围合并输出必须压缩：
 - 只输出 CONTINUATION_PROMPT 分隔块。
 - 不要输出 USER_ARCHIVE、ARCHIVE_TITLE、卷标题、一句话概括、JSON 或分隔符之外的解释。
 - 续写包整体控制在 2800～3600 中文字以内，避免撞到 max_tokens。
-- 必须覆盖所有分段，但要合并同类项，不要机械拼接。
-- 如果空间不足，优先保留：当前场景 / 接续点、角色继承、关系矩阵、亲密关系与身体余波、未回收伏笔和续写约束。
-- 当前场景 / 接续点必须相对详细，不能只写一句话。
+- 重要原则：请先按分段摘要的顺序串联剧情时间线，再从完整时间线中提取关系、状态、亲密余波和伏笔。不要直接按主题合并所有分段摘要。
+- 连续事件必须保持连续；必须覆盖所有分段，不能只总结最后一段。
+- 不要机械拼接分段摘要；要去重、合并重复信息，但不得打乱时序。
+- 如果空间不足，优先保留：剧情时间线、接续点、角色状态继承、关键关系变化、亲密余波、未回收伏笔和续写约束。
+- 接续点必须相对详细，不能只写一句话。
 - 避免重复描述同一情绪、同一关系变化、同一伏笔。
 - 不得补写剧情。`;
             return buildFinalArchiveMessages({ sourceText, sourceDescription, roleLabel, role });
@@ -711,7 +713,7 @@
                     .map(m => ({ role: m.role, content: this.getDialogueContent(m) }));
                 const selectedMessages = historyMessages.slice(startOffset, endOffset + 1);
 
-                const roleLabel = role.name || 'AI角色';
+                const roleLabel = role.name || 'AI侧角色/角色组';
                 const totalChars = selectedMessages.reduce((a, m) => a + (m.content?.length || 0), 0);
 
                 const restoreWarning = () => {
