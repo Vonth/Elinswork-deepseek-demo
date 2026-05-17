@@ -225,6 +225,29 @@
             return msg.title || `历史剧情总结点 ${fallbackIndex + 1}`;
         }
 
+        function buildMemoryBlock(rawHistory) {
+            const doneSummaries = rawHistory
+                .filter(m => m.role === 'system_summary' && m.status === 'done')
+                .filter(m => getSummaryMemoryText(m).trim());
+
+            if (!doneSummaries.length) return '';
+
+            const recentSummaries = doneSummaries.slice(-3);
+            const parts = [
+                '【剧情存档 / 前情提要】',
+                '以下内容是已经发生过的剧情事实和角色记忆，不是当前对话。请继承这些内容，但不要主动复述或回应它。'
+            ];
+
+            recentSummaries.forEach((m, idx) => {
+                const globalSummaryIndex = doneSummaries.length - recentSummaries.length + idx;
+                const title = getSummaryTitle(m, globalSummaryIndex);
+                const text = getSummaryMemoryText(m).trim();
+                parts.push(`【${title}】\n${text}`);
+            });
+
+            return parts.join('\n\n');
+        }
+
         function formatErrorDetails(details) {
             if (!details) return '';
             const text = typeof details === 'string' ? details : JSON.stringify(details);
@@ -393,17 +416,13 @@
             // 【核心防 400 机制】：智能提取有效上下文，动态截断长对话
             getSafeApiMessages(conv, role, userIndex = null) {
                 const rawHistory = userIndex !== null ? conv.messages.slice(0, userIndex + 1) : conv.messages;
+                const memoryBlock = buildMemoryBlock(rawHistory);
                 
                 let apiMsgs = [];
-                let doneSummaryCount = 0;
-                // 1. 从所有记录中提取用户发言、助手发言、以及已完成的总结点（让 AI 记忆总结）
+                // 1. 从所有记录中提取真实对话；已完成的存档点进入 system memoryBlock，不参与历史裁剪
                 for (let m of rawHistory) {
-                    if (m.role === 'system_summary' && m.status === 'done') {
-                        const summaryTitle = getSummaryTitle(m, doneSummaryCount);
-                        const summaryText = getSummaryMemoryText(m);
-                        doneSummaryCount++;
-                        if (summaryText.trim()) apiMsgs.push({ role: 'assistant', content: `[📌 ${summaryTitle}]:\n${summaryText}` });
-                    } else if (m.role === 'user' || m.role === 'assistant') {
+                    if (m.role === 'system_summary') continue;
+                    if (m.role === 'user' || m.role === 'assistant') {
                         // 使用当前页面展示的版本内容，而非总是最新生成的内容
                         let displayContent = this.getDialogueContent(m).trim();
                         if (displayContent) apiMsgs.push({ role: m.role, content: displayContent });
@@ -429,7 +448,8 @@
                 }
                 // 4. 始终把系统角色设定顶在最前面
                 const recentMessages = truncated.slice(-Config.MAX_API_MESSAGES);
-                return [{ role: "system", content: role.systemPrompt || '' }, ...recentMessages];
+                const systemContent = [role.systemPrompt || '', memoryBlock].filter(Boolean).join('\n\n');
+                return [{ role: "system", content: systemContent }, ...recentMessages];
             },
 
             // 检测本卷剧情存档建议阈值，以弹出“存档建议卡片”
