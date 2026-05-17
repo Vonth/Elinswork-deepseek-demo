@@ -163,10 +163,22 @@
         }
 
         async function callChatApi({ model, messages, signal }) {
+            const requestBody = {
+                model,
+                messages,
+                stream: false,
+                max_tokens: Config.MAX_COMPLETION_TOKENS
+            };
+
+            if (model === 'deepseek-v4-pro') {
+                requestBody.thinking = { type: 'enabled' };
+                requestBody.reasoning_effort = 'high';
+            }
+
             const response = await fetch(Config.WORKER_URL, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ model, messages, stream: false, max_tokens: Config.MAX_COMPLETION_TOKENS }),
+                body: JSON.stringify(requestBody),
                 signal
             });
 
@@ -190,6 +202,10 @@
                 content: message.content,
                 reasoning: typeof message.reasoning_content === 'string' ? message.reasoning_content : null
             };
+        }
+
+        function getAssistantReasoning(model, reply) {
+            return (model === 'deepseek-reasoner' || model === 'deepseek-v4-pro') ? reply.reasoning : null;
         }
 
         function formatErrorDetails(details) {
@@ -579,7 +595,7 @@
                     const reply = await callChatApi({ model: DataManager.currentModel, messages: apiMessages, signal: currentAbortController.signal });
                     // 新版本追加到 regenerations 末尾，保持 1=原始 2=第一次重生成... 的正序
                     const newContent = reply.content;
-                    const newReasoning = DataManager.currentModel === 'deepseek-reasoner' ? reply.reasoning : null;
+                    const newReasoning = getAssistantReasoning(DataManager.currentModel, reply);
                     assistantMsg.regenerations.push({ content: newContent, reasoning: newReasoning, timestamp: Date.now() });
                     assistantMsg.currentVersion = assistantMsg.regenerations.length; // 自动跳到最新版本
                     
@@ -785,7 +801,7 @@
                 const loadingDiv = document.createElement('div'); loadingDiv.className = 'loading'; loadingDiv.innerHTML = `${SVGIcons.spinner} 生成中...`; DOM.messagesArea.appendChild(loadingDiv); DOM.messagesArea.scrollTop = DOM.messagesArea.scrollHeight;
                 try {
                     const reply = await callChatApi({ model: DataManager.currentModel, messages: apiMessages, signal: currentAbortController.signal });
-                    conv.messages.push({ role: 'assistant', content: reply.content, reasoning: DataManager.currentModel === 'deepseek-reasoner' ? reply.reasoning : null, regenerations: [], currentVersion: 0, reasoningCollapsed: false, timestamp: new Date().toISOString() });
+                    conv.messages.push({ role: 'assistant', content: reply.content, reasoning: getAssistantReasoning(DataManager.currentModel, reply), regenerations: [], currentVersion: 0, reasoningCollapsed: false, timestamp: new Date().toISOString() });
                     
                     this.checkConversationLimit();
                     DataManager.saveData(); this.jumpToLastPage(conv.messages.length); this.loadConversationToUI();
@@ -829,7 +845,7 @@
             const loadingDiv = document.createElement('div'); loadingDiv.className = 'loading'; loadingDiv.innerHTML = `${SVGIcons.spinner} 生成中...`; DOM.messagesArea.appendChild(loadingDiv); DOM.messagesArea.scrollTop = DOM.messagesArea.scrollHeight;
             try {
                 const reply = await callChatApi({ model: DataManager.currentModel, messages: apiMessages, signal: currentAbortController.signal });
-                conv.messages.push({ role: 'assistant', content: reply.content, reasoning: DataManager.currentModel === 'deepseek-reasoner' ? reply.reasoning : null, regenerations: [], currentVersion: 0, reasoningCollapsed: false, timestamp: new Date().toISOString() });
+                conv.messages.push({ role: 'assistant', content: reply.content, reasoning: getAssistantReasoning(DataManager.currentModel, reply), regenerations: [], currentVersion: 0, reasoningCollapsed: false, timestamp: new Date().toISOString() });
                 
                 UIManager.checkConversationLimit();
                 DataManager.saveData(); UIManager.jumpToLastPage(conv.messages.length); UIManager.loadConversationToUI();
