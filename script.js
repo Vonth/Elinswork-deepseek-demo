@@ -248,6 +248,24 @@
             return parts.join('\n\n');
         }
 
+        function parseStoryArchiveReply(text) {
+            function extractBlock(source, startTag, endTag) {
+                const start = source.indexOf(startTag);
+                if (start === -1) return '';
+                const contentStart = start + startTag.length;
+                const end = source.indexOf(endTag, contentStart);
+                if (end === -1 || end <= contentStart) return '';
+                return source.slice(contentStart, end).trim();
+            }
+
+            const source = typeof text === 'string' ? text : '';
+            const title = extractBlock(source, '<<<ARCHIVE_TITLE>>>', '<<<END_ARCHIVE_TITLE>>>');
+            const userArchive = extractBlock(source, '<<<USER_ARCHIVE>>>', '<<<END_USER_ARCHIVE>>>');
+            const continuationPrompt = extractBlock(source, '<<<CONTINUATION_PROMPT>>>', '<<<END_CONTINUATION_PROMPT>>>');
+
+            return { title, userArchive, continuationPrompt };
+        }
+
         function formatErrorDetails(details) {
             if (!details) return '';
             const text = typeof details === 'string' ? details : JSON.stringify(details);
@@ -303,6 +321,9 @@
                 normalized.status = ['warning', 'generating', 'done'].includes(msg.status) ? msg.status : 'warning';
                 if (Number.isInteger(msg.startOffset)) normalized.startOffset = msg.startOffset;
                 if (Number.isInteger(msg.endOffset)) normalized.endOffset = msg.endOffset;
+                if (typeof msg.title === 'string') normalized.title = msg.title;
+                if (typeof msg.continuationPrompt === 'string') normalized.continuationPrompt = msg.continuationPrompt;
+                if (typeof msg.archiveType === 'string') normalized.archiveType = msg.archiveType;
             }
 
             return normalized;
@@ -539,9 +560,9 @@
                     ).join('\n\n');
                 }
 
-                const systemPrompt = `你是一位专业的剧情档案整理员。你的工作是阅读用户提供的角色扮演对话记录文本，输出一份结构化的剧情复盘报告。你只能输出报告，绝对不得进行任何角色扮演、续写剧情或回应对话内容。`;
+                const systemPrompt = `你是一位专业的长篇角色扮演剧情档案整理员。你的工作是阅读用户提供的已发生对话记录，整理成本卷剧情存档和下一卷续写包。你只能整理已经发生的剧情事实、角色状态、关系进展和未回收伏笔，不得续写剧情，不得替用户角色做新决定，不得改写已发生事实，不得输出分隔符之外的额外说明。`;
 
-                const userPrompt = `以下是一段角色扮演对话的完整记录，共 ${selectedMessages.length} 条消息。\n角色名称：${roleLabel}\n角色设定参考：${role.systemPrompt}\n\n${'='.repeat(20)}\n${dialogueText}\n${'='.repeat(20)}\n\n请根据以上对话记录，整理输出一份约 2000 字的剧情复盘报告，包含以下四个板块：\n\n1.【核心世界观与主线】故事背景与主线发展全貌\n2.【人物设定与状态】所有出场人物的性格、外貌、身份、相互关系及当前状态\n3.【伏笔与未解之谜】所有暗线、未解冲突、待揭露的真相\n4.【当前焦点事件】故事最后中断时的具体场景、角色动作和对话态势\n\n直接输出报告正文，不要任何开场白。`;
+                const userPrompt = `以下是一段角色扮演对话记录，共 ${selectedMessages.length} 条消息。\n角色名称：${roleLabel}\n角色设定参考：${role.systemPrompt}\n\n${'='.repeat(20)}\n${dialogueText}\n${'='.repeat(20)}\n\n请严格按以下分隔符输出三段内容，不要输出 JSON，不要添加分隔符之外的开场白或解释：\n\n<<<ARCHIVE_TITLE>>>\n给本卷剧情起一个简短标题\n<<<END_ARCHIVE_TITLE>>>\n\n<<<USER_ARCHIVE>>>\n# 本卷剧情存档\n\n## 卷标题\n简短标题。\n\n## 一句话概括\n一句话概括本卷主线。\n\n## 主要剧情节点\n按时间顺序列出重要剧情节点。\n\n## 角色状态\n分别记录 AI 角色、用户角色、其他重要角色的当前状态。\n\n## 关系进展\n记录角色之间关系从哪里推进到哪里，包括信任、暧昧、冲突、依赖、隐瞒等。\n\n## 已确认设定\n列出已经发生、后续不能随意推翻的事实。\n\n## 未回收伏笔\n列出仍未解释、未解决、后续应保留的线索。\n\n## 关键原文摘录\n摘录若干句最能体现口吻、关系张力、情绪氛围的原文。\n\n## 当前停顿点\n精确描述本卷最后停在什么场景、动作、语气和情绪上。\n<<<END_USER_ARCHIVE>>>\n\n<<<CONTINUATION_PROMPT>>>\n# 下一卷续写包\n\n你正在继续一个长篇角色扮演剧情。以下内容是已经发生的事实和当前状态，请严格继承，不要重置关系，不要改写已发生事实。\n\n## 已发生事实\n简明列出上一卷关键事实。\n\n## 当前场景\n从上一卷最后停顿点继续，说明场景、人物位置、动作、气氛。\n\n## 角色继承\n记录 AI 角色当前心理、行为方式、表达习惯、隐藏信息、对用户角色的态度。\n\n## 用户角色状态\n记录用户角色当前身体/心理/已知信息/动机，但不要替用户决定下一步行为。\n\n## 关系继承\n明确双方关系阶段，不要重置成初识。\n\n## 未回收伏笔\n列出后续需要保留的线索。\n\n## 续写约束\n- 不要重置关系。\n- 不要改写已发生事实。\n- 不要突然揭露全部秘密。\n- 不要突然让角色性格漂移。\n- 不要替用户角色做决定。\n- 从当前停顿点自然继续。\n- 优先保持本卷形成的语气、称呼、关系张力和互动节奏。\n<<<END_CONTINUATION_PROMPT>>>`;
 
                 const apiMessages = [
                     { role: 'system', content: systemPrompt },
@@ -554,7 +575,11 @@
                 try {
                     const reply = await callChatApi({ model: 'deepseek-chat', messages: apiMessages, signal: currentAbortController.signal });
 
-                    summaryMsg.content = reply.content;
+                    const parsed = parseStoryArchiveReply(reply.content);
+                    summaryMsg.title = parsed.title || summaryMsg.title || '';
+                    summaryMsg.content = parsed.userArchive || reply.content;
+                    summaryMsg.continuationPrompt = parsed.continuationPrompt || parsed.userArchive || reply.content;
+                    summaryMsg.archiveType = 'volume';
                     summaryMsg.status = 'done';
                     DataManager.saveData();
                     this.loadConversationToUI();
@@ -770,7 +795,7 @@
                                 if (copyBtn) {
                                     copyBtn.addEventListener('click', () => {
                                         const prefix = `[系统指令]\n你现在需要扮演该角色。在开始对话之前，请先仔细阅读并内化以下【前情提要】。这份前情提要是你和用户之间已经发生过的所有事情的记录，它不是需要你分析或回应的内容，而是你的记忆。请将这份记忆完全融入你对角色的理解中，并基于此继续与用户进行互动。\n\n【前情提要】\n`;
-                                        const rawText = prefix + msg.content;
+                                        const rawText = prefix + getSummaryMemoryText(msg);
                                         const copyFallback = () => {
                                             const textarea = document.createElement('textarea');
                                             textarea.value = rawText; textarea.style.position = 'fixed'; textarea.style.opacity = '0';
