@@ -272,11 +272,10 @@
             }
 
             const source = typeof text === 'string' ? text : '';
-            const title = extractBlock(source, '<<<ARCHIVE_TITLE>>>', '<<<END_ARCHIVE_TITLE>>>');
             const userArchive = extractBlock(source, '<<<USER_ARCHIVE>>>', '<<<END_USER_ARCHIVE>>>');
             const continuationPrompt = extractBlock(source, '<<<CONTINUATION_PROMPT>>>', '<<<END_CONTINUATION_PROMPT>>>');
 
-            return { title, userArchive, continuationPrompt };
+            return { title: '', userArchive, continuationPrompt };
         }
 
         function formatDialogueMessages(messages, absoluteStartOffset, roleLabel) {
@@ -340,7 +339,7 @@
         function buildFinalArchiveMessages({ sourceText, sourceDescription, roleLabel, role }) {
             const systemPrompt = `你是一位专业的长篇角色扮演剧情档案整理员。你的工作是阅读用户提供的已发生对话记录或分段摘要，整理成本卷剧情存档和下一卷续写包。你只能整理已经发生的剧情事实、角色状态、关系进展和未回收伏笔，不得续写剧情，不得替用户角色做新决定，不得改写已发生事实，不得输出分隔符之外的额外说明。`;
 
-            const userPrompt = `${sourceDescription}\n角色名称：${roleLabel}\n角色设定参考：${role.systemPrompt}\n\n${'='.repeat(20)}\n${sourceText}\n${'='.repeat(20)}\n\n请严格按以下分隔符输出三段内容，不要输出 JSON，不要添加分隔符之外的开场白或解释：\n\n<<<ARCHIVE_TITLE>>>\n给本卷剧情起一个简短标题\n<<<END_ARCHIVE_TITLE>>>\n\n<<<USER_ARCHIVE>>>\n# 本卷剧情存档\n\n## 卷标题\n简短标题。\n\n## 一句话概括\n一句话概括本卷主线。\n\n## 主要剧情节点\n按时间顺序列出重要剧情节点。\n\n## 角色状态\n分别记录 AI 角色、用户角色、其他重要角色的当前状态。\n\n## 关系进展\n记录角色之间关系从哪里推进到哪里，包括信任、暧昧、冲突、依赖、隐瞒等。\n\n## 已确认设定\n列出已经发生、后续不能随意推翻的事实。\n\n## 未回收伏笔\n列出仍未解释、未解决、后续应保留的线索。\n\n## 关键原文摘录\n摘录若干句最能体现口吻、关系张力、情绪氛围的原文。\n\n## 当前停顿点\n精确描述本卷最后停在什么场景、动作、语气和情绪上。\n<<<END_USER_ARCHIVE>>>\n\n<<<CONTINUATION_PROMPT>>>\n# 下一卷续写包\n\n你正在继续一个长篇角色扮演剧情。以下内容是已经发生的事实和当前状态，请严格继承，不要重置关系，不要改写已发生事实。\n\n## 已发生事实\n简明列出上一卷关键事实。\n\n## 当前场景\n从上一卷最后停顿点继续，说明场景、人物位置、动作、气氛。\n\n## 角色继承\n记录 AI 角色当前心理、行为方式、表达习惯、隐藏信息、对用户角色的态度。\n\n## 用户角色状态\n记录用户角色当前身体/心理/已知信息/动机，但不要替用户决定下一步行为。\n\n## 关系继承\n明确双方关系阶段，不要重置成初识。\n\n## 未回收伏笔\n列出后续需要保留的线索。\n\n## 续写约束\n- 不要重置关系。\n- 不要改写已发生事实。\n- 不要突然揭露全部秘密。\n- 不要突然让角色性格漂移。\n- 不要替用户角色做决定。\n- 从当前停顿点自然继续。\n- 优先保持本卷形成的语气、称呼、关系张力和互动节奏。\n<<<END_CONTINUATION_PROMPT>>>`;
+            const userPrompt = `${sourceDescription}\n角色名称：${roleLabel}\n角色设定参考：${role.systemPrompt}\n\n${'='.repeat(20)}\n${sourceText}\n${'='.repeat(20)}\n\n请严格按以下分隔符输出两段内容，不要输出 JSON，不要输出卷标题，不要输出一句话概括，不要添加分隔符之外的开场白或解释：\n\n<<<USER_ARCHIVE>>>\n# 本卷剧情存档\n\n## 主要剧情节点\n按时间顺序列出重要剧情节点。不要机械罗列所有事件，优先保留影响角色关系、设定、伏笔、情绪转折和当前局势的节点。\n\n## 角色状态\n分别记录 AI 角色、用户角色、其他重要角色的当前状态。重点记录心理状态、身体状态、已知信息、隐藏信息、当前动机和行为倾向。\n\n## 关系进展\n记录角色之间关系从哪里推进到哪里，包括信任、暧昧、冲突、依赖、隐瞒、权力关系、称呼变化、边界变化等。\n\n## 已确认设定\n列出已经发生、后续不能随意推翻的事实。\n\n## 未回收伏笔\n列出仍未解释、未解决、后续应保留的线索。\n\n## 关键原文摘录\n摘录若干句最能体现口吻、关系张力、情绪氛围的原文。不要摘太多，优先保留称呼、承诺、冲突、暧昧张力、角色口癖相关内容。\n\n## 当前停顿点 / 下一幕接续状态\n这是最重要的部分之一。请详细记录：\n- 当前场景地点、时间、环境氛围；\n- 在场人物以及各自位置；\n- 最后一轮互动中发生了什么；\n- AI 角色最后的动作、表情、语气、心理状态；\n- 用户角色当前身体/心理/已知信息/动机，但不要替用户决定下一步行为；\n- 双方关系此刻的张力，例如暧昧、僵持、试探、亲密、误会、危险等；\n- 当前未完成的即时动作或对话；\n- 下一轮最自然应该从哪里接上。\n<<<END_USER_ARCHIVE>>>\n\n<<<CONTINUATION_PROMPT>>>\n# 下一卷续写包\n\n你正在继续一个长篇角色扮演剧情。以下内容是已经发生的事实和当前状态，请严格继承，不要重置关系，不要改写已发生事实。\n\n## 已发生事实\n简明列出上一卷关键事实。\n\n## 当前场景 / 接续点\n详细记录当前地点、时间、环境、在场人物位置、最后动作、最后一句话/情绪、当前未完成互动。下一轮回复应从这里自然接上，而不是重新开场。\n\n## 角色继承\n记录 AI 角色当前心理、行为方式、表达习惯、隐藏信息、对用户角色的态度。\n\n## 用户角色状态\n记录用户角色当前身体/心理/已知信息/动机，但不要替用户决定下一步行为。\n\n## 关系继承\n明确双方关系阶段，不要重置成初识。保留称呼变化、暧昧/冲突/依赖/试探等张力。\n\n## 未回收伏笔\n列出后续需要保留的线索。\n\n## 续写约束\n- 不要重置关系。\n- 不要改写已发生事实。\n- 不要突然揭露全部秘密。\n- 不要突然让角色性格漂移。\n- 不要替用户角色做决定。\n- 从当前停顿点自然继续。\n- 优先保持本卷形成的语气、称呼、关系张力和互动节奏。\n<<<END_CONTINUATION_PROMPT>>>`;
 
             return [
                 { role: 'system', content: systemPrompt },
@@ -378,14 +377,17 @@
             const sourceDescription = `以下是按完整消息边界覆盖第 ${startOffset + 1} 条至第 ${endOffset + 1} 条对话后生成的全部分段摘要，共 ${segmentSummaries.length} 段。请根据所有分段摘要整合成本卷完整存档，不要机械拼接；要去重、合并、按时间顺序整理。必须覆盖所有分段，不能只总结最后一段。必须特别保留跨段关系变化、伏笔演进、设定变化、角色心理变化。不得续写剧情，不得新增未发生内容。
 
 长范围合并输出必须压缩：
-- USER_ARCHIVE 控制在 1200～1800 中文字。
-- CONTINUATION_PROMPT 控制在 1200～1800 中文字。
+- 不要生成卷标题，不要生成一句话概括。
+- USER_ARCHIVE 控制在 1600～2400 中文字。
+- CONTINUATION_PROMPT 控制在 1600～2400 中文字。
+- 把省下的篇幅用于“当前停顿点 / 下一幕接续状态”和“当前场景 / 接续点”。
 - 主要剧情节点最多 10 条。
 - 角色状态每个主要角色最多 3～5 条。
 - 关系进展最多 8 条。
 - 已确认设定最多 10 条。
 - 未回收伏笔最多 10 条。
 - 关键原文摘录最多 5 条。
+- 当前停顿点必须相对详细，不能只写一句话。
 - 必须覆盖所有分段，但合并同类项，避免重复描述同一情绪、同一关系变化、同一伏笔。
 - 不要输出冗长解释，不要补写剧情。`;
             return buildFinalArchiveMessages({ sourceText, sourceDescription, roleLabel, role });
@@ -793,7 +795,6 @@
                     }
 
                     const parsed = parseStoryArchiveReply(reply.content);
-                    summaryMsg.title = parsed.title || summaryMsg.title || '';
                     summaryMsg.content = parsed.userArchive || reply.content;
                     summaryMsg.continuationPrompt = parsed.continuationPrompt || parsed.userArchive || reply.content;
                     summaryMsg.archiveType = 'volume';
