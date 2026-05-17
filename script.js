@@ -8,7 +8,7 @@
             MAX_COMPLETION_TOKENS: 1500,
             SUMMARY_SINGLE_PASS_CHARS: 30000,
             SUMMARY_SEGMENT_CHARS: 18000,
-            SUMMARY_SEGMENT_MAX_TOKENS: 1800,
+            SUMMARY_SEGMENT_MAX_TOKENS: 2500,
             SUMMARY_FINAL_MAX_TOKENS: 4096,
             SUMMARY_SEGMENT_MODEL: 'deepseek-v4-pro',
             SUMMARY_SEGMENT_THINKING_MODE: 'fast',
@@ -218,7 +218,9 @@
 
             return {
                 content: message.content,
-                reasoning: typeof message.reasoning_content === 'string' ? message.reasoning_content : null
+                reasoning: typeof message.reasoning_content === 'string' ? message.reasoning_content : null,
+                finishReason: data?.choices?.[0]?.finish_reason || null,
+                usage: data?.usage || null
             };
         }
 
@@ -320,6 +322,19 @@
             return segments;
         }
 
+        function isSegmentDraftUsable(draft, segments) {
+            if (!Array.isArray(draft) || draft.length !== segments.length) return false;
+            return draft.every((d, i) => {
+                const seg = segments[i];
+                return d
+                    && d.segmentIndex === seg.segmentIndex
+                    && d.startOffset === seg.startOffset
+                    && d.endOffset === seg.endOffset
+                    && typeof d.content === 'string'
+                    && d.content.trim();
+            });
+        }
+
         function buildFinalArchiveMessages({ sourceText, sourceDescription, roleLabel, role }) {
             const systemPrompt = `你是一位专业的长篇角色扮演剧情档案整理员。你的工作是阅读用户提供的已发生对话记录或分段摘要，整理成本卷剧情存档和下一卷续写包。你只能整理已经发生的剧情事实、角色状态、关系进展和未回收伏笔，不得续写剧情，不得替用户角色做新决定，不得改写已发生事实，不得输出分隔符之外的额外说明。`;
 
@@ -345,6 +360,10 @@
                 thinkingMode: Config.SUMMARY_SEGMENT_THINKING_MODE,
                 maxTokens: Config.SUMMARY_SEGMENT_MAX_TOKENS
             });
+
+            if (reply.finishReason === 'length') {
+                throw new Error(`第 ${segment.segmentIndex + 1}/${segmentCount} 段摘要被 max_tokens 截断，请提高 SUMMARY_SEGMENT_MAX_TOKENS 后重试`);
+            }
 
             return reply.content;
         }
@@ -416,6 +435,23 @@
                 if (typeof msg.title === 'string') normalized.title = msg.title;
                 if (typeof msg.continuationPrompt === 'string') normalized.continuationPrompt = msg.continuationPrompt;
                 if (typeof msg.archiveType === 'string') normalized.archiveType = msg.archiveType;
+                if (Array.isArray(msg.segmentSummariesDraft)) {
+                    normalized.segmentSummariesDraft = msg.segmentSummariesDraft
+                        .filter(item =>
+                            item
+                            && Number.isInteger(item.segmentIndex)
+                            && Number.isInteger(item.startOffset)
+                            && Number.isInteger(item.endOffset)
+                            && typeof item.content === 'string'
+                        )
+                        .map(item => ({
+                            segmentIndex: item.segmentIndex,
+                            startOffset: item.startOffset,
+                            endOffset: item.endOffset,
+                            content: item.content,
+                            createdAt: typeof item.createdAt === 'string' ? item.createdAt : new Date().toISOString()
+                        }));
+                }
             }
 
             return normalized;
@@ -636,10 +672,36 @@
                     this.loadConversationToUI();
                 };
 
+                const saveSegmentDraft = (segmentSummaries) => {
+                    summaryMsg.segmentSummariesDraft = segmentSummaries.map(item => ({
+                        segmentIndex: item.segment.segmentIndex,
+                        startOffset: item.segment.startOffset,
+                        endOffset: item.segment.endOffset,
+                        content: item.content,
+                        createdAt: item.createdAt || new Date().toISOString()
+                    }));
+                    DataManager.saveData();
+                };
+
                 let segments = null;
+                let segmentSummariesFromDraft = null;
                 if (totalChars > Config.SUMMARY_SINGLE_PASS_CHARS) {
                     segments = splitMessagesIntoSegments(selectedMessages, startOffset, roleLabel, Config.SUMMARY_SEGMENT_CHARS);
-                    if (segments.length > 1 && !confirm(`本次存档范围较长，将分 ${segments.length} 段生成摘要并合并，可能耗时更久，是否继续？`)) {
+                    if (isSegmentDraftUsable(summaryMsg.segmentSummariesDraft, segments)) {
+                        const useDraft = confirm('检测到已有分段摘要草稿，是否跳过分段阶段，仅重新合并最终存档？');
+                        if (useDraft) {
+                            segmentSummariesFromDraft = summaryMsg.segmentSummariesDraft.map((d, idx) => ({
+                                segment: segments[idx],
+                                content: d.content,
+                                createdAt: d.createdAt
+                            }));
+                        } else {
+                            delete summaryMsg.segmentSummariesDraft;
+                            DataManager.saveData();
+                        }
+                    }
+
+                    if (!segmentSummariesFromDraft && segments.length > 1 && !confirm(`本次存档范围较长，将分 ${segments.length} 段生成摘要并合并，可能耗时更久，是否继续？`)) {
                         restoreWarning();
                         return;
                     }
@@ -669,18 +731,29 @@
                             maxTokens: Config.SUMMARY_FINAL_MAX_TOKENS
                         });
                     } else {
-                        const segmentSummaries = [];
+                        const segmentSummaries = segmentSummariesFromDraft || [];
 
-                        for (let i = 0; i < segments.length; i++) {
-                            updateProgress(`正在生成分段摘要 ${i + 1}/${segments.length}...`);
-                            const content = await generateSegmentSummary({
-                                segment: segments[i],
-                                segmentCount: segments.length,
-                                roleLabel,
-                                role,
-                                signal: currentAbortController.signal
-                            });
-                            segmentSummaries.push({ segment: segments[i], content });
+                        if (segmentSummariesFromDraft) {
+                            updateProgress('正在使用已有分段摘要草稿，重新合并最终存档...');
+                        } else {
+                            for (let i = 0; i < segments.length; i++) {
+                                updateProgress(`正在生成分段摘要 ${i + 1}/${segments.length}...`);
+                                const content = await generateSegmentSummary({
+                                    segment: segments[i],
+                                    segmentCount: segments.length,
+                                    roleLabel,
+                                    role,
+                                    signal: currentAbortController.signal
+                                });
+                                segmentSummaries.push({
+                                    segment: segments[i],
+                                    content,
+                                    createdAt: new Date().toISOString()
+                                });
+                                summaryMsg.progressText = `已完成分段摘要 ${i + 1}/${segments.length}，正在继续...`;
+                                saveSegmentDraft(segmentSummaries);
+                                this.loadConversationToUI();
+                            }
                         }
 
                         updateProgress('正在合并分段摘要，生成本卷剧情存档...');
@@ -701,12 +774,17 @@
                         });
                     }
 
+                    if (reply.finishReason === 'length') {
+                        throw new Error('最终剧情存档被 max_tokens 截断，请压缩最终输出格式或提高 Worker max_tokens 上限后重试');
+                    }
+
                     const parsed = parseStoryArchiveReply(reply.content);
                     summaryMsg.title = parsed.title || summaryMsg.title || '';
                     summaryMsg.content = parsed.userArchive || reply.content;
                     summaryMsg.continuationPrompt = parsed.continuationPrompt || parsed.userArchive || reply.content;
                     summaryMsg.archiveType = 'volume';
                     summaryMsg.status = 'done';
+                    delete summaryMsg.segmentSummariesDraft;
                     delete summaryMsg.progressText;
                     DataManager.saveData();
                     this.loadConversationToUI();
