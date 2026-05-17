@@ -162,7 +162,14 @@
             return trimmed.startsWith('http://') || trimmed.startsWith('https://') || trimmed.startsWith('mailto:') || trimmed.startsWith('#') || trimmed.startsWith('/');
         }
 
-        async function callChatApi({ model, messages, signal }) {
+        function normalizeRequestThinkingMode(model, thinkingMode) {
+            if (thinkingMode === 'fast' || thinkingMode === 'thinking') return thinkingMode;
+            if (model === 'deepseek-reasoner' || model === 'deepseek-v4-pro' || model === 'v4pro') return 'thinking';
+            return 'fast';
+        }
+
+        async function callChatApi({ model, messages, signal, thinkingMode }) {
+            const normalizedThinkingMode = normalizeRequestThinkingMode(model, thinkingMode);
             const requestBody = {
                 model,
                 messages,
@@ -170,9 +177,11 @@
                 max_tokens: Config.MAX_COMPLETION_TOKENS
             };
 
-            if (model === 'deepseek-v4-pro') {
+            if (normalizedThinkingMode === 'thinking') {
                 requestBody.thinking = { type: 'enabled' };
                 requestBody.reasoning_effort = 'high';
+            } else {
+                requestBody.thinking = { type: 'disabled' };
             }
 
             const response = await fetch(Config.WORKER_URL, {
@@ -204,8 +213,8 @@
             };
         }
 
-        function getAssistantReasoning(model, reply) {
-            return (model === 'deepseek-reasoner' || model === 'deepseek-v4-pro') ? reply.reasoning : null;
+        function normalizeReplyReasoning(reply) {
+            return typeof reply?.reasoning === 'string' && reply.reasoning.trim() ? reply.reasoning : null;
         }
 
         function formatErrorDetails(details) {
@@ -269,17 +278,14 @@
         }
 
         const DataManager = {
-            roles: [], currentRoleId: null, currentConversationId: null, currentModel: 'deepseek-v4-pro', sidebarOpen: false,
-            normalizeModel(model) {
-                const aliases = {
-                    'v4flash': 'deepseek-v4-flash',
-                    'v4pro': 'deepseek-v4-pro',
-                    'deepseek-chat': 'deepseek-chat',
-                    'deepseek-reasoner': 'deepseek-reasoner',
-                    'deepseek-v4-flash': 'deepseek-v4-flash',
-                    'deepseek-v4-pro': 'deepseek-v4-pro'
-                };
-                return aliases[model] || 'deepseek-chat';
+            roles: [], currentRoleId: null, currentConversationId: null, currentModel: 'deepseek-v4-pro', currentThinkingMode: 'thinking', sidebarOpen: false,
+            normalizeModelSettings(model, thinkingMode) {
+                const normalizedMode = thinkingMode === 'fast' || thinkingMode === 'thinking' ? thinkingMode : null;
+                if (model === 'deepseek-chat') return { currentModel: 'deepseek-v4-flash', currentThinkingMode: 'fast' };
+                if (model === 'deepseek-reasoner') return { currentModel: 'deepseek-v4-flash', currentThinkingMode: 'thinking' };
+                if (model === 'deepseek-v4-flash' || model === 'v4flash') return { currentModel: 'deepseek-v4-flash', currentThinkingMode: normalizedMode || 'fast' };
+                if (model === 'deepseek-v4-pro' || model === 'v4pro') return { currentModel: 'deepseek-v4-pro', currentThinkingMode: normalizedMode || 'thinking' };
+                return { currentModel: 'deepseek-v4-pro', currentThinkingMode: 'thinking' };
             },
             generateId() { return crypto.randomUUID ? crypto.randomUUID() : Date.now() + '-' + Math.random(); },
             defaultRole: { id: 'default_role', name: '新角色', systemPrompt: '你是一个乐于助人的AI助手。', conversations: [] },
@@ -303,14 +309,14 @@
                 this.saveData();
             },
             saveData() {
-                const data = { roles: this.roles, currentRoleId: this.currentRoleId, currentConversationId: this.currentConversationId, currentModel: this.currentModel };
+                const data = { roles: this.roles, currentRoleId: this.currentRoleId, currentConversationId: this.currentConversationId, currentModel: this.currentModel, currentThinkingMode: this.currentThinkingMode };
                 // 优先写 IndexedDB，同时保持 localStorage 的轻量备份（只存 ID 和模型，不存消息）
                 DBManager.saveAppData(data).catch(() => {
                     // IndexedDB 失败时降级写 localStorage（可能超限，仅作最后保障）
                     try { localStorage.setItem('deepseek_app_data', JSON.stringify(data)); } catch(e) {}
                 });
                 // localStorage 只存轻量索引，不存消息内容
-                try { localStorage.setItem('deepseek_app_index', JSON.stringify({ currentRoleId: this.currentRoleId, currentConversationId: this.currentConversationId, currentModel: this.currentModel })); } catch(e) {}
+                try { localStorage.setItem('deepseek_app_index', JSON.stringify({ currentRoleId: this.currentRoleId, currentConversationId: this.currentConversationId, currentModel: this.currentModel, currentThinkingMode: this.currentThinkingMode })); } catch(e) {}
             },
             async loadData() {
                 let data = null;
@@ -324,9 +330,12 @@
                     this.roles = data.roles || [];
                     this.currentRoleId = data.currentRoleId || null;
                     this.currentConversationId = data.currentConversationId || null;
-                    this.currentModel = this.normalizeModel(data.currentModel);
+                    const settings = this.normalizeModelSettings(data.currentModel, data.currentThinkingMode);
+                    this.currentModel = settings.currentModel;
+                    this.currentThinkingMode = settings.currentThinkingMode;
                 }
-                modelSelect.value = this.currentModel;
+                document.getElementById('modelSelect').value = this.currentModel;
+                document.getElementById('thinkingModeSelect').value = this.currentThinkingMode;
                 this.ensureDefaultRoles();
                 if (!this.roles.find(r => r.id === this.currentRoleId) && this.roles.length) this.currentRoleId = this.roles[0].id;
                 if (this.currentRoleId) { const role = this.getCurrentRole(); if (role && (!this.currentConversationId || !role.conversations.find(c => c.id === this.currentConversationId))) this.currentConversationId = role.conversations[0]?.id || null; }
@@ -343,7 +352,7 @@
             roleListDiv: document.getElementById('roleList'), addRoleBtn: document.getElementById('addRoleBtn'),
             roleModal: document.getElementById('roleModal'), modalTitle: document.getElementById('modalTitle'), roleNameInput: document.getElementById('roleName'),
             rolePromptInput: document.getElementById('rolePrompt'), saveRoleBtn: document.getElementById('saveRoleBtn'), cancelModalBtn: document.getElementById('cancelModalBtn'),
-            modelSelect: document.getElementById('modelSelect'), themeToggle: document.getElementById('themeToggle'), renameConvModal: document.getElementById('renameConvModal'),
+            modelSelect: document.getElementById('modelSelect'), thinkingModeSelect: document.getElementById('thinkingModeSelect'), themeToggle: document.getElementById('themeToggle'), renameConvModal: document.getElementById('renameConvModal'),
             newConvNameInput: document.getElementById('newConvName'), confirmRenameBtn: document.getElementById('confirmRenameBtn'), cancelRenameBtn: document.getElementById('cancelRenameBtn'),
             roleSidebar: document.getElementById('roleSidebar'), sidebarToggleBtn: document.getElementById('sidebarToggleBtn'), editUserMsgModal: document.getElementById('editUserMsgModal'),
             editUserMsgContent: document.getElementById('editUserMsgContent'), confirmEditMsgBtn: document.getElementById('confirmEditMsgBtn'), cancelEditMsgBtn: document.getElementById('cancelEditMsgBtn'),
@@ -575,7 +584,7 @@
             closeModal() { DOM.roleModal.style.display = 'none'; delete DOM.roleModal.dataset.roleId; },
             loadTheme() { const saved = localStorage.getItem('deepseek_theme'); const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches; let isDark = saved ? saved === 'dark' : prefersDark; document.body.classList.toggle('dark', isDark); DOM.themeToggle.innerHTML = isDark ? SVGIcons.sun : SVGIcons.moon; },
             toggleTheme() { const isDark = document.body.classList.contains('dark'); const newIsDark = !isDark; document.body.classList.toggle('dark', newIsDark); localStorage.setItem('deepseek_theme', newIsDark ? 'dark' : 'light'); DOM.themeToggle.innerHTML = newIsDark ? SVGIcons.sun : SVGIcons.moon; UIManager.updateDefaultBgItemStyle(); },
-            onModelChange() { DataManager.currentModel = DOM.modelSelect.value; DataManager.saveData(); },
+            onModelChange() { DataManager.currentModel = DOM.modelSelect.value; DataManager.currentThinkingMode = DOM.thinkingModeSelect.value; DataManager.saveData(); },
             adjustTextareaHeight() { DOM.messageInput.style.height = 'auto'; DOM.messageInput.style.height = Math.min(DOM.messageInput.scrollHeight, 120) + 'px'; },
             toggleReasoning(assistantIndex) { const conv = DataManager.getCurrentConversation(); if (!conv) return; const msg = conv.messages[assistantIndex]; if (!msg || msg.role !== 'assistant') return; msg.reasoningCollapsed = !msg.reasoningCollapsed; DataManager.saveData(); this.loadConversationToUI(); },
             changeAssistantVersion(assistantIndex, delta) { const conv = DataManager.getCurrentConversation(); if (!conv) return; const assistantMsg = conv.messages[assistantIndex]; if (!assistantMsg || assistantMsg.role !== 'assistant') return; const totalVers = assistantMsg.regenerations.length + 1; let newVer = assistantMsg.currentVersion + delta; if (newVer < 0) newVer = 0; if (newVer >= totalVers) newVer = totalVers - 1; if (newVer === assistantMsg.currentVersion) return; assistantMsg.currentVersion = newVer; this.checkConversationLimit(); DataManager.saveData(); this.loadConversationToUI(); },
@@ -592,10 +601,10 @@
                 if (currentAbortController) currentAbortController.abort(); currentAbortController = new AbortController();
                 const loadingDiv = document.createElement('div'); loadingDiv.className = 'loading'; loadingDiv.innerHTML = `${SVGIcons.spinner} 生成中...`; DOM.messagesArea.appendChild(loadingDiv); DOM.messagesArea.scrollTop = DOM.messagesArea.scrollHeight;
                 try {
-                    const reply = await callChatApi({ model: DataManager.currentModel, messages: apiMessages, signal: currentAbortController.signal });
+                    const reply = await callChatApi({ model: DataManager.currentModel, messages: apiMessages, signal: currentAbortController.signal, thinkingMode: DataManager.currentThinkingMode });
                     // 新版本追加到 regenerations 末尾，保持 1=原始 2=第一次重生成... 的正序
                     const newContent = reply.content;
-                    const newReasoning = getAssistantReasoning(DataManager.currentModel, reply);
+                    const newReasoning = normalizeReplyReasoning(reply);
                     assistantMsg.regenerations.push({ content: newContent, reasoning: newReasoning, timestamp: Date.now() });
                     assistantMsg.currentVersion = assistantMsg.regenerations.length; // 自动跳到最新版本
                     
@@ -800,8 +809,8 @@
                 if (currentAbortController) currentAbortController.abort(); currentAbortController = new AbortController();
                 const loadingDiv = document.createElement('div'); loadingDiv.className = 'loading'; loadingDiv.innerHTML = `${SVGIcons.spinner} 生成中...`; DOM.messagesArea.appendChild(loadingDiv); DOM.messagesArea.scrollTop = DOM.messagesArea.scrollHeight;
                 try {
-                    const reply = await callChatApi({ model: DataManager.currentModel, messages: apiMessages, signal: currentAbortController.signal });
-                    conv.messages.push({ role: 'assistant', content: reply.content, reasoning: getAssistantReasoning(DataManager.currentModel, reply), regenerations: [], currentVersion: 0, reasoningCollapsed: false, timestamp: new Date().toISOString() });
+                    const reply = await callChatApi({ model: DataManager.currentModel, messages: apiMessages, signal: currentAbortController.signal, thinkingMode: DataManager.currentThinkingMode });
+                    conv.messages.push({ role: 'assistant', content: reply.content, reasoning: normalizeReplyReasoning(reply), regenerations: [], currentVersion: 0, reasoningCollapsed: false, timestamp: new Date().toISOString() });
                     
                     this.checkConversationLimit();
                     DataManager.saveData(); this.jumpToLastPage(conv.messages.length); this.loadConversationToUI();
@@ -844,8 +853,8 @@
             if (currentAbortController) currentAbortController.abort(); currentAbortController = new AbortController();
             const loadingDiv = document.createElement('div'); loadingDiv.className = 'loading'; loadingDiv.innerHTML = `${SVGIcons.spinner} 生成中...`; DOM.messagesArea.appendChild(loadingDiv); DOM.messagesArea.scrollTop = DOM.messagesArea.scrollHeight;
             try {
-                const reply = await callChatApi({ model: DataManager.currentModel, messages: apiMessages, signal: currentAbortController.signal });
-                conv.messages.push({ role: 'assistant', content: reply.content, reasoning: getAssistantReasoning(DataManager.currentModel, reply), regenerations: [], currentVersion: 0, reasoningCollapsed: false, timestamp: new Date().toISOString() });
+                const reply = await callChatApi({ model: DataManager.currentModel, messages: apiMessages, signal: currentAbortController.signal, thinkingMode: DataManager.currentThinkingMode });
+                conv.messages.push({ role: 'assistant', content: reply.content, reasoning: normalizeReplyReasoning(reply), regenerations: [], currentVersion: 0, reasoningCollapsed: false, timestamp: new Date().toISOString() });
                 
                 UIManager.checkConversationLimit();
                 DataManager.saveData(); UIManager.jumpToLastPage(conv.messages.length); UIManager.loadConversationToUI();
@@ -860,6 +869,7 @@
         DOM.sidebarToggleBtn.addEventListener('click', DataManager.toggleSidebar.bind(DataManager));
         document.addEventListener('click', (e) => { if (DataManager.sidebarOpen && !DOM.roleSidebar.contains(e.target) && !DOM.sidebarToggleBtn.contains(e.target)) DataManager.toggleSidebar(); });
         DOM.modelSelect.addEventListener('change', UIManager.onModelChange.bind(UIManager));
+        DOM.thinkingModeSelect.addEventListener('change', UIManager.onModelChange.bind(UIManager));
         DOM.confirmEditMsgBtn.addEventListener('click', async () => {
             const newContent = DOM.editUserMsgContent.value.trim(); if (!newContent) return;
             const conv = DataManager.getCurrentConversation(); if (!conv || editingUserMessageIndex === null) return;
