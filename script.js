@@ -252,6 +252,22 @@
             return currentMemory;
         }
 
+        function buildContinuationFromSummary(sourceConv, summaryMsg, summaryIndex) {
+            const inheritedMemory = buildInheritedMemoryForNextVolume(sourceConv, summaryMsg).trim();
+            if (!inheritedMemory) return null;
+
+            return {
+                sourceConversationId: sourceConv.id,
+                sourceConversationName: sourceConv.name || '',
+                sourceSummaryIndex: summaryIndex,
+                sourceSummaryTimestamp: summaryMsg.timestamp || new Date().toISOString(),
+                sourceSummaryStartOffset: summaryMsg.startOffset,
+                sourceSummaryEndOffset: summaryMsg.endOffset,
+                inheritedMemory,
+                createdAt: new Date().toISOString()
+            };
+        }
+
         function buildMemoryBlock(rawHistory, conv = null) {
             const inheritedMemory = typeof conv?.continuationFrom?.inheritedMemory === 'string'
                 ? conv.continuationFrom.inheritedMemory.trim()
@@ -997,16 +1013,15 @@
                 const summaryMsg = conv.messages[summaryIndex];
                 if (!summaryMsg || summaryMsg.role !== 'system_summary' || summaryMsg.status !== 'done') return;
 
-                const inheritedMemory = buildInheritedMemoryForNextVolume(conv, summaryMsg).trim();
-                if (!inheritedMemory) {
+                const continuationFrom = buildContinuationFromSummary(conv, summaryMsg, summaryIndex);
+                if (!continuationFrom) {
                     alert('当前存档没有可继承的续写包，无法开启下一卷。');
                     return;
                 }
 
-                const sourceSummaryTimestamp = summaryMsg.timestamp || new Date().toISOString();
                 const existingBranch = role.conversations.some(item =>
                     item?.continuationFrom?.sourceConversationId === conv.id
-                    && item.continuationFrom.sourceSummaryTimestamp === sourceSummaryTimestamp
+                    && item.continuationFrom.sourceSummaryTimestamp === continuationFrom.sourceSummaryTimestamp
                 );
                 if (existingBranch && !confirm('检测到已经从这个存档点开启过下一卷。是否仍然创建新的分支会话？')) {
                     return;
@@ -1016,16 +1031,7 @@
                 const newConv = {
                     id: DataManager.generateId(),
                     name: `${conv.name || '当前会话'} · 下一卷`,
-                    continuationFrom: {
-                        sourceConversationId: conv.id,
-                        sourceConversationName: conv.name || '',
-                        sourceSummaryIndex: summaryIndex,
-                        sourceSummaryTimestamp,
-                        sourceSummaryStartOffset: summaryMsg.startOffset,
-                        sourceSummaryEndOffset: summaryMsg.endOffset,
-                        inheritedMemory,
-                        createdAt: now
-                    },
+                    continuationFrom,
                     messages: [{
                         role: 'assistant',
                         content: '已载入上一卷剧情存档，可以继续剧情。',
@@ -1043,6 +1049,62 @@
                 this.resetPagination();
                 this.renderSidebar();
                 this.loadConversationToUI();
+            },
+            linkExistingConversationFromSummary(summaryIndex) {
+                const role = DataManager.getCurrentRole();
+                const sourceConv = DataManager.getCurrentConversation();
+                if (!role || !sourceConv) return;
+
+                const summaryMsg = sourceConv.messages[summaryIndex];
+                if (!summaryMsg || summaryMsg.role !== 'system_summary' || summaryMsg.status !== 'done') return;
+
+                const continuationFrom = buildContinuationFromSummary(sourceConv, summaryMsg, summaryIndex);
+                if (!continuationFrom) {
+                    alert('当前存档没有可继承的续写包，无法关联到现有会话。');
+                    return;
+                }
+
+                const candidates = role.conversations.filter(c => c.id !== sourceConv.id);
+                if (!candidates.length) {
+                    alert('当前角色下没有可关联的其他会话。');
+                    return;
+                }
+
+                const listText = candidates
+                    .map((c, idx) => `${idx + 1}. ${c.name || '未命名会话'}${c.continuationFrom ? '（已有继承记忆）' : ''}`)
+                    .join('\n');
+                const input = prompt(`请选择要关联到的现有会话，输入序号：\n\n${listText}`);
+                if (!input) return;
+
+                const targetIndex = Number(input.trim()) - 1;
+                const targetConv = candidates[targetIndex];
+                if (!targetConv) {
+                    alert('输入的序号无效。');
+                    return;
+                }
+
+                if (targetConv.continuationFrom) {
+                    const sameSource =
+                        targetConv.continuationFrom.sourceConversationId === sourceConv.id
+                        && targetConv.continuationFrom.sourceSummaryTimestamp === continuationFrom.sourceSummaryTimestamp;
+
+                    if (sameSource) {
+                        alert('该会话已经关联到这个存档点。');
+                        return;
+                    }
+
+                    if (!confirm('目标会话已经有关联的上一卷记忆。是否覆盖为当前存档点？')) {
+                        return;
+                    }
+                }
+
+                targetConv.continuationFrom = continuationFrom;
+                DataManager.saveData();
+                this.renderSidebar();
+                if (DataManager.currentConversationId === targetConv.id) {
+                    this.loadConversationToUI();
+                }
+                alert(`已将「${targetConv.name || '未命名会话'}」关联到当前存档点。该会话后续聊天会自动继承上一卷记忆。`);
             },
             closeModal() { DOM.roleModal.style.display = 'none'; delete DOM.roleModal.dataset.roleId; },
             loadTheme() { const saved = localStorage.getItem('deepseek_theme'); const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches; let isDark = saved ? saved === 'dark' : prefersDark; document.body.classList.toggle('dark', isDark); DOM.themeToggle.innerHTML = isDark ? SVGIcons.sun : SVGIcons.moon; },
@@ -1170,6 +1232,9 @@
                                           <button class="copy-summary-btn next-volume-btn" id="nextVolumeBtn-${globalIdx}" style="flex: 1.2;">
                                               开启下一卷
                                           </button>
+                                          <button class="copy-summary-btn link-conv-btn" id="linkConvBtn-${globalIdx}" style="flex: 1.5;">
+                                              关联到现有会话
+                                          </button>
                                           ${(msg.endOffset !== undefined && msg.endOffset < maxIdx) ? `
                                               <button class="continue-summary-btn" id="continueSummaryBtn-${globalIdx}" style="flex: 1.5; background: var(--badge-bg); color: var(--text-primary); border: none; border-radius: 12px; padding: 12px; cursor: pointer; font-size: 0.85rem; font-weight: 500;">
                                                   从总结点继续总结
@@ -1234,6 +1299,13 @@
                                   if (nextVolumeBtn) {
                                       nextVolumeBtn.addEventListener('click', () => {
                                           this.openNextVolumeFromSummary(globalIdx);
+                                      });
+                                  }
+
+                                  const linkConvBtn = document.getElementById(`linkConvBtn-${globalIdx}`);
+                                  if (linkConvBtn) {
+                                      linkConvBtn.addEventListener('click', () => {
+                                          this.linkExistingConversationFromSummary(globalIdx);
                                       });
                                   }
 
