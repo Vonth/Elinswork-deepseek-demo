@@ -240,25 +240,59 @@
             return msg.title || `历史剧情总结点 ${fallbackIndex + 1}`;
         }
 
-        function buildMemoryBlock(rawHistory) {
+        function buildInheritedMemoryForNextVolume(conv, summaryMsg) {
+            const currentMemory = getSummaryMemoryText(summaryMsg).trim();
+            if (!currentMemory) return '';
+
+            const previousMemory = conv?.continuationFrom?.inheritedMemory?.trim();
+            if (previousMemory) {
+                return `【更早剧情继承】\n${previousMemory}\n\n【上一卷续写包】\n${currentMemory}`;
+            }
+
+            return currentMemory;
+        }
+
+        function buildMemoryBlock(rawHistory, conv = null) {
+            const inheritedMemory = typeof conv?.continuationFrom?.inheritedMemory === 'string'
+                ? conv.continuationFrom.inheritedMemory.trim()
+                : '';
             const doneSummaries = rawHistory
                 .filter(m => m.role === 'system_summary' && m.status === 'done')
                 .filter(m => getSummaryMemoryText(m).trim());
 
-            if (!doneSummaries.length) return '';
+            if (!inheritedMemory && !doneSummaries.length) return '';
 
             const recentSummaries = doneSummaries.slice(-3);
-            const parts = [
-                '【剧情存档 / 前情提要】',
-                '以下内容是已经发生过的剧情事实和角色记忆，不是当前对话。请继承这些内容，但不要主动复述或回应它。'
-            ];
+            const parts = [];
 
-            recentSummaries.forEach((m, idx) => {
-                const globalSummaryIndex = doneSummaries.length - recentSummaries.length + idx;
-                const title = getSummaryTitle(m, globalSummaryIndex);
-                const text = getSummaryMemoryText(m).trim();
-                parts.push(`【${title}】\n${text}`);
-            });
+            if (inheritedMemory) {
+                parts.push(
+                    '【上一卷继承记忆】',
+                    '以下内容来自上一卷的模型续写包，是当前会话必须继承的剧情事实、角色状态、关系进展和当前接续点。请继承这些内容，但不要主动复述。',
+                    inheritedMemory
+                );
+            }
+
+            if (recentSummaries.length) {
+                if (inheritedMemory) {
+                    parts.push(
+                        '【当前会话内剧情存档】',
+                        '以下内容是当前会话内已经完成的剧情存档，请一并继承。'
+                    );
+                } else {
+                    parts.push(
+                        '【剧情存档 / 前情提要】',
+                        '以下内容是已经发生过的剧情事实和角色记忆，不是当前对话。请继承这些内容，但不要主动复述或回应它。'
+                    );
+                }
+
+                recentSummaries.forEach((m, idx) => {
+                    const globalSummaryIndex = doneSummaries.length - recentSummaries.length + idx;
+                    const title = getSummaryTitle(m, globalSummaryIndex);
+                    const text = getSummaryMemoryText(m).trim();
+                    parts.push(`【${title}】\n${text}`);
+                });
+            }
 
             return parts.join('\n\n');
         }
@@ -458,21 +492,48 @@
             return text.length > 800 ? `${text.slice(0, 800)}...` : text;
         }
 
+        function normalizeContinuationFrom(value) {
+            if (!value || typeof value !== 'object') return undefined;
+            const inheritedMemory = typeof value.inheritedMemory === 'string' ? value.inheritedMemory.trim() : '';
+            if (!inheritedMemory) return undefined;
+
+            const normalized = {
+                sourceConversationId: typeof value.sourceConversationId === 'string' ? value.sourceConversationId : '',
+                sourceConversationName: typeof value.sourceConversationName === 'string' ? value.sourceConversationName : '',
+                sourceSummaryIndex: Number.isInteger(value.sourceSummaryIndex) ? value.sourceSummaryIndex : null,
+                sourceSummaryTimestamp: typeof value.sourceSummaryTimestamp === 'string' ? value.sourceSummaryTimestamp : '',
+                inheritedMemory,
+                createdAt: typeof value.createdAt === 'string' ? value.createdAt : new Date().toISOString()
+            };
+
+            if (Number.isInteger(value.sourceSummaryStartOffset)) normalized.sourceSummaryStartOffset = value.sourceSummaryStartOffset;
+            if (Number.isInteger(value.sourceSummaryEndOffset)) normalized.sourceSummaryEndOffset = value.sourceSummaryEndOffset;
+
+            return normalized;
+        }
+
         function normalizeImportedRoles(data) {
             if (!data || !Array.isArray(data.roles)) return [];
 
             return data.roles
                 .filter(role => role && typeof role === 'object')
                 .map(role => {
+                    const conversations = Array.isArray(role.conversations) ? role.conversations.map(conv => {
+                        const normalizedConv = {
+                            id: conv?.id || DataManager.generateId(),
+                            name: typeof conv?.name === 'string' && conv.name.trim() ? conv.name.trim() : '新对话',
+                            messages: Array.isArray(conv?.messages) ? conv.messages.map(normalizeImportedMessage).filter(Boolean) : []
+                        };
+                        const continuationFrom = normalizeContinuationFrom(conv?.continuationFrom);
+                        if (continuationFrom) normalizedConv.continuationFrom = continuationFrom;
+                        return normalizedConv;
+                    }) : [];
+
                     const normalizedRole = {
                         id: role.id || DataManager.generateId(),
                         name: typeof role.name === 'string' && role.name.trim() ? role.name.trim() : '未命名角色',
                         systemPrompt: typeof role.systemPrompt === 'string' && role.systemPrompt.trim() ? role.systemPrompt.trim() : '你是一个乐于助人的AI助手。',
-                        conversations: Array.isArray(role.conversations) ? role.conversations.map(conv => ({
-                            id: conv?.id || DataManager.generateId(),
-                            name: typeof conv?.name === 'string' && conv.name.trim() ? conv.name.trim() : '新对话',
-                            messages: Array.isArray(conv?.messages) ? conv.messages.map(normalizeImportedMessage).filter(Boolean) : []
-                        })) : []
+                        conversations
                     };
                     if (normalizedRole.conversations.length === 0) {
                         normalizedRole.conversations.push({ id: DataManager.generateId(), name: '新对话', messages: [] });
@@ -640,7 +701,7 @@
             // 【核心防 400 机制】：智能提取有效上下文，动态截断长对话
             getSafeApiMessages(conv, role, userIndex = null) {
                 const rawHistory = userIndex !== null ? conv.messages.slice(0, userIndex + 1) : conv.messages;
-                const memoryBlock = buildMemoryBlock(rawHistory);
+                const memoryBlock = buildMemoryBlock(rawHistory, conv);
                 
                 let apiMsgs = [];
                 // 1. 从所有记录中提取真实对话；已完成的存档点进入 system memoryBlock，不参与历史裁剪
@@ -928,6 +989,61 @@
             deleteRole(roleId) { if (confirm('确定要删除这个角色吗？')) { const index = DataManager.roles.findIndex(r => r.id === roleId); if (index !== -1) { DataManager.roles.splice(index, 1); if (DataManager.currentRoleId === roleId) { DataManager.currentRoleId = DataManager.roles.length ? DataManager.roles[0].id : null; DataManager.currentConversationId = DataManager.currentRoleId ? DataManager.roles[0].conversations[0]?.id : null; } DataManager.saveData(); this.resetPagination(); this.renderSidebar(); this.loadConversationToUI(); } } },
             deleteConversation(roleId, convId) { if (confirm('确定要删除这个对话吗？')) { const role = DataManager.roles.find(r => r.id === roleId); if (role) { const index = role.conversations.findIndex(c => c.id === convId); if (index !== -1) { role.conversations.splice(index, 1); if (DataManager.currentRoleId === roleId && DataManager.currentConversationId === convId) { DataManager.currentConversationId = role.conversations.length ? role.conversations[0].id : null; } DataManager.saveData(); this.resetPagination(); this.renderSidebar(); this.loadConversationToUI(); } } } },
             saveRole() { const name = DOM.roleNameInput.value.trim(); const prompt = DOM.rolePromptInput.value.trim(); if (!name || !prompt) { return; } const roleId = DOM.roleModal.dataset.roleId; if (roleId) { const role = DataManager.roles.find(r => r.id === roleId); if (role) { role.name = name; role.systemPrompt = prompt; } } else { const newId = DataManager.generateId(); DataManager.roles.push({ id: newId, name, systemPrompt: prompt, conversations: [] }); DataManager.ensureDefaultRoles(); } DataManager.saveData(); if (!DataManager.currentRoleId && DataManager.roles.length) DataManager.currentRoleId = DataManager.roles[0].id; this.renderSidebar(); if (DataManager.currentRoleId) this.loadConversationToUI(); this.closeModal(); },
+            openNextVolumeFromSummary(summaryIndex) {
+                const role = DataManager.getCurrentRole();
+                const conv = DataManager.getCurrentConversation();
+                if (!role || !conv) return;
+
+                const summaryMsg = conv.messages[summaryIndex];
+                if (!summaryMsg || summaryMsg.role !== 'system_summary' || summaryMsg.status !== 'done') return;
+
+                const inheritedMemory = buildInheritedMemoryForNextVolume(conv, summaryMsg).trim();
+                if (!inheritedMemory) {
+                    alert('当前存档没有可继承的续写包，无法开启下一卷。');
+                    return;
+                }
+
+                const sourceSummaryTimestamp = summaryMsg.timestamp || new Date().toISOString();
+                const existingBranch = role.conversations.some(item =>
+                    item?.continuationFrom?.sourceConversationId === conv.id
+                    && item.continuationFrom.sourceSummaryTimestamp === sourceSummaryTimestamp
+                );
+                if (existingBranch && !confirm('检测到已经从这个存档点开启过下一卷。是否仍然创建新的分支会话？')) {
+                    return;
+                }
+
+                const now = new Date().toISOString();
+                const newConv = {
+                    id: DataManager.generateId(),
+                    name: `${conv.name || '当前会话'} · 下一卷`,
+                    continuationFrom: {
+                        sourceConversationId: conv.id,
+                        sourceConversationName: conv.name || '',
+                        sourceSummaryIndex: summaryIndex,
+                        sourceSummaryTimestamp,
+                        sourceSummaryStartOffset: summaryMsg.startOffset,
+                        sourceSummaryEndOffset: summaryMsg.endOffset,
+                        inheritedMemory,
+                        createdAt: now
+                    },
+                    messages: [{
+                        role: 'assistant',
+                        content: '已载入上一卷剧情存档，可以继续剧情。',
+                        reasoning: null,
+                        regenerations: [],
+                        currentVersion: 0,
+                        reasoningCollapsed: false,
+                        timestamp: now
+                    }]
+                };
+
+                role.conversations.push(newConv);
+                DataManager.currentConversationId = newConv.id;
+                DataManager.saveData();
+                this.resetPagination();
+                this.renderSidebar();
+                this.loadConversationToUI();
+            },
             closeModal() { DOM.roleModal.style.display = 'none'; delete DOM.roleModal.dataset.roleId; },
             loadTheme() { const saved = localStorage.getItem('deepseek_theme'); const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches; let isDark = saved ? saved === 'dark' : prefersDark; document.body.classList.toggle('dark', isDark); DOM.themeToggle.innerHTML = isDark ? SVGIcons.sun : SVGIcons.moon; },
             toggleTheme() { const isDark = document.body.classList.contains('dark'); const newIsDark = !isDark; document.body.classList.toggle('dark', newIsDark); localStorage.setItem('deepseek_theme', newIsDark ? 'dark' : 'light'); DOM.themeToggle.innerHTML = newIsDark ? SVGIcons.sun : SVGIcons.moon; UIManager.updateDefaultBgItemStyle(); },
@@ -1048,13 +1164,16 @@
                                          <button class="copy-summary-btn" id="copySummaryBtn-${globalIdx}" style="flex: 2;">
                                              ${SVGIcons.copy} 一键复制内容
                                          </button>
-                                         <button class="regenerate-summary-btn" id="regenerateSummaryBtn-${globalIdx}" style="flex: 1.2;">
-                                             ${SVGIcons.regenerate} 重新生成
-                                         </button>
-                                         ${(msg.endOffset !== undefined && msg.endOffset < maxIdx) ? `
-                                             <button class="continue-summary-btn" id="continueSummaryBtn-${globalIdx}" style="flex: 1.5; background: var(--badge-bg); color: var(--text-primary); border: none; border-radius: 12px; padding: 12px; cursor: pointer; font-size: 0.85rem; font-weight: 500;">
-                                                 从总结点继续总结
-                                             </button>
+                                          <button class="regenerate-summary-btn" id="regenerateSummaryBtn-${globalIdx}" style="flex: 1.2;">
+                                              ${SVGIcons.regenerate} 重新生成
+                                          </button>
+                                          <button class="copy-summary-btn next-volume-btn" id="nextVolumeBtn-${globalIdx}" style="flex: 1.2;">
+                                              开启下一卷
+                                          </button>
+                                          ${(msg.endOffset !== undefined && msg.endOffset < maxIdx) ? `
+                                              <button class="continue-summary-btn" id="continueSummaryBtn-${globalIdx}" style="flex: 1.5; background: var(--badge-bg); color: var(--text-primary); border: none; border-radius: 12px; padding: 12px; cursor: pointer; font-size: 0.85rem; font-weight: 500;">
+                                                  从总结点继续总结
+                                              </button>
                                          ` : ''}
                                     </div>
                                 `}
@@ -1102,18 +1221,25 @@
                                     });
                                  }
 
-                                 const regenerateBtn = document.getElementById(`regenerateSummaryBtn-${globalIdx}`);
-                                 if (regenerateBtn) {
-                                     regenerateBtn.addEventListener('click', () => {
-                                         if (msg.startOffset === undefined || msg.endOffset === undefined) return;
-                                         if (!confirm('重新生成会覆盖当前剧情总结，是否继续？')) return;
-                                         this.generateStorySummary(globalIdx, msg.startOffset, msg.endOffset);
-                                     });
-                                 }
+                                  const regenerateBtn = document.getElementById(`regenerateSummaryBtn-${globalIdx}`);
+                                  if (regenerateBtn) {
+                                      regenerateBtn.addEventListener('click', () => {
+                                          if (msg.startOffset === undefined || msg.endOffset === undefined) return;
+                                          if (!confirm('重新生成会覆盖当前剧情总结，是否继续？')) return;
+                                          this.generateStorySummary(globalIdx, msg.startOffset, msg.endOffset);
+                                      });
+                                  }
 
-                                 const continueBtn = document.getElementById(`continueSummaryBtn-${globalIdx}`);
-                                 if (continueBtn) {
-                                     continueBtn.addEventListener('click', () => {
+                                  const nextVolumeBtn = document.getElementById(`nextVolumeBtn-${globalIdx}`);
+                                  if (nextVolumeBtn) {
+                                      nextVolumeBtn.addEventListener('click', () => {
+                                          this.openNextVolumeFromSummary(globalIdx);
+                                      });
+                                  }
+
+                                  const continueBtn = document.getElementById(`continueSummaryBtn-${globalIdx}`);
+                                  if (continueBtn) {
+                                      continueBtn.addEventListener('click', () => {
                                         const conv = DataManager.getCurrentConversation();
                                         if (!conv) return;
                                         
