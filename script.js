@@ -9,7 +9,7 @@
             SUMMARY_SINGLE_PASS_CHARS: 30000,
             SUMMARY_SEGMENT_CHARS: 15000,
             SUMMARY_SEGMENT_MAX_TOKENS: 3000,
-            SUMMARY_FINAL_MAX_TOKENS: 4096,
+            SUMMARY_FINAL_MAX_TOKENS: 6000,
             SUMMARY_SEGMENT_MODEL: 'deepseek-v4-pro',
             SUMMARY_SEGMENT_THINKING_MODE: 'fast',
             SUMMARY_FINAL_MODEL: 'deepseek-v4-pro',
