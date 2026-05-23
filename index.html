@@ -76,7 +76,30 @@
     </div>
 </div>
 
-<div id="roleModal" class="modal"><div class="modal-content"><h3 id="modalTitle">编辑角色</h3><input type="text" id="roleName" placeholder="角色名称"><textarea id="rolePrompt" placeholder="系统提示词（人设）..."></textarea><div class="modal-buttons"><button id="cancelModalBtn">取消</button><button id="saveRoleBtn">保存</button></div></div></div>
+<div id="roleModal" class="modal"><div class="modal-content role-modal-content"><h3 id="modalTitle">编辑角色</h3>
+    <input type="text" id="roleName" placeholder="角色名称">
+    <div class="role-mode-toggle">
+        <button type="button" id="modeStructuredBtn" class="role-mode-btn active">结构化</button>
+        <button type="button" id="modeRawBtn" class="role-mode-btn">自由文本</button>
+    </div>
+    <div id="roleFields" class="role-fields">
+        <label class="field-label">身份背景<span>角色是谁、年龄、身份、外貌关键点</span></label>
+        <textarea id="fieldIdentity" class="role-field" rows="3" placeholder="例：林深，28岁，外表清冷的画廊主理人……"></textarea>
+        <label class="field-label">性格内核<span>性格、价值观、情绪倾向、底层欲望</span></label>
+        <textarea id="fieldPersonality" class="role-field" rows="3" placeholder="例：表面克制疏离，内里固执且占有欲强……"></textarea>
+        <label class="field-label">说话方式<span>语气、口头禅、称呼习惯、表达风格</span></label>
+        <textarea id="fieldSpeech" class="role-field" rows="3" placeholder="例：话少、句子短，称呼你为「你」，很少用语气词……"></textarea>
+        <label class="field-label">用户角色设定<span>「我」在剧情里是谁、身份、与角色的初始距离（选填）</span></label>
+        <textarea id="fieldUserPersona" class="role-field" rows="3" placeholder="例：我是新来的策展助理，今天第一天上班，还不认识你……"></textarea>
+        <label class="field-label">与「我」的关系<span>和你的关系、对你的态度、隐藏动机</span></label>
+        <textarea id="fieldRelationship" class="role-field" rows="3" placeholder="例：是你的旧识，重逢后表面平静，实则一直没放下……"></textarea>
+        <label class="field-label">开场场景 / 世界观<span>选填：故事发生的背景设定</span></label>
+        <textarea id="fieldScene" class="role-field" rows="3" placeholder="例：雨夜的画廊打烊后，只剩你们两人……"></textarea>
+        <label class="field-label">绝不破戒<span>硬性约束：不会做的事、不出戏、不替你做决定</span></label>
+        <textarea id="fieldTaboo" class="role-field" rows="3" placeholder="例：不跳出角色解释设定；不替我（用户角色）说话或做决定；保持人设一致……"></textarea>
+    </div>
+    <textarea id="rolePrompt" placeholder="系统提示词（人设）..." style="display:none;"></textarea>
+    <div class="modal-buttons"><button id="cancelModalBtn">取消</button><button id="saveRoleBtn">保存</button></div></div></div>
 <div id="renameConvModal" class="modal"><div class="modal-content"><h3>重命名会话</h3><input type="text" id="newConvName" placeholder="新名称"><div class="modal-buttons"><button id="cancelRenameBtn">取消</button><button id="confirmRenameBtn">确定</button></div></div></div>
 <div id="editUserMsgModal" class="modal edit-user-modal">
     <div class="modal-content">

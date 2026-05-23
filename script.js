@@ -551,6 +551,7 @@
                         systemPrompt: typeof role.systemPrompt === 'string' && role.systemPrompt.trim() ? role.systemPrompt.trim() : '你是一个乐于助人的AI助手。',
                         conversations
                     };
+                    if (role.fields && typeof role.fields === 'object') normalizedRole.fields = role.fields;
                     if (normalizedRole.conversations.length === 0) {
                         normalizedRole.conversations.push({ id: DataManager.generateId(), name: '新对话', messages: [] });
                     }
@@ -684,6 +685,10 @@
             roleListDiv: document.getElementById('roleList'), addRoleBtn: document.getElementById('addRoleBtn'),
             roleModal: document.getElementById('roleModal'), modalTitle: document.getElementById('modalTitle'), roleNameInput: document.getElementById('roleName'),
             rolePromptInput: document.getElementById('rolePrompt'), saveRoleBtn: document.getElementById('saveRoleBtn'), cancelModalBtn: document.getElementById('cancelModalBtn'),
+            roleFields: document.getElementById('roleFields'), modeStructuredBtn: document.getElementById('modeStructuredBtn'), modeRawBtn: document.getElementById('modeRawBtn'),
+            fieldIdentity: document.getElementById('fieldIdentity'), fieldPersonality: document.getElementById('fieldPersonality'), fieldSpeech: document.getElementById('fieldSpeech'),
+            fieldRelationship: document.getElementById('fieldRelationship'), fieldScene: document.getElementById('fieldScene'), fieldTaboo: document.getElementById('fieldTaboo'),
+            fieldUserPersona: document.getElementById('fieldUserPersona'),
             modelSelect: document.getElementById('modelSelect'), thinkingModeSelect: document.getElementById('thinkingModeSelect'), themeToggle: document.getElementById('themeToggle'), renameConvModal: document.getElementById('renameConvModal'),
             newConvNameInput: document.getElementById('newConvName'), confirmRenameBtn: document.getElementById('confirmRenameBtn'), cancelRenameBtn: document.getElementById('cancelRenameBtn'),
             roleSidebar: document.getElementById('roleSidebar'), sidebarToggleBtn: document.getElementById('sidebarToggleBtn'), editUserMsgModal: document.getElementById('editUserMsgModal'),
@@ -697,7 +702,31 @@
         let editingUserMessageIndex = null;
         let currentActiveBgId = localStorage.getItem('deepseek_current_bg_id') || 'default';
 
+        // 结构化角色卡字段定义（顺序即编译进系统提示词的顺序）
+        const ROLE_FIELD_DEFS = [
+            { key: 'identity',     label: '身份背景' },
+            { key: 'personality',  label: '性格内核' },
+            { key: 'speech',       label: '说话方式' },
+            { key: 'userPersona',  label: '用户扮演的角色（即「我」）' },
+            { key: 'relationship', label: '与用户角色的关系' },
+            { key: 'scene',        label: '开场场景与世界观' },
+            { key: 'taboo',        label: '硬性约束（绝不破戒）' },
+        ];
+
+        // 把结构化字段编译成最终发给模型的 system prompt；空字段自动跳过
+        function compileRolePrompt(name, fields) {
+            fields = fields || {};
+            const parts = [];
+            if (name) parts.push(`你将沉浸扮演「${name}」。请始终保持该角色的第一人称视角，用动作、对话、心理活动推进剧情，不要跳出角色解释设定。`);
+            for (const def of ROLE_FIELD_DEFS) {
+                const v = (fields[def.key] || '').trim();
+                if (v) parts.push(`## ${def.label}\n${v}`);
+            }
+            return parts.join('\n\n');
+        }
+
         const UIManager = {
+            _roleEditMode: 'structured',
             resetPagination() { Pagination.currentPage = 1; },
             adjustPaginationAfterDelete(totalMessages) { const totalPages = Math.ceil(totalMessages / Config.PAGE_SIZE); if (Pagination.currentPage > totalPages && totalPages > 0) Pagination.currentPage = totalPages; else if (totalPages === 0) Pagination.currentPage = 1; },
             jumpToLastPage(totalMessages) { const totalPages = Math.ceil(totalMessages / Config.PAGE_SIZE); Pagination.currentPage = totalPages > 0 ? totalPages : 1; },
@@ -995,16 +1024,107 @@
             switchRole(roleId) { if (DataManager.currentRoleId === roleId) return; DataManager.currentRoleId = roleId; DataManager.currentConversationId = DataManager.getCurrentRole()?.conversations[0]?.id || null; DataManager.saveData(); this.resetPagination(); this.renderSidebar(); this.loadConversationToUI(); const curRole = DataManager.getCurrentRole(); document.getElementById('headerRoleName').textContent = curRole ? curRole.name : 'DeepSeek'; },
             switchConversation(roleId, convId) { if (DataManager.currentRoleId !== roleId) DataManager.currentRoleId = roleId; DataManager.currentConversationId = convId; DataManager.saveData(); this.resetPagination(); this.renderSidebar(); this.loadConversationToUI(); },
             addConversation(roleId) { const role = DataManager.roles.find(r => r.id === roleId); if (role) { const newConv = { id: DataManager.generateId(), name: '新对话', messages: [{ role: 'assistant', content: `你好！我是${role.name}，开始对话吧～`, reasoning: null, regenerations: [], currentVersion: 0, reasoningCollapsed: false, timestamp: new Date().toISOString() }] }; role.conversations.push(newConv); DataManager.currentRoleId = roleId; DataManager.currentConversationId = newConv.id; DataManager.saveData(); this.resetPagination(); this.renderSidebar(); this.loadConversationToUI(); } },
+            // 读取结构化字段输入框 → fields 对象
+            getRoleFieldInputs() {
+                return {
+                    identity: DOM.fieldIdentity.value.trim(),
+                    personality: DOM.fieldPersonality.value.trim(),
+                    speech: DOM.fieldSpeech.value.trim(),
+                    userPersona: DOM.fieldUserPersona.value.trim(),
+                    relationship: DOM.fieldRelationship.value.trim(),
+                    scene: DOM.fieldScene.value.trim(),
+                    taboo: DOM.fieldTaboo.value.trim(),
+                };
+            },
+            // fields 对象 → 填充输入框
+            fillRoleFieldInputs(fields) {
+                fields = fields || {};
+                DOM.fieldIdentity.value = fields.identity || '';
+                DOM.fieldPersonality.value = fields.personality || '';
+                DOM.fieldSpeech.value = fields.speech || '';
+                DOM.fieldUserPersona.value = fields.userPersona || '';
+                DOM.fieldRelationship.value = fields.relationship || '';
+                DOM.fieldScene.value = fields.scene || '';
+                DOM.fieldTaboo.value = fields.taboo || '';
+            },
+            // 切换「结构化 / 自由文本」编辑模式
+            setRoleEditMode(mode) {
+                // 从结构化切到自由文本时，把当前字段编译出来填进文本框，方便预览/微调
+                if (mode === 'raw' && this._roleEditMode === 'structured') {
+                    const compiled = compileRolePrompt(DOM.roleNameInput.value.trim(), this.getRoleFieldInputs());
+                    if (compiled) DOM.rolePromptInput.value = compiled;
+                }
+                this._roleEditMode = mode;
+                const structured = mode === 'structured';
+                DOM.roleFields.style.display = structured ? 'block' : 'none';
+                DOM.rolePromptInput.style.display = structured ? 'none' : 'block';
+                DOM.modeStructuredBtn.classList.toggle('active', structured);
+                DOM.modeRawBtn.classList.toggle('active', !structured);
+            },
             openEditRoleModal(roleId) {
-                if (roleId === null) { DOM.modalTitle.textContent = '新建角色'; DOM.roleNameInput.value = ''; DOM.rolePromptInput.value = ''; delete DOM.roleModal.dataset.roleId; DOM.roleModal.style.display = 'flex'; return; }
+                if (roleId === null) {
+                    DOM.modalTitle.textContent = '新建角色';
+                    DOM.roleNameInput.value = '';
+                    DOM.rolePromptInput.value = '';
+                    this.fillRoleFieldInputs({});
+                    this.setRoleEditMode('structured');
+                    delete DOM.roleModal.dataset.roleId;
+                    DOM.roleModal.style.display = 'flex';
+                    return;
+                }
                 const role = DataManager.roles.find(r => r.id === roleId);
-                if (role) { DOM.modalTitle.textContent = '编辑角色'; DOM.roleNameInput.value = role.name; DOM.rolePromptInput.value = role.systemPrompt; DOM.roleModal.dataset.roleId = roleId; DOM.roleModal.style.display = 'flex'; }
+                if (!role) return;
+                DOM.modalTitle.textContent = '编辑角色';
+                DOM.roleNameInput.value = role.name;
+                DOM.rolePromptInput.value = role.systemPrompt || '';
+                if (role.fields) {
+                    // 结构化角色：填字段，进结构化模式
+                    this.fillRoleFieldInputs(role.fields);
+                    this.setRoleEditMode('structured');
+                } else {
+                    // 老角色（纯文本）：进自由文本模式，避免丢失原有人设
+                    this.fillRoleFieldInputs({});
+                    this.setRoleEditMode('raw');
+                }
+                DOM.roleModal.dataset.roleId = roleId;
+                DOM.roleModal.style.display = 'flex';
             },
             openRenameModal(roleId, convId) { const role = DataManager.roles.find(r => r.id === roleId); const conv = role?.conversations.find(c => c.id === convId); if (conv) { DOM.newConvNameInput.value = conv.name; DOM.renameConvModal.dataset.roleId = roleId; DOM.renameConvModal.dataset.convId = convId; DOM.renameConvModal.style.display = 'flex'; } },
             renameConversation() { const roleId = DOM.renameConvModal.dataset.roleId; const convId = DOM.renameConvModal.dataset.convId; const newName = DOM.newConvNameInput.value.trim(); if (!newName) return; const role = DataManager.roles.find(r => r.id === roleId); if (role) { const conv = role.conversations.find(c => c.id === convId); if (conv) { conv.name = newName; DataManager.saveData(); this.renderSidebar(); } } DOM.renameConvModal.style.display = 'none'; },
             deleteRole(roleId) { if (confirm('确定要删除这个角色吗？')) { const index = DataManager.roles.findIndex(r => r.id === roleId); if (index !== -1) { DataManager.roles.splice(index, 1); if (DataManager.currentRoleId === roleId) { DataManager.currentRoleId = DataManager.roles.length ? DataManager.roles[0].id : null; DataManager.currentConversationId = DataManager.currentRoleId ? DataManager.roles[0].conversations[0]?.id : null; } DataManager.saveData(); this.resetPagination(); this.renderSidebar(); this.loadConversationToUI(); } } },
             deleteConversation(roleId, convId) { if (confirm('确定要删除这个对话吗？')) { const role = DataManager.roles.find(r => r.id === roleId); if (role) { const index = role.conversations.findIndex(c => c.id === convId); if (index !== -1) { role.conversations.splice(index, 1); if (DataManager.currentRoleId === roleId && DataManager.currentConversationId === convId) { DataManager.currentConversationId = role.conversations.length ? role.conversations[0].id : null; } DataManager.saveData(); this.resetPagination(); this.renderSidebar(); this.loadConversationToUI(); } } } },
-            saveRole() { const name = DOM.roleNameInput.value.trim(); const prompt = DOM.rolePromptInput.value.trim(); if (!name || !prompt) { return; } const roleId = DOM.roleModal.dataset.roleId; if (roleId) { const role = DataManager.roles.find(r => r.id === roleId); if (role) { role.name = name; role.systemPrompt = prompt; } } else { const newId = DataManager.generateId(); DataManager.roles.push({ id: newId, name, systemPrompt: prompt, conversations: [] }); DataManager.ensureDefaultRoles(); } DataManager.saveData(); if (!DataManager.currentRoleId && DataManager.roles.length) DataManager.currentRoleId = DataManager.roles[0].id; this.renderSidebar(); if (DataManager.currentRoleId) this.loadConversationToUI(); this.closeModal(); },
+            saveRole() {
+                const name = DOM.roleNameInput.value.trim();
+                let systemPrompt, fields;
+                if (this._roleEditMode === 'structured') {
+                    fields = this.getRoleFieldInputs();
+                    systemPrompt = compileRolePrompt(name, fields);
+                } else {
+                    systemPrompt = DOM.rolePromptInput.value.trim();
+                    fields = null; // 自由文本模式不保留结构化字段
+                }
+                if (!name || !systemPrompt) { return; }
+                const roleId = DOM.roleModal.dataset.roleId;
+                if (roleId) {
+                    const role = DataManager.roles.find(r => r.id === roleId);
+                    if (role) {
+                        role.name = name;
+                        role.systemPrompt = systemPrompt;
+                        if (fields) role.fields = fields; else delete role.fields;
+                    }
+                } else {
+                    const newId = DataManager.generateId();
+                    const newRole = { id: newId, name, systemPrompt, conversations: [] };
+                    if (fields) newRole.fields = fields;
+                    DataManager.roles.push(newRole);
+                    DataManager.ensureDefaultRoles();
+                }
+                DataManager.saveData();
+                if (!DataManager.currentRoleId && DataManager.roles.length) DataManager.currentRoleId = DataManager.roles[0].id;
+                this.renderSidebar();
+                if (DataManager.currentRoleId) this.loadConversationToUI();
+                this.closeModal();
+            },
             openNextVolumeFromSummary(summaryIndex) {
                 const role = DataManager.getCurrentRole();
                 const conv = DataManager.getCurrentConversation();
@@ -1411,6 +1531,8 @@
         DOM.messageInput.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); DOM.sendBtn.click(); } });
         DOM.messageInput.addEventListener('input', UIManager.adjustTextareaHeight);
         DOM.addRoleBtn.addEventListener('click', () => UIManager.openEditRoleModal(null)); DOM.saveRoleBtn.addEventListener('click', UIManager.saveRole.bind(UIManager));
+        DOM.modeStructuredBtn.addEventListener('click', () => UIManager.setRoleEditMode('structured'));
+        DOM.modeRawBtn.addEventListener('click', () => UIManager.setRoleEditMode('raw'));
         DOM.cancelModalBtn.addEventListener('click', UIManager.closeModal.bind(UIManager)); DOM.confirmRenameBtn.addEventListener('click', UIManager.renameConversation.bind(UIManager));
         DOM.cancelRenameBtn.addEventListener('click', () => DOM.renameConvModal.style.display = 'none'); DOM.themeToggle.addEventListener('click', UIManager.toggleTheme.bind(UIManager));
         DOM.sidebarToggleBtn.addEventListener('click', DataManager.toggleSidebar.bind(DataManager));
