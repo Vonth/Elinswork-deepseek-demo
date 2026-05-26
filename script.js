@@ -551,7 +551,6 @@
                         systemPrompt: typeof role.systemPrompt === 'string' && role.systemPrompt.trim() ? role.systemPrompt.trim() : '你是一个乐于助人的AI助手。',
                         conversations
                     };
-                    if (role.fields && typeof role.fields === 'object') normalizedRole.fields = role.fields;
                     if (normalizedRole.conversations.length === 0) {
                         normalizedRole.conversations.push({ id: DataManager.generateId(), name: '新对话', messages: [] });
                     }
@@ -610,123 +609,73 @@
             return normalized;
         }
 
-        const DataManager = {
-            roles: [], currentRoleId: null, currentConversationId: null, currentModel: 'deepseek-v4-pro', currentThinkingMode: 'thinking', sidebarOpen: false,
-            normalizeModelSettings(model, thinkingMode) {
-                const normalizedMode = thinkingMode === 'fast' || thinkingMode === 'thinking' ? thinkingMode : null;
-                if (model === 'deepseek-chat') return { currentModel: 'deepseek-v4-flash', currentThinkingMode: 'fast' };
-                if (model === 'deepseek-reasoner') return { currentModel: 'deepseek-v4-flash', currentThinkingMode: 'thinking' };
-                if (model === 'deepseek-v4-flash' || model === 'v4flash') return { currentModel: 'deepseek-v4-flash', currentThinkingMode: normalizedMode || 'fast' };
-                if (model === 'deepseek-v4-pro' || model === 'v4pro') return { currentModel: 'deepseek-v4-pro', currentThinkingMode: normalizedMode || 'thinking' };
-                return { currentModel: 'deepseek-v4-pro', currentThinkingMode: 'thinking' };
-            },
-            generateId() { return crypto.randomUUID ? crypto.randomUUID() : Date.now() + '-' + Math.random(); },
-            defaultRole: { id: 'default_role', name: '新角色', systemPrompt: '你是一个乐于助人的AI助手。', conversations: [] },
-            ensureDefaultRoles() {
-                if (!this.roles || this.roles.length === 0) this.roles = [JSON.parse(JSON.stringify(this.defaultRole))];
-                for (let role of this.roles) {
-                    if (!role.conversations || role.conversations.length === 0) role.conversations = [{ id: this.generateId(), name: '新对话', messages: [] }];
-                    for (let conv of role.conversations) {
-                        if (!conv.messages) conv.messages = [];
-                        if (conv.messages.length === 0) conv.messages.push({ role: 'assistant', content: `你好！我是${role.name}，开始对话吧～`, reasoning: null, regenerations: [], currentVersion: 0, reasoningCollapsed: false, timestamp: new Date().toISOString() });
-                        for (let msg of conv.messages) {
-                            if (msg.role === 'assistant') {
-                                if (!msg.regenerations) msg.regenerations = [];
-                                if (msg.currentVersion === undefined) msg.currentVersion = 0;
-                                if (msg.reasoningCollapsed === undefined) msg.reasoningCollapsed = false;
-                            }
-                            if (!msg.timestamp) msg.timestamp = new Date().toISOString();
-                        }
-                    }
-                }
-                this.saveData();
-            },
-            saveData() {
-                const data = { roles: this.roles, currentRoleId: this.currentRoleId, currentConversationId: this.currentConversationId, currentModel: this.currentModel, currentThinkingMode: this.currentThinkingMode };
-                // 优先写 IndexedDB，同时保持 localStorage 的轻量备份（只存 ID 和模型，不存消息）
-                DBManager.saveAppData(data).catch(() => {
-                    // IndexedDB 失败时降级写 localStorage（可能超限，仅作最后保障）
-                    try { localStorage.setItem('deepseek_app_data', JSON.stringify(data)); } catch(e) {}
-                });
-                // localStorage 只存轻量索引，不存消息内容
-                try { localStorage.setItem('deepseek_app_index', JSON.stringify({ currentRoleId: this.currentRoleId, currentConversationId: this.currentConversationId, currentModel: this.currentModel, currentThinkingMode: this.currentThinkingMode })); } catch(e) {}
-            },
-            async loadData() {
-                let data = null;
-                try { data = await DBManager.loadAppData(); } catch(e) {}
-                // 若 IndexedDB 没有数据，尝试从 localStorage 迁移
-                if (!data) {
-                    const saved = localStorage.getItem('deepseek_app_data');
-                    if (saved) { try { data = JSON.parse(saved); } catch(e) {} }
-                }
-                if (data) {
-                    this.roles = data.roles || [];
-                    this.currentRoleId = data.currentRoleId || null;
-                    this.currentConversationId = data.currentConversationId || null;
-                    const settings = this.normalizeModelSettings(data.currentModel, data.currentThinkingMode);
-                    this.currentModel = settings.currentModel;
-                    this.currentThinkingMode = settings.currentThinkingMode;
-                }
-                document.getElementById('modelSelect').value = this.currentModel;
-                document.getElementById('thinkingModeSelect').value = this.currentThinkingMode;
-                this.ensureDefaultRoles();
-                if (!this.roles.find(r => r.id === this.currentRoleId) && this.roles.length) this.currentRoleId = this.roles[0].id;
-                if (this.currentRoleId) { const role = this.getCurrentRole(); if (role && (!this.currentConversationId || !role.conversations.find(c => c.id === this.currentConversationId))) this.currentConversationId = role.conversations[0]?.id || null; }
-                this.saveData();
-            },
-            getCurrentRole() { return this.roles.find(r => r.id === this.currentRoleId); },
-            getCurrentConversation() { const role = this.getCurrentRole(); return role ? role.conversations.find(c => c.id === this.currentConversationId) : null; },
-            loadSidebarState() { const saved = localStorage.getItem('sidebar_open'); if (saved === 'true') { this.sidebarOpen = true; roleSidebar.classList.add('open'); } else { this.sidebarOpen = false; roleSidebar.classList.remove('open'); } },
-            toggleSidebar() { this.sidebarOpen = !this.sidebarOpen; if (this.sidebarOpen) roleSidebar.classList.add('open'); else roleSidebar.classList.remove('open'); localStorage.setItem('sidebar_open', this.sidebarOpen); }
+
+        const FIELD_LABELS = {
+            identity: '身份背景', personality: '性格内核', speech: '说话方式', userPersona: '用户角色设定', relationship: '与用户关系', scene: '开场场景', taboo: '绝不破戒'
         };
+        const DEFAULT_ACCENT_COLOR = '#b08968';
+        const DEFAULT_SAVED_COLORS = ['#b08968', '#c47a8a', '#8a7ab0', '#7a9a6a'];
+        const DEFAULT_GLOBAL_SETTINGS = { theme: 'night', defaultModel: 'deepseek-v4-pro', defaultThinkingMode: 'thinking', defaultAccentColor: DEFAULT_ACCENT_COLOR, savedColors: DEFAULT_SAVED_COLORS.slice() };
 
-        const DOM = {
-            messagesArea: document.getElementById('messagesArea'), messageInput: document.getElementById('messageInput'), sendBtn: document.getElementById('sendBtn'),
-            roleListDiv: document.getElementById('roleList'), addRoleBtn: document.getElementById('addRoleBtn'),
-            roleModal: document.getElementById('roleModal'), modalTitle: document.getElementById('modalTitle'), roleNameInput: document.getElementById('roleName'),
-            rolePromptInput: document.getElementById('rolePrompt'), saveRoleBtn: document.getElementById('saveRoleBtn'), cancelModalBtn: document.getElementById('cancelModalBtn'),
-            roleFields: document.getElementById('roleFields'), modeStructuredBtn: document.getElementById('modeStructuredBtn'), modeRawBtn: document.getElementById('modeRawBtn'),
-            fieldIdentity: document.getElementById('fieldIdentity'), fieldPersonality: document.getElementById('fieldPersonality'), fieldSpeech: document.getElementById('fieldSpeech'),
-            fieldRelationship: document.getElementById('fieldRelationship'), fieldScene: document.getElementById('fieldScene'), fieldTaboo: document.getElementById('fieldTaboo'),
-            fieldUserPersona: document.getElementById('fieldUserPersona'),
-            modelSelect: document.getElementById('modelSelect'), thinkingModeSelect: document.getElementById('thinkingModeSelect'), themeToggle: document.getElementById('themeToggle'), renameConvModal: document.getElementById('renameConvModal'),
-            newConvNameInput: document.getElementById('newConvName'), confirmRenameBtn: document.getElementById('confirmRenameBtn'), cancelRenameBtn: document.getElementById('cancelRenameBtn'),
-            roleSidebar: document.getElementById('roleSidebar'), sidebarToggleBtn: document.getElementById('sidebarToggleBtn'), editUserMsgModal: document.getElementById('editUserMsgModal'),
-            editUserMsgContent: document.getElementById('editUserMsgContent'), confirmEditMsgBtn: document.getElementById('confirmEditMsgBtn'), cancelEditMsgBtn: document.getElementById('cancelEditMsgBtn'),
-            exportBtn: document.getElementById('exportBtn'), importBtn: document.getElementById('importBtn'), importFile: document.getElementById('importFile'),
-            bgSettingBtn: document.getElementById('bgSettingBtn'), bgModal: document.getElementById('bgModal'), bgGrid: document.getElementById('bgGrid'),
-            uploadNewBgBtn: document.getElementById('uploadNewBgBtn'), cancelBgModalBtn: document.getElementById('cancelBgModalBtn'), 
-            bgInput: document.getElementById('bgInput'), customBgLayer: document.getElementById('customBgLayer')
-        };
-
-        let editingUserMessageIndex = null;
-        let currentActiveBgId = localStorage.getItem('deepseek_current_bg_id') || 'default';
-
-        // 结构化角色卡字段定义（顺序即编译进系统提示词的顺序）
-        const ROLE_FIELD_DEFS = [
-            { key: 'identity',     label: '身份背景' },
-            { key: 'personality',  label: '性格内核' },
-            { key: 'speech',       label: '说话方式' },
-            { key: 'userPersona',  label: '用户扮演的角色（即「我」）' },
-            { key: 'relationship', label: '与用户角色的关系' },
-            { key: 'scene',        label: '开场场景与世界观' },
-            { key: 'taboo',        label: '硬性约束（绝不破戒）' },
-        ];
-
-        // 把结构化字段编译成最终发给模型的 system prompt；空字段自动跳过
-        function compileRolePrompt(name, fields) {
-            fields = fields || {};
-            const parts = [];
-            if (name) parts.push(`你将沉浸扮演「${name}」。请始终保持该角色的第一人称视角，用动作、对话、心理活动推进剧情，不要跳出角色解释设定。`);
-            for (const def of ROLE_FIELD_DEFS) {
-                const v = (fields[def.key] || '').trim();
-                if (v) parts.push(`## ${def.label}\n${v}`);
+        function makeId() { return crypto.randomUUID ? crypto.randomUUID() : Date.now() + '-' + Math.random().toString(16).slice(2); }
+        function normalizeHexColor(value, fallback = DEFAULT_ACCENT_COLOR) { const raw = String(value || '').trim(); return /^#[0-9a-fA-F]{6}$/.test(raw) ? raw.toLowerCase() : fallback; }
+        function normalizeRoleFields(value) { if (!value || typeof value !== 'object') return null; const out = {}; let hasAny = false; Object.keys(FIELD_LABELS).forEach(key => { out[key] = typeof value[key] === 'string' ? value[key] : ''; if (out[key].trim()) hasAny = true; }); return hasAny ? out : null; }
+        function buildSystemPromptFromFields(fields) { const normalized = normalizeRoleFields(fields); if (!normalized) return ''; return Object.entries(FIELD_LABELS).map(([key, label]) => { const text = (normalized[key] || '').trim(); return text ? '【' + label + '】\n' + text : ''; }).filter(Boolean).join('\n\n'); }
+        function getInitialChar(name) { const chars = Array.from(String(name || '').trim()); return chars.length ? chars[chars.length - 1].toUpperCase() : 'AI'; }
+        function normalizeImportedMessage(msg) {
+            if (!msg || typeof msg !== 'object') return null;
+            const allowedRoles = new Set(['user', 'assistant', 'system_summary', 'scene_separator']);
+            if (!allowedRoles.has(msg.role)) return null;
+            const normalized = { role: msg.role, content: typeof msg.content === 'string' ? msg.content : '', timestamp: msg.timestamp || new Date().toISOString() };
+            if (msg.role === 'assistant') {
+                normalized.reasoning = typeof msg.reasoning === 'string' ? msg.reasoning : null;
+                normalized.regenerations = Array.isArray(msg.regenerations) ? msg.regenerations.map(regen => ({ content: typeof regen?.content === 'string' ? regen.content : '', reasoning: typeof regen?.reasoning === 'string' ? regen.reasoning : null, timestamp: regen?.timestamp || Date.now() })) : [];
+                normalized.currentVersion = Number.isInteger(msg.currentVersion) ? Math.max(0, Math.min(msg.currentVersion, normalized.regenerations.length)) : 0;
+                normalized.reasoningCollapsed = msg.reasoningCollapsed !== undefined ? Boolean(msg.reasoningCollapsed) : true;
             }
-            return parts.join('\n\n');
+            if (msg.role === 'system_summary') {
+                normalized.status = ['warning', 'generating', 'done'].includes(msg.status) ? msg.status : 'warning';
+                ['startOffset', 'endOffset'].forEach(key => { if (Number.isInteger(msg[key])) normalized[key] = msg[key]; });
+                ['title', 'continuationPrompt', 'archiveType', 'progressText', 'startedAt', 'updatedAt'].forEach(key => { if (typeof msg[key] === 'string') normalized[key] = msg[key]; });
+                if (Array.isArray(msg.segmentSummariesDraft)) normalized.segmentSummariesDraft = msg.segmentSummariesDraft.filter(item => item && Number.isInteger(item.segmentIndex) && Number.isInteger(item.startOffset) && Number.isInteger(item.endOffset) && typeof item.content === 'string').map(item => ({ segmentIndex: item.segmentIndex, startOffset: item.startOffset, endOffset: item.endOffset, content: item.content, createdAt: typeof item.createdAt === 'string' ? item.createdAt : new Date().toISOString() }));
+            }
+            return normalized;
         }
+        function normalizeConversationData(conv, roleName) { const source = conv && typeof conv === 'object' ? conv : {}; const normalized = { id: source.id || makeId(), name: typeof source.name === 'string' && source.name.trim() ? source.name.trim() : '新对话', backgroundId: typeof source.backgroundId === 'string' && source.backgroundId ? source.backgroundId : 'default', accentColor: source.accentColor ? normalizeHexColor(source.accentColor, DEFAULT_ACCENT_COLOR) : null, messages: Array.isArray(source.messages) ? source.messages.map(normalizeImportedMessage).filter(Boolean) : [] }; const continuationFrom = normalizeContinuationFrom(source.continuationFrom); if (continuationFrom) normalized.continuationFrom = continuationFrom; return normalized; }
+        function normalizeRoleData(role) { const source = role && typeof role === 'object' ? role : {}; const name = typeof source.name === 'string' && source.name.trim() ? source.name.trim() : '未命名角色'; const fields = normalizeRoleFields(source.fields); const systemPrompt = typeof source.systemPrompt === 'string' && source.systemPrompt.trim() ? source.systemPrompt.trim() : (fields ? buildSystemPromptFromFields(fields) : '你是一个乐于助人的AI助手。'); const normalized = { id: source.id || makeId(), name, systemPrompt, fields, promptMode: source.promptMode === 'struct' || fields ? 'struct' : 'free', accentColor: normalizeHexColor(source.accentColor || source.accent || DEFAULT_ACCENT_COLOR, DEFAULT_ACCENT_COLOR), unread: Boolean(source.unread), conversations: Array.isArray(source.conversations) ? source.conversations.map(conv => normalizeConversationData(conv, name)) : [] }; if (normalized.conversations.length === 0) normalized.conversations.push(normalizeConversationData(null, name)); return normalized; }
+        function normalizeImportedRoles(data) { return data && Array.isArray(data.roles) ? data.roles.filter(role => role && typeof role === 'object').map(normalizeRoleData) : []; }
+        function normalizeGlobalSettings(value = {}) { const source = value && typeof value === 'object' ? value : {}; const modelSettings = DataManager.normalizeModelSettings(source.defaultModel, source.defaultThinkingMode); const savedColors = Array.isArray(source.savedColors) ? source.savedColors.map(c => normalizeHexColor(c, '')).filter(Boolean) : DEFAULT_SAVED_COLORS.slice(); return { theme: source.theme === 'day' || source.theme === 'light' ? 'day' : 'night', defaultModel: modelSettings.currentModel, defaultThinkingMode: modelSettings.currentThinkingMode, defaultAccentColor: normalizeHexColor(source.defaultAccentColor, DEFAULT_ACCENT_COLOR), savedColors: [...new Set(savedColors.length ? savedColors : DEFAULT_SAVED_COLORS)].slice(0, 24) }; }
+        function formatMessageTime(timestamp) { const d = new Date(timestamp || Date.now()); return Number.isNaN(d.getTime()) ? '' : d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); }
+        function formatRelativeTime(timestamp) { const d = new Date(timestamp || Date.now()); if (Number.isNaN(d.getTime())) return ''; const n = new Date(); const a = new Date(n.getFullYear(), n.getMonth(), n.getDate()).getTime(); const b = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime(); const diff = Math.round((a - b) / 86400000); if (diff === 0) return formatMessageTime(timestamp); if (diff === 1) return '昨天'; if (diff < 7) return diff + '天前'; return (d.getMonth() + 1) + '/' + d.getDate(); }
+        function truncateText(text, max = 52) { const source = String(text || '').replace(/\s+/g, ' ').trim(); return source.length > max ? source.slice(0, max - 1) + '…' : source; }
+        function hslToHex(h, s, l) { s /= 100; l /= 100; const c = (1 - Math.abs(2 * l - 1)) * s; const x = c * (1 - Math.abs((h / 60) % 2 - 1)); const m = l - c / 2; let r = 0, g = 0, b = 0; if (h < 60) { r = c; g = x; } else if (h < 120) { r = x; g = c; } else if (h < 180) { g = c; b = x; } else if (h < 240) { g = x; b = c; } else if (h < 300) { r = x; b = c; } else { r = c; b = x; } const toHex = v => Math.round((v + m) * 255).toString(16).padStart(2, '0'); return '#' + toHex(r) + toHex(g) + toHex(b); }
+        function hexToHsl(hex) { const safe = normalizeHexColor(hex); const r = parseInt(safe.slice(1, 3), 16) / 255, g = parseInt(safe.slice(3, 5), 16) / 255, b = parseInt(safe.slice(5, 7), 16) / 255; const max = Math.max(r, g, b), min = Math.min(r, g, b); let h = 0, s = 0, l = (max + min) / 2; if (max !== min) { const d = max - min; s = l > 0.5 ? d / (2 - max - min) : d / (max + min); if (max === r) h = (g - b) / d + (g < b ? 6 : 0); else if (max === g) h = (b - r) / d + 2; else h = (r - g) / d + 4; h *= 60; } return [Math.round(h), Math.round(s * 100), Math.round(l * 100)]; }
 
+        const DataManager = {
+            roles: [], currentRoleId: null, currentConversationId: null, currentModel: 'deepseek-v4-pro', currentThinkingMode: 'thinking', sidebarOpen: false, globalSettings: { ...DEFAULT_GLOBAL_SETTINGS },
+            normalizeModelSettings(model, thinkingMode) { const normalizedMode = thinkingMode === 'fast' || thinkingMode === 'thinking' ? thinkingMode : null; if (model === 'deepseek-chat') return { currentModel: 'deepseek-v4-flash', currentThinkingMode: 'fast' }; if (model === 'deepseek-reasoner') return { currentModel: 'deepseek-v4-flash', currentThinkingMode: 'thinking' }; if (model === 'deepseek-v4-flash' || model === 'v4flash' || model === 'flash') return { currentModel: 'deepseek-v4-flash', currentThinkingMode: normalizedMode || 'fast' }; if (model === 'deepseek-v4-pro' || model === 'v4pro' || model === 'pro') return { currentModel: 'deepseek-v4-pro', currentThinkingMode: normalizedMode || 'thinking' }; return { currentModel: 'deepseek-v4-pro', currentThinkingMode: 'thinking' }; },
+            generateId() { return makeId(); },
+            defaultRole: { id: 'default_role', name: '新角色', systemPrompt: '你是一个乐于助人的AI助手。', fields: null, accentColor: DEFAULT_ACCENT_COLOR, conversations: [] },
+            ensureDefaultRoles({ save = true } = {}) { if (!Array.isArray(this.roles) || this.roles.length === 0) this.roles = [normalizeRoleData(this.defaultRole)]; this.roles = this.roles.map(normalizeRoleData); if (!this.roles.find(r => r.id === this.currentRoleId)) this.currentRoleId = this.roles[0]?.id || null; const role = this.getCurrentRole(); if (role && !role.conversations.find(c => c.id === this.currentConversationId)) this.currentConversationId = role.conversations[0]?.id || null; if (save) this.saveData(); },
+            saveData() { const data = { roles: this.roles, currentRoleId: this.currentRoleId, currentConversationId: this.currentConversationId, currentModel: this.currentModel, currentThinkingMode: this.currentThinkingMode, globalSettings: this.globalSettings }; DBManager.saveAppData(data).catch(() => { try { localStorage.setItem('deepseek_app_data', JSON.stringify(data)); } catch(e) {} }); try { localStorage.setItem('deepseek_app_index', JSON.stringify({ currentRoleId: this.currentRoleId, currentConversationId: this.currentConversationId, currentModel: this.currentModel, currentThinkingMode: this.currentThinkingMode, globalSettings: this.globalSettings })); } catch(e) {} },
+            async loadData() { let data = null; try { data = await DBManager.loadAppData(); } catch(e) {} if (!data) { const saved = localStorage.getItem('deepseek_app_data'); if (saved) { try { data = JSON.parse(saved); } catch(e) {} } } if (data) { this.roles = Array.isArray(data.roles) ? data.roles : []; this.currentRoleId = data.currentRoleId || null; this.currentConversationId = data.currentConversationId || null; this.globalSettings = normalizeGlobalSettings(data.globalSettings || {}); const s = this.normalizeModelSettings(data.currentModel || this.globalSettings.defaultModel, data.currentThinkingMode || this.globalSettings.defaultThinkingMode); this.currentModel = s.currentModel; this.currentThinkingMode = s.currentThinkingMode; this.globalSettings.defaultModel = s.currentModel; this.globalSettings.defaultThinkingMode = s.currentThinkingMode; } else { this.globalSettings = normalizeGlobalSettings(DEFAULT_GLOBAL_SETTINGS); this.currentModel = this.globalSettings.defaultModel; this.currentThinkingMode = this.globalSettings.defaultThinkingMode; } this.ensureDefaultRoles({ save: false }); const oldBg = localStorage.getItem('deepseek_current_bg_id'); const conv = this.getCurrentConversation(); if (conv && (!conv.backgroundId || conv.backgroundId === 'default') && oldBg && oldBg !== 'default') conv.backgroundId = oldBg; this.saveData(); },
+            getCurrentRole() { return this.roles.find(r => r.id === this.currentRoleId) || null; },
+            getCurrentConversation() { const role = this.getCurrentRole(); return role ? role.conversations.find(c => c.id === this.currentConversationId) || null : null; },
+            loadSidebarState() {}, toggleSidebar() {}
+        };
+
+        const DOM = { device: document.getElementById('device'), listScreen: document.getElementById('listScreen'), activityScreen: document.getElementById('activityScreen'), meScreen: document.getElementById('meScreen'), chatScreen: document.getElementById('chatScreen'), roleListDiv: document.getElementById('roleList'), roleSearchInput: document.getElementById('roleSearchInput'), addRoleBtn: document.getElementById('addRoleBtn'), messagesArea: document.getElementById('chatFeed'), chatFeed: document.getElementById('chatFeed'), messageInput: document.getElementById('chatInput'), chatInput: document.getElementById('chatInput'), sendBtn: document.getElementById('sendBtn'), backBtn: document.getElementById('backBtn'), chatName: document.getElementById('chatName'), chatAvatar: document.getElementById('chatAvatar'), chatMenuBtn: document.getElementById('chatMenuBtn'), chatMenu: document.getElementById('chatMenu'), summaryMenuItem: document.getElementById('summaryMenuItem'), insertSceneItem: document.getElementById('insertSceneItem'), renameConvItem: document.getElementById('renameConvItem'), clearConvItem: document.getElementById('clearConvItem'), profileScrim: document.getElementById('profileScrim'), profilePanel: document.getElementById('profilePanel'), profileAv: document.getElementById('profileAv'), profileName: document.getElementById('profileName'), profileDesc: document.getElementById('profileDesc'), profileConvList: document.getElementById('profileConvList'), editRoleBtn: document.getElementById('editRoleBtn'), changeBgBtn: document.getElementById('changeBgBtn'), roleColorBtn: document.getElementById('roleColorBtn'), profileModelBtn: document.getElementById('profileModelBtn'), profileRenameBtn: document.getElementById('profileRenameBtn'), newConvBtn: document.getElementById('newConvBtn'), deleteCurrentRoleBtn: document.getElementById('deleteCurrentRoleBtn'), editPanel: document.getElementById('editPanel'), editName: document.getElementById('editName'), editStruct: document.getElementById('editStruct'), editFree: document.getElementById('editFree'), editFreeText: document.getElementById('editFreeText'), closeEditBtn: document.getElementById('closeEditBtn'), saveEditRoleBtn: document.getElementById('saveEditRoleBtn'), modelMenu: document.getElementById('modelMenu'), roleNewPanel: document.getElementById('roleNewPanel'), newName: document.getElementById('newName'), newStruct: document.getElementById('newStruct'), newFree: document.getElementById('newFree'), newFreeText: document.getElementById('newFreeText'), closeNewRoleBtn: document.getElementById('closeNewRoleBtn'), saveNewRoleBtn: document.getElementById('saveNewRoleBtn'), dlgScrim: document.getElementById('dlgScrim'), summarySheet: document.getElementById('summarySheet'), colorSheet: document.getElementById('colorSheet'), bgSheet: document.getElementById('bgSheet'), optionsSheet: document.getElementById('optionsSheet'), importSheet: document.getElementById('importSheet'), aboutSheet: document.getElementById('aboutSheet'), cpScopeLabel: document.getElementById('cpScopeLabel'), cpScopeHint: document.getElementById('cpScopeHint'), cpSwatch: document.getElementById('cpSwatch'), cpHex: document.getElementById('cpHex'), cpHsl: document.getElementById('cpHsl'), hSlider: document.getElementById('hSlider'), sSlider: document.getElementById('sSlider'), lSlider: document.getElementById('lSlider'), hNum: document.getElementById('hNum'), sNum: document.getElementById('sNum'), lNum: document.getElementById('lNum'), cpSaved: document.getElementById('cpSaved'), savedGrid: document.getElementById('savedGrid'), savedColorsEditBtn: document.getElementById('savedColorsEditBtn'), cancelColorBtn: document.getElementById('cancelColorBtn'), saveColorBtn: document.getElementById('saveColorBtn'), accentHex: document.getElementById('accentHex'), bgSheetTitle: document.getElementById('bgSheetTitle'), bgEditToggle: document.getElementById('bgEditToggle'), bgPreviewWrap: document.getElementById('bgPreviewWrap'), bgPreviewImg: document.getElementById('bgPreviewImg'), bgPreviewAv: document.getElementById('bgPreviewAv'), bgPreviewName: document.getElementById('bgPreviewName'), bgGrid: document.getElementById('bgGrid'), bgCountVal: document.getElementById('bgCountVal'), uploadNewBgBtn: document.getElementById('uploadNewBgBtn'), bgInput: document.getElementById('bgInput'), customBgLayer: document.getElementById('customBgLayer'), optSheetTitle: document.getElementById('optSheetTitle'), optSheetSub: document.getElementById('optSheetSub'), optList: document.getElementById('optList'), meModelVal: document.getElementById('meModelVal'), meThinkVal: document.getElementById('meThinkVal'), importDrop: document.getElementById('importDrop'), importFile: document.getElementById('importFile'), cancelImportBtn: document.getElementById('cancelImportBtn'), modalScrim: document.getElementById('modalScrim'), modal: document.getElementById('modal'), modalTitle: document.getElementById('modalTitle'), modalMsg: document.getElementById('modalMsg'), modalInput: document.getElementById('modalInput'), modalCancel: document.getElementById('modalCancel'), modalConfirm: document.getElementById('modalConfirm'), editUserMsgModal: document.getElementById('editUserMsgModal'), editUserMsgContent: document.getElementById('editUserMsgContent'), confirmEditMsgBtn: document.getElementById('confirmEditMsgBtn'), cancelEditMsgBtn: document.getElementById('cancelEditMsgBtn') };
+        let editingUserMessageIndex = null, activeTab = 'list', editRoleMode = 'free', newRoleMode = 'struct', colorScope = 'global', bgSheetContext = 'chat', optionSheetKind = null, modalState = {};
+        const MODEL_OPTIONS = [{ key: 'deepseek-v4-flash', name: 'DeepSeek V4 Flash', shortName: 'V4 Flash', desc: '快 · 日常对话' }, { key: 'deepseek-v4-pro', name: 'DeepSeek V4 Pro', shortName: 'V4 Pro', desc: '慢 · 高质量长文' }]; const THINKING_OPTIONS = [{ key: 'fast', name: '快速回答', desc: '直接出文，省思考时间' }, { key: 'thinking', name: '深度思考', desc: '展示推理过程，更稳更慢' }];
+        function setAvatarText(el, text) { if (!el) return; const node = Array.from(el.childNodes).find(n => n.nodeType === Node.TEXT_NODE); if (node) node.nodeValue = text; else el.insertBefore(document.createTextNode(text), el.firstChild); }
+        function collectFields(container) { const fields = {}; Object.keys(FIELD_LABELS).forEach(key => { fields[key] = container?.querySelector('[data-field="' + key + '"]')?.value.trim() || ''; }); return fields; }
+        function fillFields(container, fields) { Object.keys(FIELD_LABELS).forEach(key => { const input = container?.querySelector('[data-field="' + key + '"]'); if (input) input.value = fields?.[key] || ''; }); }
+        function setModeButtons(scope, mode) { const selector = scope === 'edit' ? '[data-edit-mode]' : '[data-new-mode]'; const attr = scope === 'edit' ? 'editMode' : 'newMode'; document.querySelectorAll(selector).forEach(btn => btn.classList.toggle('on', btn.dataset[attr] === mode)); if (scope === 'edit') { editRoleMode = mode; DOM.editStruct.style.display = mode === 'struct' ? 'block' : 'none'; DOM.editFree.style.display = mode === 'free' ? 'block' : 'none'; } else { newRoleMode = mode; DOM.newStruct.style.display = mode === 'struct' ? 'block' : 'none'; DOM.newFree.style.display = mode === 'free' ? 'block' : 'none'; } }
+        function openModal(opts = {}) { modalState = opts; DOM.modalTitle.textContent = opts.title || ''; DOM.modalMsg.textContent = opts.msg || ''; DOM.modalMsg.style.display = opts.msg ? 'block' : 'none'; DOM.modalInput.style.display = opts.type === 'prompt' ? 'block' : 'none'; DOM.modalInput.value = opts.inputValue || ''; DOM.modalConfirm.textContent = opts.confirmLabel || '确定'; DOM.modalConfirm.className = 'modal-btn ' + (opts.danger ? 'danger' : 'confirm'); DOM.modalCancel.style.display = opts.type === 'alert' ? 'none' : 'block'; DOM.modalScrim.classList.add('open'); DOM.modal.classList.add('open'); DOM.editUserMsgModal.classList.remove('open'); if (opts.type === 'prompt') setTimeout(() => { DOM.modalInput.focus(); DOM.modalInput.select(); }, 100); }
+        function closeModal() { DOM.modalScrim.classList.remove('open'); DOM.modal.classList.remove('open'); DOM.editUserMsgModal.classList.remove('open'); modalState = {}; }
+        function openEditUserModal(index, content) { editingUserMessageIndex = index; DOM.editUserMsgContent.value = content || ''; DOM.modalScrim.classList.add('open'); DOM.modal.classList.remove('open'); DOM.editUserMsgModal.classList.add('open'); setTimeout(() => DOM.editUserMsgContent.focus(), 100); }
+        function copyToClipboard(text, onSuccess) { const fallback = () => { const textarea = document.createElement('textarea'); textarea.value = text; textarea.style.position = 'fixed'; textarea.style.opacity = '0'; document.body.appendChild(textarea); textarea.select(); try { document.execCommand('copy'); onSuccess?.(); } catch(e) {} document.body.removeChild(textarea); }; if (navigator.clipboard?.writeText) navigator.clipboard.writeText(text).then(() => onSuccess?.()).catch(fallback); else fallback(); }
         const UIManager = {
-            _roleEditMode: 'structured',
             resetPagination() { Pagination.currentPage = 1; },
             adjustPaginationAfterDelete(totalMessages) { const totalPages = Math.ceil(totalMessages / Config.PAGE_SIZE); if (Pagination.currentPage > totalPages && totalPages > 0) Pagination.currentPage = totalPages; else if (totalPages === 0) Pagination.currentPage = 1; },
             jumpToLastPage(totalMessages) { const totalPages = Math.ceil(totalMessages / Config.PAGE_SIZE); Pagination.currentPage = totalPages > 0 ? totalPages : 1; },
@@ -991,140 +940,35 @@
                 }
             },
 
-            renderSidebar() {
-                DOM.roleListDiv.innerHTML = '';
-                for (let role of DataManager.roles) {
-                    const roleCard = document.createElement('div');
-                    roleCard.className = `role-card ${DataManager.currentRoleId === role.id ? 'active' : ''}`;
-                    roleCard.innerHTML = `<div class="role-name">${escapeHtml(role.name)}<div class="role-actions"><button class="icon-btn edit-role-btn" data-id="${role.id}">${SVGIcons.edit}</button><button class="icon-btn delete-role-btn" data-id="${role.id}">${SVGIcons.delete}</button></div></div><div class="role-preview">${escapeHtml(role.systemPrompt.substring(0, 45))}...</div>`;
-                    roleCard.addEventListener('click', (e) => { if (!e.target.closest('button')) { this.switchRole(role.id); DataManager.toggleSidebar(); } });
-                    roleCard.querySelector('.edit-role-btn').addEventListener('click', (e) => { e.stopPropagation(); this.openEditRoleModal(role.id); });
-                    roleCard.querySelector('.delete-role-btn').addEventListener('click', (e) => { e.stopPropagation(); this.deleteRole(role.id); });
-                    const convSection = document.createElement('div'); convSection.className = 'conversation-section';
-                    convSection.innerHTML = `<div class="section-title">会话历史<button class="add-conv-btn" data-role="${role.id}">+ 新建</button></div><div class="conv-list" id="conv-list-${role.id}"></div>`;
-                    roleCard.appendChild(convSection); DOM.roleListDiv.appendChild(roleCard);
-                    const convContainer = convSection.querySelector(`.conv-list`);
-                    for (let conv of role.conversations) {
-                        const convItem = document.createElement('div');
-                        convItem.className = `conv-item ${DataManager.currentRoleId === role.id && DataManager.currentConversationId === conv.id ? 'active' : ''}`;
-                        convItem.innerHTML = `<span class="conv-name">${escapeHtml(conv.name)}</span><div class="conv-actions"><button class="icon-btn rename-conv" data-role="${role.id}" data-conv="${conv.id}">${SVGIcons.edit}</button><button class="icon-btn delete-conv" data-role="${role.id}" data-conv="${conv.id}">${SVGIcons.delete}</button></div>`;
-                        convItem.addEventListener('click', (e) => { if (!e.target.closest('button')) { this.switchConversation(role.id, conv.id); DataManager.toggleSidebar(); } });
-                        convItem.querySelector('.rename-conv').addEventListener('click', (e) => { e.stopPropagation(); this.openRenameModal(role.id, conv.id); });
-                        convItem.querySelector('.delete-conv').addEventListener('click', (e) => { e.stopPropagation(); this.deleteConversation(role.id, conv.id); });
-                        convContainer.appendChild(convItem);
-                    }
-                    convSection.querySelector('.add-conv-btn').addEventListener('click', (e) => { e.stopPropagation(); this.addConversation(role.id); });
-                }
-                const curRole = DataManager.getCurrentRole(); 
-                const headerRoleName = document.getElementById('headerRoleName');
-                if (headerRoleName) {
-                    headerRoleName.textContent = curRole ? curRole.name : 'DeepSeek';
-                }    
-            },
-            switchRole(roleId) { if (DataManager.currentRoleId === roleId) return; DataManager.currentRoleId = roleId; DataManager.currentConversationId = DataManager.getCurrentRole()?.conversations[0]?.id || null; DataManager.saveData(); this.resetPagination(); this.renderSidebar(); this.loadConversationToUI(); const curRole = DataManager.getCurrentRole(); document.getElementById('headerRoleName').textContent = curRole ? curRole.name : 'DeepSeek'; },
-            switchConversation(roleId, convId) { if (DataManager.currentRoleId !== roleId) DataManager.currentRoleId = roleId; DataManager.currentConversationId = convId; DataManager.saveData(); this.resetPagination(); this.renderSidebar(); this.loadConversationToUI(); },
-            addConversation(roleId) { const role = DataManager.roles.find(r => r.id === roleId); if (role) { const newConv = { id: DataManager.generateId(), name: '新对话', messages: [{ role: 'assistant', content: `你好！我是${role.name}，开始对话吧～`, reasoning: null, regenerations: [], currentVersion: 0, reasoningCollapsed: false, timestamp: new Date().toISOString() }] }; role.conversations.push(newConv); DataManager.currentRoleId = roleId; DataManager.currentConversationId = newConv.id; DataManager.saveData(); this.resetPagination(); this.renderSidebar(); this.loadConversationToUI(); } },
-            // 读取结构化字段输入框 → fields 对象
-            getRoleFieldInputs() {
-                return {
-                    identity: DOM.fieldIdentity.value.trim(),
-                    personality: DOM.fieldPersonality.value.trim(),
-                    speech: DOM.fieldSpeech.value.trim(),
-                    userPersona: DOM.fieldUserPersona.value.trim(),
-                    relationship: DOM.fieldRelationship.value.trim(),
-                    scene: DOM.fieldScene.value.trim(),
-                    taboo: DOM.fieldTaboo.value.trim(),
-                };
-            },
-            // fields 对象 → 填充输入框
-            fillRoleFieldInputs(fields) {
-                fields = fields || {};
-                DOM.fieldIdentity.value = fields.identity || '';
-                DOM.fieldPersonality.value = fields.personality || '';
-                DOM.fieldSpeech.value = fields.speech || '';
-                DOM.fieldUserPersona.value = fields.userPersona || '';
-                DOM.fieldRelationship.value = fields.relationship || '';
-                DOM.fieldScene.value = fields.scene || '';
-                DOM.fieldTaboo.value = fields.taboo || '';
-            },
-            // 切换「结构化 / 自由文本」编辑模式
-            setRoleEditMode(mode) {
-                // 从结构化切到自由文本时，把当前字段编译出来填进文本框，方便预览/微调
-                if (mode === 'raw' && this._roleEditMode === 'structured') {
-                    const compiled = compileRolePrompt(DOM.roleNameInput.value.trim(), this.getRoleFieldInputs());
-                    if (compiled) DOM.rolePromptInput.value = compiled;
-                }
-                this._roleEditMode = mode;
-                const structured = mode === 'structured';
-                DOM.roleFields.style.display = structured ? 'block' : 'none';
-                DOM.rolePromptInput.style.display = structured ? 'none' : 'block';
-                DOM.modeStructuredBtn.classList.toggle('active', structured);
-                DOM.modeRawBtn.classList.toggle('active', !structured);
-            },
-            openEditRoleModal(roleId) {
-                if (roleId === null) {
-                    DOM.modalTitle.textContent = '新建角色';
-                    DOM.roleNameInput.value = '';
-                    DOM.rolePromptInput.value = '';
-                    this.fillRoleFieldInputs({});
-                    this.setRoleEditMode('structured');
-                    delete DOM.roleModal.dataset.roleId;
-                    DOM.roleModal.style.display = 'flex';
-                    return;
-                }
-                const role = DataManager.roles.find(r => r.id === roleId);
-                if (!role) return;
-                DOM.modalTitle.textContent = '编辑角色';
-                DOM.roleNameInput.value = role.name;
-                DOM.rolePromptInput.value = role.systemPrompt || '';
-                if (role.fields) {
-                    // 结构化角色：填字段，进结构化模式
-                    this.fillRoleFieldInputs(role.fields);
-                    this.setRoleEditMode('structured');
-                } else {
-                    // 老角色（纯文本）：进自由文本模式，避免丢失原有人设
-                    this.fillRoleFieldInputs({});
-                    this.setRoleEditMode('raw');
-                }
-                DOM.roleModal.dataset.roleId = roleId;
-                DOM.roleModal.style.display = 'flex';
-            },
-            openRenameModal(roleId, convId) { const role = DataManager.roles.find(r => r.id === roleId); const conv = role?.conversations.find(c => c.id === convId); if (conv) { DOM.newConvNameInput.value = conv.name; DOM.renameConvModal.dataset.roleId = roleId; DOM.renameConvModal.dataset.convId = convId; DOM.renameConvModal.style.display = 'flex'; } },
-            renameConversation() { const roleId = DOM.renameConvModal.dataset.roleId; const convId = DOM.renameConvModal.dataset.convId; const newName = DOM.newConvNameInput.value.trim(); if (!newName) return; const role = DataManager.roles.find(r => r.id === roleId); if (role) { const conv = role.conversations.find(c => c.id === convId); if (conv) { conv.name = newName; DataManager.saveData(); this.renderSidebar(); } } DOM.renameConvModal.style.display = 'none'; },
-            deleteRole(roleId) { if (confirm('确定要删除这个角色吗？')) { const index = DataManager.roles.findIndex(r => r.id === roleId); if (index !== -1) { DataManager.roles.splice(index, 1); if (DataManager.currentRoleId === roleId) { DataManager.currentRoleId = DataManager.roles.length ? DataManager.roles[0].id : null; DataManager.currentConversationId = DataManager.currentRoleId ? DataManager.roles[0].conversations[0]?.id : null; } DataManager.saveData(); this.resetPagination(); this.renderSidebar(); this.loadConversationToUI(); } } },
-            deleteConversation(roleId, convId) { if (confirm('确定要删除这个对话吗？')) { const role = DataManager.roles.find(r => r.id === roleId); if (role) { const index = role.conversations.findIndex(c => c.id === convId); if (index !== -1) { role.conversations.splice(index, 1); if (DataManager.currentRoleId === roleId && DataManager.currentConversationId === convId) { DataManager.currentConversationId = role.conversations.length ? role.conversations[0].id : null; } DataManager.saveData(); this.resetPagination(); this.renderSidebar(); this.loadConversationToUI(); } } } },
-            saveRole() {
-                const name = DOM.roleNameInput.value.trim();
-                let systemPrompt, fields;
-                if (this._roleEditMode === 'structured') {
-                    fields = this.getRoleFieldInputs();
-                    systemPrompt = compileRolePrompt(name, fields);
-                } else {
-                    systemPrompt = DOM.rolePromptInput.value.trim();
-                    fields = null; // 自由文本模式不保留结构化字段
-                }
-                if (!name || !systemPrompt) { return; }
-                const roleId = DOM.roleModal.dataset.roleId;
-                if (roleId) {
-                    const role = DataManager.roles.find(r => r.id === roleId);
-                    if (role) {
-                        role.name = name;
-                        role.systemPrompt = systemPrompt;
-                        if (fields) role.fields = fields; else delete role.fields;
-                    }
-                } else {
-                    const newId = DataManager.generateId();
-                    const newRole = { id: newId, name, systemPrompt, conversations: [] };
-                    if (fields) newRole.fields = fields;
-                    DataManager.roles.push(newRole);
-                    DataManager.ensureDefaultRoles();
-                }
-                DataManager.saveData();
-                if (!DataManager.currentRoleId && DataManager.roles.length) DataManager.currentRoleId = DataManager.roles[0].id;
-                this.renderSidebar();
-                if (DataManager.currentRoleId) this.loadConversationToUI();
-                this.closeModal();
-            },
+
+            getEffectiveAccent(role = DataManager.getCurrentRole(), conv = DataManager.getCurrentConversation()) { return normalizeHexColor(conv?.accentColor || role?.accentColor || DataManager.globalSettings.defaultAccentColor, DEFAULT_ACCENT_COLOR); },
+            applyAccentColor(color) { DOM.device.style.setProperty('--accent', normalizeHexColor(color, DEFAULT_ACCENT_COLOR)); }, applyCurrentAccent() { this.applyAccentColor(this.getEffectiveAccent()); },
+            getRoleDescription(role) { const fields = normalizeRoleFields(role?.fields); if (fields) return truncateText([fields.identity, fields.personality, fields.speech].filter(Boolean).join(' '), 120); return truncateText(role?.systemPrompt || '', 120); },
+            getConversationPreview(conv) { if (!conv?.messages?.length) return '「新对话已开始」'; for (let i = conv.messages.length - 1; i >= 0; i--) { const msg = conv.messages[i]; if (msg.role === 'scene_separator') return '—— ' + (msg.content || '新场景') + ' ——'; if (msg.role === 'system_summary' && msg.status === 'done') return '「剧情存档已生成」'; if (msg.role === 'user' || msg.role === 'assistant') return truncateText(this.getDialogueContent(msg), 52); } return '「新对话已开始」'; },
+            getConversationTime(conv) { const msg = [...(conv?.messages || [])].reverse().find(item => item.timestamp); return formatRelativeTime(msg?.timestamp || Date.now()); },
+            renderRoleList() { const query = (DOM.roleSearchInput?.value || '').trim().toLowerCase(); DOM.roleListDiv.innerHTML = ''; const roles = DataManager.roles.filter(role => !query || role.name.toLowerCase().includes(query)); if (!roles.length) { DOM.roleListDiv.innerHTML = '<div class="empty-state">没有找到角色。</div>'; return; } roles.forEach(role => { const conv = role.conversations[0]; const accent = normalizeHexColor(role.accentColor || DataManager.globalSettings.defaultAccentColor); const row = document.createElement('div'); row.className = 'role-row ' + (DataManager.currentRoleId === role.id ? 'active' : ''); row.dataset.roleId = role.id; row.innerHTML = '<div class="role-stripe" style="background:' + accent + '"></div><div class="role-avatar" style="--av:' + accent + '">' + escapeHtml(getInitialChar(role.name)) + (role.unread ? '<div class="unread" style="--av:' + accent + '"></div>' : '') + '</div><div class="role-info"><div class="role-name">' + escapeHtml(role.name) + '<span class="role-time">' + escapeHtml(this.getConversationTime(conv)) + '</span></div><div class="role-preview">' + escapeHtml(this.getConversationPreview(conv)) + '</div></div>'; row.addEventListener('click', () => this.openChat(role.id)); DOM.roleListDiv.appendChild(row); }); },
+            renderProfile() { const role = DataManager.getCurrentRole(); const conv = DataManager.getCurrentConversation(); if (!role) return; setAvatarText(DOM.profileAv, getInitialChar(role.name)); DOM.profileName.textContent = role.name; DOM.profileDesc.textContent = this.getRoleDescription(role); DOM.profileConvList.innerHTML = role.conversations.map(item => { const active = item.id === conv?.id; return '<div class="conv-row ' + (active ? 'active' : '') + '" data-conv-id="' + item.id + '"><div class="conv-dot ' + (active ? 'active' : '') + '"></div><div class="conv-info"><div class="conv-title">' + escapeHtml(item.name || '新对话') + '</div><div class="conv-sub">' + escapeHtml(this.getConversationPreview(item)) + '</div></div><div class="conv-time">' + escapeHtml(this.getConversationTime(item)) + '</div></div>'; }).join(''); },
+            renderChatHeader() { const role = DataManager.getCurrentRole(); const conv = DataManager.getCurrentConversation(); if (!role) return; DOM.chatName.textContent = role.name; DOM.chatAvatar.textContent = getInitialChar(role.name); DOM.chatInput.placeholder = '发消息给 ' + role.name + '…'; this.applyAccentColor(this.getEffectiveAccent(role, conv)); },
+            renderChatFeed() { const conv = DataManager.getCurrentConversation(); const role = DataManager.getCurrentRole(); this.renderChatHeader(); this.renderProfile(); if (!conv || !role) { DOM.chatFeed.innerHTML = '<div class="empty-state">从列表里选择一个角色开始。</div>'; return; } if (recoverStaleGeneratingSummaries(conv)) DataManager.saveData(); const allMessages = conv.messages; const totalPages = Math.ceil(allMessages.length / Config.PAGE_SIZE); if (Pagination.currentPage < 1) Pagination.currentPage = 1; if (totalPages > 0 && Pagination.currentPage > totalPages) Pagination.currentPage = totalPages; const startIdx = (Pagination.currentPage - 1) * Config.PAGE_SIZE; const pageMessages = allMessages.slice(startIdx, Math.min(startIdx + Config.PAGE_SIZE, allMessages.length)); DOM.chatFeed.innerHTML = ''; pageMessages.forEach((msg, i) => { const node = this.renderMessageNode(msg, startIdx + i, allMessages); if (node) DOM.chatFeed.appendChild(node); }); if (totalPages > 1) { const p = document.createElement('div'); p.className = 'pagination-controls'; p.innerHTML = '<button class="pagination-btn" data-action="prev-page" ' + (Pagination.currentPage === 1 ? 'disabled' : '') + '>上一页</button><span class="page-info">' + Pagination.currentPage + ' / ' + totalPages + '</span><button class="pagination-btn" data-action="next-page" ' + (Pagination.currentPage === totalPages ? 'disabled' : '') + '>下一页</button>'; DOM.chatFeed.appendChild(p); } const spacer = document.createElement('div'); spacer.style.height = '24px'; DOM.chatFeed.appendChild(spacer); DOM.chatFeed.scrollTop = DOM.chatFeed.scrollHeight; this.applyConversationBackground(conv.backgroundId); },
+            loadConversationToUI() { this.renderChatFeed(); }, renderSidebar() { this.renderRoleList(); },
+            renderMessageNode(msg, globalIdx, allMessages) { const time = formatMessageTime(msg.timestamp); if (msg.role === 'scene_separator') { const scene = document.createElement('div'); scene.className = 'scene'; scene.dataset.index = String(globalIdx); scene.textContent = (msg.content || '新场景') + ' · ' + time; return scene; } if (msg.role === 'user') { const w = document.createElement('div'); w.className = 'user-msg'; w.innerHTML = '<div class="user-bubble">' + escapeHtml(msg.content) + '</div><div class="msg-actions"><button class="meta">' + escapeHtml(time) + '</button><button data-action="edit-user" data-index="' + globalIdx + '">' + SVGIcons.edit + '编辑</button><button data-action="delete-user" data-index="' + globalIdx + '">' + SVGIcons.delete + '删除</button></div>'; return w; } if (msg.role === 'assistant') { const active = this.getActiveAssistantVersion(msg); const reasoning = active?.reasoning || null; const isOpen = reasoning && !msg.reasoningCollapsed; const w = document.createElement('div'); w.className = 'ai-msg'; const reason = reasoning ? '<button class="think-toggle ' + (isOpen ? 'open' : '') + '" data-action="toggle-reasoning" data-index="' + globalIdx + '"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>思考过程 <span class="chev">›</span></button><div class="think-content ' + (isOpen ? 'show' : '') + '">' + escapeHtml(reasoning) + '</div>' : ''; w.innerHTML = reason + '<div class="ai-body">' + renderMarkdown(active?.content || '') + '</div><div class="msg-actions"><button class="meta">' + escapeHtml(time) + '</button><button data-action="regenerate" data-index="' + globalIdx + '">' + SVGIcons.regenerate + '重新生成</button><span class="version-control"><button data-action="version" data-index="' + globalIdx + '" data-delta="-1">' + SVGIcons.chevronLeft + '</button><span>' + (msg.currentVersion + 1) + '/' + ((msg.regenerations?.length || 0) + 1) + '</span><button data-action="version" data-index="' + globalIdx + '" data-delta="1">' + SVGIcons.chevronRight + '</button></span></div>'; return w; } if (msg.role === 'system_summary') return this.renderSummaryNode(msg, globalIdx, allMessages); return null; },
+            renderSummaryNode(msg, globalIdx, allMessages) { const w = document.createElement('div'); w.className = 'ai-msg'; const valid = allMessages.slice(0, globalIdx).filter(m => m.role === 'user' || m.role === 'assistant'); const maxIdx = Math.max(0, valid.length - 1); const doneOrdinal = allMessages.slice(0, globalIdx + 1).filter(m => m.role === 'system_summary' && m.status === 'done').length - 1; const prev = allMessages.slice(0, globalIdx).findLastIndex(m => m.role === 'system_summary' && m.status === 'done'); let startVal = 0; if (prev !== -1 && allMessages[prev].endOffset !== undefined && allMessages[prev].endOffset < maxIdx) startVal = allMessages[prev].endOffset + 1; startVal = msg.startOffset !== undefined ? msg.startOffset : startVal; const endVal = msg.endOffset !== undefined ? msg.endOffset : maxIdx; const warn = '<p>选择本次要沉淀进记忆的对话范围，生成后续模型会自动继承。</p>' + (valid.length ? '<div class="range-selector"><div class="range-info" id="range-text-' + globalIdx + '">存档范围：从第 ' + (startVal + 1) + ' 条 到 第 ' + (endVal + 1) + ' 条</div><input type="range" id="summary-slider-' + globalIdx + '" data-summary-slider="' + globalIdx + '" data-start="' + startVal + '" min="' + startVal + '" max="' + maxIdx + '" value="' + endVal + '"></div><button class="summary-btn" data-action="generate-summary" data-index="' + globalIdx + '">' + SVGIcons.sparkles + '生成本卷剧情存档</button>' : '<p>当前还没有可总结的对话。</p>'); const done = '<p>已生成从第 ' + (msg.startOffset + 1) + ' 条至第 ' + (msg.endOffset + 1) + ' 条的剧情浓缩记录，后续对话会自动纳入此总结。</p><div class="summary-text">' + escapeHtml(getSummaryMemoryText(msg)) + '</div><div style="display:flex;flex-wrap:wrap;gap:8px"><button class="copy-summary-btn" data-action="copy-summary" data-index="' + globalIdx + '">' + SVGIcons.copy + '复制内容</button><button class="regenerate-summary-btn" data-action="regenerate-summary" data-index="' + globalIdx + '">' + SVGIcons.regenerate + '重新生成</button><button class="next-volume-btn" data-action="next-volume" data-index="' + globalIdx + '">开启下一卷</button><button class="link-conv-btn" data-action="link-conv" data-index="' + globalIdx + '">关联到现有会话</button>' + ((msg.endOffset !== undefined && msg.endOffset < maxIdx) ? '<button class="continue-summary-btn" data-action="continue-summary" data-index="' + globalIdx + '">从总结点继续总结</button>' : '') + '</div>'; const body = msg.status === 'warning' ? warn : msg.status === 'generating' ? '<p style="display:flex;align-items:center;gap:8px;">' + SVGIcons.spinner + ' ' + escapeHtml(msg.progressText || '正在生成剧情存档，请稍候...') + '</p>' : done; w.innerHTML = '<div class="system-summary-message ' + (msg.status === 'done' ? 'checkpoint-done' : '') + '"><div class="summary-header"><div class="summary-title-wrap">' + (msg.status === 'done' ? '剧情存档 · ' + escapeHtml(getSummaryTitle(msg, doneOrdinal)) : SVGIcons.warning + '<span>本卷剧情存档</span>') + '</div></div>' + body + '</div>'; return w; },
+
+            async openChat(roleId, convId = null) { const role = DataManager.roles.find(r => r.id === roleId); if (!role) return; DataManager.currentRoleId = roleId; DataManager.currentConversationId = convId || role.conversations[0]?.id || null; role.unread = false; DataManager.saveData(); this.resetPagination(); this.renderChatFeed(); this.renderRoleList(); this.closeAllSheets(); this.closeProfile(); this.closeEdit(); DOM.listScreen.classList.add('hidden-left'); DOM.meScreen.classList.add('hidden-left'); DOM.activityScreen.classList.add('hidden-left'); DOM.chatScreen.classList.remove('hidden-right'); await this.applyConversationBackground(DataManager.getCurrentConversation()?.backgroundId || 'default'); },
+            goBack() { this.closeProfile(); this.closeEdit(); this.closeChatMenu(); this.closeModelMenu(); this.closeAllSheets(); DOM.chatScreen.classList.add('hidden-right'); const target = { list: DOM.listScreen, activity: DOM.activityScreen, me: DOM.meScreen }[activeTab] || DOM.listScreen; target.classList.remove('hidden-left'); target.classList.remove('hidden-right'); this.renderRoleList(); },
+            switchTab(tab) { if (!['list', 'activity', 'me'].includes(tab)) return; activeTab = tab; this.closeAllSheets(); [DOM.listScreen, DOM.activityScreen, DOM.meScreen].forEach(s => { s.classList.add('hidden-right'); s.classList.remove('hidden-left'); }); const target = { list: DOM.listScreen, activity: DOM.activityScreen, me: DOM.meScreen }[tab]; target.classList.remove('hidden-right'); document.querySelectorAll('.tab').forEach(item => item.classList.toggle('active', item.dataset.tab === tab)); if (tab === 'me') this.renderSettingsUI(); },
+            openProfile() { this.renderProfile(); DOM.profileScrim.classList.add('open'); DOM.profilePanel.classList.add('open'); }, closeProfile() { DOM.profileScrim.classList.remove('open'); DOM.profilePanel.classList.remove('open'); }, closeEdit() { DOM.editPanel.classList.remove('open'); },
+            openEditRolePanel() { const role = DataManager.getCurrentRole(); if (!role) return; DOM.editName.value = role.name; DOM.editFreeText.value = role.systemPrompt || ''; fillFields(DOM.editStruct, role.fields); setModeButtons('edit', role.fields ? 'struct' : 'free'); DOM.editPanel.classList.add('open'); },
+            saveEditedRole() { const role = DataManager.getCurrentRole(); if (!role) return; const name = DOM.editName.value.trim(); if (!name) { alert('请填写角色名称。'); return; } role.name = name; if (editRoleMode === 'struct') { const fields = collectFields(DOM.editStruct); const prompt = buildSystemPromptFromFields(fields); if (!prompt) { alert('请至少填写一个人设字段。'); return; } role.fields = fields; role.promptMode = 'struct'; role.systemPrompt = prompt; } else { const prompt = DOM.editFreeText.value.trim(); if (!prompt) { alert('请填写人设描述。'); return; } role.fields = null; role.promptMode = 'free'; role.systemPrompt = prompt; } DataManager.saveData(); this.renderRoleList(); this.renderChatFeed(); this.closeEdit(); },
+            openNewRolePanel() { DOM.newName.value = ''; DOM.newFreeText.value = ''; fillFields(DOM.newStruct, null); setModeButtons('new', 'struct'); DOM.roleNewPanel.classList.add('open'); }, closeNewRolePanel() { DOM.roleNewPanel.classList.remove('open'); },
+            saveNewRole() { const name = DOM.newName.value.trim(); if (!name) { alert('请先给 TA 起个名字。'); return; } let fields = null, systemPrompt = ''; if (newRoleMode === 'struct') { fields = collectFields(DOM.newStruct); systemPrompt = buildSystemPromptFromFields(fields); if (!systemPrompt) { alert('请至少填写一个人设字段。'); return; } } else { systemPrompt = DOM.newFreeText.value.trim(); if (!systemPrompt) { alert('请填写人设描述。'); return; } } const role = normalizeRoleData({ id: DataManager.generateId(), name, systemPrompt, fields: newRoleMode === 'struct' ? fields : null, promptMode: newRoleMode, accentColor: DataManager.globalSettings.defaultAccentColor, conversations: [] }); DataManager.roles.unshift(role); DataManager.currentRoleId = role.id; DataManager.currentConversationId = role.conversations[0]?.id || null; DataManager.saveData(); this.closeNewRolePanel(); this.switchTab('list'); this.renderRoleList(); },
+            addConversation(roleId = DataManager.currentRoleId) { const role = DataManager.roles.find(r => r.id === roleId); if (!role) return; const conv = normalizeConversationData({ id: DataManager.generateId(), name: '新对话', messages: [] }, role.name); role.conversations.unshift(conv); DataManager.currentRoleId = role.id; DataManager.currentConversationId = conv.id; DataManager.saveData(); this.resetPagination(); this.renderRoleList(); this.renderChatFeed(); this.renderProfile(); this.closeProfile(); },
+            switchConversation(roleId, convId) { DataManager.currentRoleId = roleId; DataManager.currentConversationId = convId; DataManager.saveData(); this.resetPagination(); this.renderChatFeed(); this.renderProfile(); },
+            renameCurrentConversation() { const conv = DataManager.getCurrentConversation(); if (!conv) return; this.closeChatMenu(); openModal({ title: '重命名对话', type: 'prompt', inputValue: conv.name || '', confirmLabel: '保存', onConfirm: value => { const name = String(value || '').trim(); if (!name) return false; conv.name = name; DataManager.saveData(); this.renderRoleList(); this.renderProfile(); return true; } }); },
+            clearCurrentConversation() { const conv = DataManager.getCurrentConversation(); if (!conv) return; this.closeChatMenu(); if (!confirm('确定清空所有消息？此操作不可撤销。')) return; conv.messages = []; DataManager.saveData(); this.resetPagination(); this.renderChatFeed(); this.renderRoleList(); },
+            insertSceneSeparator() { const conv = DataManager.getCurrentConversation(); if (!conv) return; this.closeChatMenu(); openModal({ title: '插入场景分隔', type: 'prompt', msg: '给这一幕起一个短名字。', confirmLabel: '插入', onConfirm: value => { const content = String(value || '').trim(); if (!content) return false; conv.messages.push({ role: 'scene_separator', content, timestamp: new Date().toISOString() }); DataManager.saveData(); this.jumpToLastPage(conv.messages.length); this.renderChatFeed(); return true; } }); },
+            deleteRole(roleId = DataManager.currentRoleId) { const role = DataManager.roles.find(r => r.id === roleId); if (!role) return; if (!confirm('确定删除 ' + role.name + ' 及其所有对话？此操作不可撤销')) return; DataManager.roles = DataManager.roles.filter(r => r.id !== roleId); if (DataManager.currentRoleId === roleId) { DataManager.currentRoleId = DataManager.roles[0]?.id || null; DataManager.currentConversationId = DataManager.roles[0]?.conversations[0]?.id || null; } DataManager.ensureDefaultRoles({ save: false }); DataManager.saveData(); this.goBack(); this.renderRoleList(); this.renderChatFeed(); },
+            openSummaryControl() { const conv = DataManager.getCurrentConversation(); if (!conv) return; this.closeChatMenu(); let idx = -1; for (let i = conv.messages.length - 1; i >= 0; i--) { if (conv.messages[i].role === 'system_summary' && conv.messages[i].status !== 'done') { idx = i; break; } } if (idx === -1) { conv.messages.push({ role: 'system_summary', status: 'warning', content: '', timestamp: new Date().toISOString() }); idx = conv.messages.length - 1; DataManager.saveData(); } this.jumpToLastPage(conv.messages.length); this.renderChatFeed(); },
             openNextVolumeFromSummary(summaryIndex) {
                 const role = DataManager.getCurrentRole();
                 const conv = DataManager.getCurrentConversation();
@@ -1226,11 +1070,6 @@
                 }
                 alert(`已将「${targetConv.name || '未命名会话'}」关联到当前存档点。该会话后续聊天会自动继承上一卷记忆。`);
             },
-            closeModal() { DOM.roleModal.style.display = 'none'; delete DOM.roleModal.dataset.roleId; },
-            loadTheme() { const saved = localStorage.getItem('deepseek_theme'); const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches; let isDark = saved ? saved === 'dark' : prefersDark; document.body.classList.toggle('dark', isDark); DOM.themeToggle.innerHTML = isDark ? SVGIcons.sun : SVGIcons.moon; },
-            toggleTheme() { const isDark = document.body.classList.contains('dark'); const newIsDark = !isDark; document.body.classList.toggle('dark', newIsDark); localStorage.setItem('deepseek_theme', newIsDark ? 'dark' : 'light'); DOM.themeToggle.innerHTML = newIsDark ? SVGIcons.sun : SVGIcons.moon; UIManager.updateDefaultBgItemStyle(); },
-            onModelChange() { DataManager.currentModel = DOM.modelSelect.value; DataManager.currentThinkingMode = DOM.thinkingModeSelect.value; DataManager.saveData(); },
-            adjustTextareaHeight() { DOM.messageInput.style.height = 'auto'; DOM.messageInput.style.height = Math.min(DOM.messageInput.scrollHeight, 120) + 'px'; },
             toggleReasoning(assistantIndex) { const conv = DataManager.getCurrentConversation(); if (!conv) return; const msg = conv.messages[assistantIndex]; if (!msg || msg.role !== 'assistant') return; msg.reasoningCollapsed = !msg.reasoningCollapsed; DataManager.saveData(); this.loadConversationToUI(); },
             changeAssistantVersion(assistantIndex, delta) { const conv = DataManager.getCurrentConversation(); if (!conv) return; const assistantMsg = conv.messages[assistantIndex]; if (!assistantMsg || assistantMsg.role !== 'assistant') return; const totalVers = assistantMsg.regenerations.length + 1; let newVer = assistantMsg.currentVersion + delta; if (newVer < 0) newVer = 0; if (newVer >= totalVers) newVer = totalVers - 1; if (newVer === assistantMsg.currentVersion) return; assistantMsg.currentVersion = newVer; this.checkConversationLimit(); DataManager.saveData(); this.loadConversationToUI(); },
             
@@ -1238,7 +1077,14 @@
                 const conv = DataManager.getCurrentConversation(); const role = DataManager.getCurrentRole(); if (!conv || !role) return;
                 const assistantMsg = conv.messages[assistantIndex]; if (!assistantMsg || assistantMsg.role !== 'assistant') return;
                 if (assistantMsg.regenerations.length + 1 >= Config.MAX_REGENERATIONS + 1) { alert(`已达到最大重新生成次数（${Config.MAX_REGENERATIONS}次）`); return; }
-                let userIndex = assistantIndex - 1; if (userIndex < 0 || conv.messages[userIndex].role !== 'user') return;
+                let userIndex = -1;
+                for (let i = assistantIndex - 1; i >= 0; i--) {
+                    if (conv.messages[i].role === 'user') {
+                        userIndex = i;
+                        break;
+                    }
+                }
+                if (userIndex < 0) return;
                 
                 // 【应用防 400 机制】
                 const apiMessages = this.getSafeApiMessages(conv, role, userIndex);
@@ -1257,216 +1103,22 @@
                     DataManager.saveData(); this.loadConversationToUI();
                 } catch (err) { if (err.name !== 'AbortError') alert(`重新生成失败: ${err.message}`); } finally { loadingDiv.remove(); currentAbortController = null; }
             },
-            deleteUserMessageAndAssistant(userIndex) { if (!confirm('确定删除此消息及后续回复吗？')) return; const conv = DataManager.getCurrentConversation(); if (!conv) return; if (userIndex + 1 < conv.messages.length && conv.messages[userIndex+1].role === 'assistant') conv.messages.splice(userIndex, 2); else conv.messages.splice(userIndex, 1); DataManager.saveData(); this.adjustPaginationAfterDelete(conv.messages.length); this.loadConversationToUI(); },
-            
-            loadConversationToUI() {
-                const conv = DataManager.getCurrentConversation(); const curRole = DataManager.getCurrentRole(); const headerRoleName = document.getElementById('headerRoleName'); if (headerRoleName) {
-                    headerRoleName.textContent = curRole ? curRole.name : 'DeepSeek';
-                }    
-                if (!conv) { DOM.messagesArea.innerHTML = '<div class="assistant-message" style="align-self: center; opacity: 0.6; margin-top: 50px;">👈 从左侧选择一个角色和会话开始</div>'; return; }
-                if (recoverStaleGeneratingSummaries(conv)) DataManager.saveData();
-                const allMessages = conv.messages; const totalMessages = allMessages.length; const totalPages = Math.ceil(totalMessages / Config.PAGE_SIZE);
-                if (Pagination.currentPage < 1) Pagination.currentPage = 1; if (totalPages > 0 && Pagination.currentPage > totalPages) Pagination.currentPage = totalPages;
-                const startIdx = (Pagination.currentPage - 1) * Config.PAGE_SIZE; const endIdx = Math.min(startIdx + Config.PAGE_SIZE, totalMessages);
-                const pageMessages = allMessages.slice(startIdx, endIdx);
-                DOM.messagesArea.innerHTML = '';
-                
-                for (let i = 0; i < pageMessages.length; i++) {
-                    const msg = pageMessages[i]; const globalIdx = startIdx + i;
-                    const wrapper = document.createElement('div'); wrapper.className = 'message-wrapper';
-                    const dateStr = new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-                    
-                    if (msg.role === 'user') {
-                        wrapper.innerHTML = `<div class="user-message">${escapeHtml(msg.content)}</div><div class="message-footer user-footer"><span class="message-timestamp">${dateStr}</span><div class="message-actions user-actions"><button class="icon-btn edit-user-msg" data-index="${globalIdx}" title="编辑">${SVGIcons.edit}</button><button class="icon-btn delete-user-msg" data-index="${globalIdx}" title="删除">${SVGIcons.delete}</button></div></div>`;
-                        wrapper.querySelector('.edit-user-msg').addEventListener('click', () => { editingUserMessageIndex = globalIdx; DOM.editUserMsgContent.value = msg.content; DOM.editUserMsgModal.style.display = 'flex'; });
-                        wrapper.querySelector('.delete-user-msg').addEventListener('click', () => this.deleteUserMessageAndAssistant(globalIdx));
-                    } else if (msg.role === 'assistant') {
-                        const regenCount = msg.regenerations ? msg.regenerations.length : 0;
-                        let content = msg.content, reasoning = msg.reasoning;
-                        if (msg.currentVersion > 0 && msg.regenerations) { const regen = msg.regenerations[msg.currentVersion - 1]; if (regen) { content = regen.content; reasoning = regen.reasoning; } }
-                        
-                        let reasoningHtml = '';
-                        if (reasoning) {
-                            const toggleIcon = msg.reasoningCollapsed ? SVGIcons.chevronRight : SVGIcons.chevronDown;
-                            reasoningHtml = `<div class="reasoning-wrapper"><button class="reasoning-toggle" data-index="${globalIdx}">${toggleIcon} <span>思考过程</span></button><div class="reasoning-content ${msg.reasoningCollapsed ? 'collapsed' : ''}">${escapeHtml(reasoning)}</div></div>`;
-                        }
-
-                        wrapper.innerHTML = `<div class="assistant-message">${reasoningHtml}<div class="main-content markdown-body">${renderMarkdown(content)}</div></div><div class="message-footer assistant-footer"><span class="message-timestamp">${dateStr}</span><div class="message-actions assistant-actions"><div class="version-control"><button class="icon-btn version-btn" data-index="${globalIdx}" data-delta="-1">${SVGIcons.chevronLeft}</button><span>${msg.currentVersion + 1}/${regenCount + 1}</span><button class="icon-btn version-btn" data-index="${globalIdx}" data-delta="1">${SVGIcons.chevronRight}</button></div><button class="icon-btn regenerate" data-index="${globalIdx}" title="重新生成">${SVGIcons.regenerate}</button></div></div>`;
-                        if (reasoning) wrapper.querySelector('.reasoning-toggle').addEventListener('click', () => this.toggleReasoning(globalIdx));
-                        wrapper.querySelectorAll('.version-btn').forEach(btn => btn.addEventListener('click', () => this.changeAssistantVersion(globalIdx, parseInt(btn.dataset.delta))));
-                        wrapper.querySelector('.regenerate').addEventListener('click', () => this.regenerateAssistantResponse(globalIdx));
-                    } else if (msg.role === 'system_summary') {
-                        // 【渲染】智能总结驻留卡片
-                        const validMsgs = allMessages.slice(0, globalIdx).filter(m => m.role === 'user' || m.role === 'assistant');
-                        const totalValid = validMsgs.length;
-                        const maxIdx = Math.max(0, totalValid - 1);
-                        const doneSummaryOrdinal = allMessages.slice(0, globalIdx + 1).filter(m => m.role === 'system_summary' && m.status === 'done').length - 1;
-                        
-                        // 自动定位起点的逻辑：寻找上一个已完成的 Checkpoint
-                        const prevSummaryNodeIdx = allMessages.slice(0, globalIdx).findLastIndex(m => m.role === 'system_summary' && m.status === 'done');
-                        let suggestedStart = 0;
-                        if (prevSummaryNodeIdx !== -1) {
-                            const prevEnd = allMessages[prevSummaryNodeIdx].endOffset;
-                            if (prevEnd !== undefined && prevEnd < maxIdx) { suggestedStart = prevEnd + 1; }
-                        }
-                        
-                        // 起点固定为当前卡片记录的值或自动建议的起点
-                        const startVal = msg.startOffset !== undefined ? msg.startOffset : suggestedStart;
-                        // 终点初始值：如果是完成态则取记录值，否则默认取最新对话
-                        const endVal = msg.endOffset !== undefined ? msg.endOffset : maxIdx;
-
-                        wrapper.innerHTML = `
-                            <div class="system-summary-message ${msg.status === 'done' ? 'checkpoint-done' : ''}">
-                                <div class="summary-header">
-                                    <div class="summary-title-wrap">
-                                        ${msg.status === 'done' ? `📌 ${escapeHtml(getSummaryTitle(msg, doneSummaryOrdinal))}` : SVGIcons.warning + ' <span>本卷剧情已适合存档</span>'}
-                                    </div>
-                                </div>
-                                ${msg.status === 'warning' ? `
-                                    <p style="opacity:0.9; margin-bottom: 10px;">当前剧情已经积累较多内容，建议生成本卷剧情存档，以便后续继承剧情、角色状态、关系进展和未回收伏笔。</p>
-                                    
-                                    <div class="range-selector">
-                                        <div class="range-info" id="range-text-${globalIdx}">存档范围：从第 ${startVal + 1} 条 到 第 ${endVal + 1} 条</div>
-                                        <input type="range" id="summary-slider-${globalIdx}" min="${startVal}" max="${maxIdx}" value="${endVal}">
-                                        <div style="display:flex; justify-content:space-between; font-size:0.75rem; color:var(--text-secondary); margin-top:6px;">
-                                            <span>起点 (第${startVal + 1}条)</span>
-                                            <span>最新进度 (第${maxIdx + 1}条)</span>
-                                        </div>
-                                    </div>
-
-                                    <button class="summary-btn" id="generateSummaryBtn-${globalIdx}">
-                                        ${SVGIcons.sparkles} 生成本卷剧情存档
-                                    </button>
-                                ` : msg.status === 'generating' ? `
-                                    <p style="display:flex;align-items:center;gap:8px;opacity:0.9;">${SVGIcons.spinner} ${escapeHtml(msg.progressText || '正在提取核心剧情生成总结点，请稍候...')}</p>
-                                ` : `
-                                    <p style="opacity:0.9;">已生成从第 ${msg.startOffset + 1} 条至第 ${msg.endOffset + 1} 条的剧情浓缩记录。该范围终点已设为锚点，AI 在后续聊天中会自动纳入此总结。</p>
-                                     <div class="summary-text">${escapeHtml(msg.content)}</div>
-                                     <div style="display: flex; gap: 8px;">
-                                         <button class="copy-summary-btn" id="copySummaryBtn-${globalIdx}" style="flex: 2;">
-                                             ${SVGIcons.copy} 一键复制内容
-                                         </button>
-                                          <button class="regenerate-summary-btn" id="regenerateSummaryBtn-${globalIdx}" style="flex: 1.2;">
-                                              ${SVGIcons.regenerate} 重新生成
-                                          </button>
-                                          <button class="copy-summary-btn next-volume-btn" id="nextVolumeBtn-${globalIdx}" style="flex: 1.2;">
-                                              开启下一卷
-                                          </button>
-                                          <button class="copy-summary-btn link-conv-btn" id="linkConvBtn-${globalIdx}" style="flex: 1.5;">
-                                              关联到现有会话
-                                          </button>
-                                          ${(msg.endOffset !== undefined && msg.endOffset < maxIdx) ? `
-                                              <button class="continue-summary-btn" id="continueSummaryBtn-${globalIdx}" style="flex: 1.5; background: var(--badge-bg); color: var(--text-primary); border: none; border-radius: 12px; padding: 12px; cursor: pointer; font-size: 0.85rem; font-weight: 500;">
-                                                  从总结点继续总结
-                                              </button>
-                                         ` : ''}
-                                    </div>
-                                `}
-                            </div>
-                        `;
-                        
-                        setTimeout(() => {
-                            if (msg.status === 'warning') {
-                                const slider = document.getElementById(`summary-slider-${globalIdx}`);
-                                const rangeText = document.getElementById(`range-text-${globalIdx}`);
-                                const btn = document.getElementById(`generateSummaryBtn-${globalIdx}`);
-                                
-                                if (slider && rangeText) {
-                                    slider.addEventListener('input', (e) => {
-                                        const eIdx = parseInt(e.target.value);
-                                        rangeText.innerText = `存档范围：从第 ${startVal + 1} 条 到 第 ${eIdx + 1} 条`;
-                                    });
-                                }
-                                
-                                if (btn) {
-                                    btn.addEventListener('click', () => {
-                                        const finalEndOffset = slider ? parseInt(slider.value) : endVal;
-                                        this.generateStorySummary(globalIdx, startVal, finalEndOffset);
-                                    });
-                                }
-                            }
-                            if (msg.status === 'done') {
-                                const copyBtn = document.getElementById(`copySummaryBtn-${globalIdx}`);
-                                if (copyBtn) {
-                                    copyBtn.addEventListener('click', () => {
-                                        const prefix = `[系统指令]\n你现在需要扮演该角色。在开始对话之前，请先仔细阅读并内化以下【前情提要】。这份前情提要是你和用户之间已经发生过的所有事情的记录，它不是需要你分析或回应的内容，而是你的记忆。请将这份记忆完全融入你对角色的理解中，并基于此继续与用户进行互动。\n\n【前情提要】\n`;
-                                        const rawText = prefix + getSummaryMemoryText(msg);
-                                        const copyFallback = () => {
-                                            const textarea = document.createElement('textarea');
-                                            textarea.value = rawText; textarea.style.position = 'fixed'; textarea.style.opacity = '0';
-                                            document.body.appendChild(textarea); textarea.select();
-                                            try { document.execCommand('copy'); copyBtn.innerHTML = `${SVGIcons.check} 复制成功！`; setTimeout(() => copyBtn.innerHTML = `${SVGIcons.copy} 一键复制内容`, 2000); } catch(e) {}
-                                            document.body.removeChild(textarea);
-                                        };
-                                        if (navigator.clipboard && navigator.clipboard.writeText) {
-                                            navigator.clipboard.writeText(rawText).then(() => {
-                                                copyBtn.innerHTML = `${SVGIcons.check} 复制成功！`; setTimeout(() => copyBtn.innerHTML = `${SVGIcons.copy} 一键复制内容`, 2000);
-                                            }).catch(copyFallback);
-                                        } else { copyFallback(); }
-                                    });
-                                 }
-
-                                  const regenerateBtn = document.getElementById(`regenerateSummaryBtn-${globalIdx}`);
-                                  if (regenerateBtn) {
-                                      regenerateBtn.addEventListener('click', () => {
-                                          if (msg.startOffset === undefined || msg.endOffset === undefined) return;
-                                          if (!confirm('重新生成会覆盖当前剧情总结，是否继续？')) return;
-                                          this.generateStorySummary(globalIdx, msg.startOffset, msg.endOffset);
-                                      });
-                                  }
-
-                                  const nextVolumeBtn = document.getElementById(`nextVolumeBtn-${globalIdx}`);
-                                  if (nextVolumeBtn) {
-                                      nextVolumeBtn.addEventListener('click', () => {
-                                          this.openNextVolumeFromSummary(globalIdx);
-                                      });
-                                  }
-
-                                  const linkConvBtn = document.getElementById(`linkConvBtn-${globalIdx}`);
-                                  if (linkConvBtn) {
-                                      linkConvBtn.addEventListener('click', () => {
-                                          this.linkExistingConversationFromSummary(globalIdx);
-                                      });
-                                  }
-
-                                  const continueBtn = document.getElementById(`continueSummaryBtn-${globalIdx}`);
-                                  if (continueBtn) {
-                                      continueBtn.addEventListener('click', () => {
-                                        const conv = DataManager.getCurrentConversation();
-                                        if (!conv) return;
-                                        
-                                        // 检查是否在最新的对话后面已经有了待处理的 warning 或 generating 总结卡片
-                                        const hasPendingSummary = conv.messages.some(m => m.role === 'system_summary' && m.status !== 'done');
-                                        
-                                        if (!hasPendingSummary) {
-                                            // 在对话最末尾推入一个新的预警卡片
-                                            conv.messages.push({
-                                                role: 'system_summary',
-                                                status: 'warning',
-                                                content: '',
-                                                timestamp: new Date().toISOString()
-                                            });
-                                            DataManager.saveData();
-                                            this.loadConversationToUI();
-                                        } else {
-                                            // 如果已经有了，直接滚动到底部
-                                            DOM.messagesArea.scrollTop = DOM.messagesArea.scrollHeight;
-                                        }
-                                    });
-                                }
-                            }
-                        }, 0);
+            deleteUserMessageAndAssistant(userIndex) {
+                if (!confirm('确定删除此消息及后续回复吗？')) return;
+                const conv = DataManager.getCurrentConversation();
+                if (!conv) return;
+                let deleteCount = 1;
+                for (let i = userIndex + 1; i < conv.messages.length; i++) {
+                    if (conv.messages[i].role === 'assistant') {
+                        deleteCount = i - userIndex + 1;
+                        break;
                     }
-                    DOM.messagesArea.appendChild(wrapper);
+                    if (conv.messages[i].role === 'user') break;
                 }
-                if (totalPages > 1) {
-                    const paginationDiv = document.createElement('div'); paginationDiv.className = 'pagination-controls';
-                    paginationDiv.innerHTML = `<button class="pagination-btn" id="prevPageBtn" ${Pagination.currentPage === 1 ? 'disabled' : ''}>上一页</button><span class="page-info">${Pagination.currentPage} / ${totalPages}</span><button class="pagination-btn" id="nextPageBtn" ${Pagination.currentPage === totalPages ? 'disabled' : ''}>下一页</button>`;
-                    DOM.messagesArea.appendChild(paginationDiv);
-                    document.getElementById('prevPageBtn')?.addEventListener('click', () => { if (Pagination.currentPage > 1) { Pagination.currentPage--; this.loadConversationToUI(); } });
-                    document.getElementById('nextPageBtn')?.addEventListener('click', () => { if (Pagination.currentPage < totalPages) { Pagination.currentPage++; this.loadConversationToUI(); } });
-                }
-                DOM.messagesArea.scrollTop = DOM.messagesArea.scrollHeight;
+                conv.messages.splice(userIndex, deleteCount);
+                DataManager.saveData();
+                this.adjustPaginationAfterDelete(conv.messages.length);
+                this.loadConversationToUI();
             },
             
             async generateReplyForUserIndex(conv, userIndex, systemPrompt) {
@@ -1483,223 +1135,45 @@
                     DataManager.saveData(); this.jumpToLastPage(conv.messages.length); this.loadConversationToUI();
                 } catch (err) { if (err.name !== 'AbortError') alert(`生成失败: ${err.message}`); } finally { loadingDiv.remove(); currentAbortController = null; }
             },
-            updateDefaultBgItemStyle() {
-                const defItem = document.getElementById('bgItem-default');
-                if (defItem) {
-                    if (document.body.classList.contains('dark')) defItem.classList.add('dark-preview');
-                    else defItem.classList.remove('dark-preview');
-                }
-            }
+
+            addLoading() { const div = document.createElement('div'); div.className = 'loading'; div.innerHTML = SVGIcons.spinner + ' 生成中...'; DOM.chatFeed.appendChild(div); DOM.chatFeed.scrollTop = DOM.chatFeed.scrollHeight; return div; },
+            async sendMessage() { const text = DOM.chatInput.value.trim(); if (!text) return; if (!DataManager.currentRoleId) { alert('请先选择一个角色'); return; } const conv = DataManager.getCurrentConversation(); const role = DataManager.getCurrentRole(); if (!conv || !role) return; DOM.chatInput.value = ''; DOM.sendBtn.disabled = true; DOM.chatInput.disabled = true; conv.messages.push({ role: 'user', content: text, timestamp: new Date().toISOString() }); this.jumpToLastPage(conv.messages.length); this.loadConversationToUI(); const apiMessages = this.getSafeApiMessages(conv, role); if (currentAbortController) currentAbortController.abort(); currentAbortController = new AbortController(); const loadingDiv = this.addLoading(); try { const reply = await callChatApi({ model: DataManager.currentModel, messages: apiMessages, signal: currentAbortController.signal, thinkingMode: DataManager.currentThinkingMode }); conv.messages.push({ role: 'assistant', content: reply.content, reasoning: normalizeReplyReasoning(reply), regenerations: [], currentVersion: 0, reasoningCollapsed: true, timestamp: new Date().toISOString() }); role.unread = false; this.checkConversationLimit(); DataManager.saveData(); this.jumpToLastPage(conv.messages.length); this.loadConversationToUI(); this.renderRoleList(); } catch (err) { if (err.name !== 'AbortError') { alert('生成失败: ' + err.message); conv.messages.pop(); this.loadConversationToUI(); } } finally { loadingDiv.remove(); currentAbortController = null; DOM.sendBtn.disabled = false; DOM.chatInput.disabled = false; DOM.chatInput.focus(); } },
+            adjustTextareaHeight() {},
+            setDay(isDay, persist = true) { DOM.device.classList.toggle('day', isDay); DataManager.globalSettings.theme = isDay ? 'day' : 'night'; document.querySelectorAll('.seg-day').forEach(btn => btn.classList.toggle('on', isDay)); document.querySelectorAll('.seg-night').forEach(btn => btn.classList.toggle('on', !isDay)); if (persist) { localStorage.setItem('deepseek_theme', isDay ? 'light' : 'dark'); DataManager.saveData(); } },
+            loadTheme() { const saved = localStorage.getItem('deepseek_theme'); this.setDay(saved ? saved === 'light' : DataManager.globalSettings.theme === 'day', false); }, toggleTheme() { this.setDay(!DOM.device.classList.contains('day')); },
+            renderSettingsUI() { DOM.accentHex.textContent = normalizeHexColor(DataManager.globalSettings.defaultAccentColor).toUpperCase(); DOM.meModelVal.textContent = MODEL_OPTIONS.find(i => i.key === DataManager.currentModel)?.shortName || DataManager.currentModel; DOM.meThinkVal.textContent = THINKING_OPTIONS.find(i => i.key === DataManager.currentThinkingMode)?.name || DataManager.currentThinkingMode; this.updateBgCount(); },
+            onModelChange(model = DataManager.currentModel, thinking = DataManager.currentThinkingMode) { const s = DataManager.normalizeModelSettings(model, thinking); DataManager.currentModel = s.currentModel; DataManager.currentThinkingMode = s.currentThinkingMode; DataManager.globalSettings.defaultModel = s.currentModel; DataManager.globalSettings.defaultThinkingMode = s.currentThinkingMode; DataManager.saveData(); this.renderSettingsUI(); this.renderModelMenu(); },
+            openOptionsSheet(kind) { optionSheetKind = kind; const isModel = kind === 'model'; const items = isModel ? MODEL_OPTIONS : THINKING_OPTIONS; const current = isModel ? DataManager.currentModel : DataManager.currentThinkingMode; DOM.optSheetTitle.textContent = isModel ? '默认模型' : '思考模式'; DOM.optSheetSub.textContent = '选一个'; DOM.optList.innerHTML = items.map(item => '<div class="opt-row ' + (item.key === current ? 'on' : '') + '" data-option-key="' + item.key + '"><div class="opt-info"><div class="opt-name">' + escapeHtml(item.name) + '</div><div class="opt-desc">' + escapeHtml(item.desc) + '</div></div><div class="opt-tick">✓</div></div>').join(''); this.showSheet('optionsSheet'); },
+            renderModelMenu() { DOM.modelMenu.innerHTML = '<div class="mp-label">模型</div>' + MODEL_OPTIONS.map(item => '<div class="mp-item ' + (item.key === DataManager.currentModel ? 'on' : '') + '" data-model="' + item.key + '"><div class="left">' + escapeHtml(item.name) + '<small>' + escapeHtml(item.desc) + '</small></div><span class="tick">✓</span></div>').join('') + '<div class="mp-label" style="margin-top:6px">思考模式</div>' + THINKING_OPTIONS.map(item => '<div class="mp-item ' + (item.key === DataManager.currentThinkingMode ? 'on' : '') + '" data-thinking="' + item.key + '"><div class="left">' + escapeHtml(item.name) + '<small>' + escapeHtml(item.desc) + '</small></div><span class="tick">✓</span></div>').join(''); },
+            toggleChatMenu(e) { e?.stopPropagation(); DOM.chatMenu.classList.toggle('open'); this.closeModelMenu(); }, closeChatMenu() { DOM.chatMenu.classList.remove('open'); }, toggleModelMenu(e) { e?.stopPropagation(); this.renderModelMenu(); DOM.modelMenu.classList.toggle('open'); this.closeChatMenu(); }, closeModelMenu() { DOM.modelMenu.classList.remove('open'); },
+            showSheet(id) { this.closeAllSheets(); DOM.dlgScrim.classList.add('open'); document.getElementById(id)?.classList.add('open'); }, closeAllSheets() { DOM.dlgScrim.classList.remove('open'); [DOM.summarySheet, DOM.colorSheet, DOM.bgSheet, DOM.optionsSheet, DOM.importSheet, DOM.aboutSheet].forEach(sheet => sheet?.classList.remove('open')); DOM.cpSaved.classList.remove('editing'); DOM.savedColorsEditBtn.textContent = '管理'; DOM.bgGrid.classList.remove('editing'); DOM.bgEditToggle.textContent = '管理'; },
+            openColorSheet(scope = 'global') { colorScope = scope; const role = DataManager.getCurrentRole(); const startHex = scope === 'role' ? this.getEffectiveAccent(role, DataManager.getCurrentConversation()) : DataManager.globalSettings.defaultAccentColor; const [h, s, l] = hexToHsl(startHex); DOM.hSlider.value = h; DOM.sSlider.value = s; DOM.lSlider.value = l; DOM.cpScopeLabel.textContent = scope === 'role' && role ? '「' + role.name + '」的强调色' : '默认强调色'; DOM.cpScopeHint.textContent = scope === 'role' ? '仅影响当前角色。修改后会同步到列表、头像、对话中的高亮。' : '新建角色时的默认强调色，已有角色不受影响。'; this.renderSavedColors(); this.updateColorPicker(); this.showSheet('colorSheet'); },
+            updateColorPicker() { const h = Number(DOM.hSlider.value), s = Number(DOM.sSlider.value), l = Number(DOM.lSlider.value); const hex = hslToHex(h, s, l); DOM.hNum.textContent = h; DOM.sNum.textContent = s; DOM.lNum.textContent = l; DOM.cpHex.textContent = hex.toUpperCase(); DOM.cpHsl.textContent = 'H ' + h + ' · S ' + s + ' · L ' + l; DOM.cpSwatch.style.setProperty('--cp-color', hex); DOM.sSlider.style.background = 'linear-gradient(to right, hsl(' + h + ' 0% ' + l + '%), hsl(' + h + ' 100% ' + l + '%))'; DOM.lSlider.style.background = 'linear-gradient(to right, hsl(' + h + ' ' + s + '% 5%), hsl(' + h + ' ' + s + '% 50%), hsl(' + h + ' ' + s + '% 95%))'; this.applyAccentColor(hex); if (colorScope === 'global') DOM.accentHex.textContent = hex.toUpperCase(); },
+            cancelColorSheet() { DOM.accentHex.textContent = normalizeHexColor(DataManager.globalSettings.defaultAccentColor).toUpperCase(); this.applyCurrentAccent(); this.closeAllSheets(); },
+            saveColorSheet() { const hex = normalizeHexColor(DOM.cpHex.textContent.toLowerCase()); const role = DataManager.getCurrentRole(); if (colorScope === 'role' && role) role.accentColor = hex; else DataManager.globalSettings.defaultAccentColor = hex; DataManager.saveData(); this.applyCurrentAccent(); this.renderSettingsUI(); this.renderRoleList(); this.renderChatFeed(); this.closeAllSheets(); },
+            renderSavedColors() { const colors = DataManager.globalSettings.savedColors || []; DOM.savedGrid.innerHTML = colors.map(color => '<div class="sw" style="background:' + color + '" data-color="' + color + '"><span class="rm" data-remove-color="' + color + '">×</span></div>').join('') + '<div class="sw add" data-add-color="true"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></div>'; },
+            async applyConversationBackground(bgId = 'default') { if (!DOM.customBgLayer) return; if (!bgId || bgId === 'default') { DOM.customBgLayer.style.backgroundImage = 'none'; DOM.customBgLayer.classList.remove('active'); return; } try { const bgs = await DBManager.getAllBgs(); const bg = bgs.find(item => item.id === bgId); if (bg) { DOM.customBgLayer.style.backgroundImage = 'url(' + bg.dataUrl + ')'; DOM.customBgLayer.classList.add('active'); } else { DOM.customBgLayer.style.backgroundImage = 'none'; DOM.customBgLayer.classList.remove('active'); } } catch(err) { console.error('加载背景失败', err); } },
+            async openBgSheet(ctx = 'chat') { bgSheetContext = ctx; DOM.bgSheetTitle.textContent = ctx === 'global' ? '背景图管理' : '换背景'; DOM.bgPreviewWrap.style.display = ctx === 'global' ? 'none' : ''; await this.renderBgGrid(); await this.updateBgPreview(); this.showSheet('bgSheet'); },
+            async updateBgPreview() { const role = DataManager.getCurrentRole(), conv = DataManager.getCurrentConversation(); if (!role || !conv) return; setAvatarText(DOM.bgPreviewAv, getInitialChar(role.name)); DOM.bgPreviewAv.style.background = this.getEffectiveAccent(role, conv); DOM.bgPreviewName.textContent = role.name + ' · ' + (conv.name || '新对话'); if (!conv.backgroundId || conv.backgroundId === 'default') { DOM.bgPreviewImg.style.background = 'linear-gradient(160deg,var(--bg2),var(--surface))'; return; } const bgs = await DBManager.getAllBgs(); const bg = bgs.find(item => item.id === conv.backgroundId); DOM.bgPreviewImg.style.background = bg ? 'url(' + bg.dataUrl + ') center/cover' : 'linear-gradient(160deg,var(--bg2),var(--surface))'; },
+            async renderBgGrid() { let bgs = []; try { bgs = await DBManager.getAllBgs(); } catch(e) {} const current = DataManager.getCurrentConversation()?.backgroundId || 'default'; DOM.bgGrid.innerHTML = '<div class="bg-tile default ' + (current === 'default' ? 'on' : '') + '" data-bg-id="default"><div class="img"></div></div>' + bgs.map(bg => '<div class="bg-tile ' + (current === bg.id ? 'on' : '') + '" data-bg-id="' + bg.id + '"><div class="img" style="background-image:url(' + bg.dataUrl + ')"></div><button class="rm" data-delete-bg="' + bg.id + '">×</button></div>').join(''); DOM.bgCountVal.textContent = bgs.length + ' 张'; },
+            async pickBackground(id) { if (DOM.bgGrid.classList.contains('editing') || bgSheetContext !== 'chat') return; const conv = DataManager.getCurrentConversation(); if (!conv) return; conv.backgroundId = id; DataManager.saveData(); await this.applyConversationBackground(id); await this.renderBgGrid(); await this.updateBgPreview(); },
+            async deleteBackground(id) { if (!confirm('确认删除这张历史背景吗？')) return; await DBManager.deleteBg(id); DataManager.roles.forEach(role => role.conversations.forEach(conv => { if (conv.backgroundId === id) conv.backgroundId = 'default'; })); DataManager.saveData(); await this.applyConversationBackground(DataManager.getCurrentConversation()?.backgroundId || 'default'); await this.renderBgGrid(); await this.updateBgPreview(); this.updateBgCount(); },
+            processAndSaveImage(file) { const reader = new FileReader(); reader.onload = e => { const img = new Image(); img.onload = async () => { const canvas = document.createElement('canvas'); let width = img.width, height = img.height; const max = 1920; if (width > height && width > max) { height *= max / width; width = max; } else if (height > max) { width *= max / height; height = max; } canvas.width = width; canvas.height = height; canvas.getContext('2d').drawImage(img, 0, 0, width, height); const dataUrl = canvas.toDataURL('image/jpeg', 0.85); const id = 'bg_' + Date.now(); try { await DBManager.saveBg(id, dataUrl); if (bgSheetContext === 'chat') { const conv = DataManager.getCurrentConversation(); if (conv) conv.backgroundId = id; DataManager.saveData(); await this.applyConversationBackground(id); } await this.renderBgGrid(); await this.updateBgPreview(); this.updateBgCount(); } catch(err) { alert('图片保存失败，数据库写入错误。'); console.error(err); } }; img.src = e.target.result; }; reader.readAsDataURL(file); },
+            async updateBgCount() { try { const bgs = await DBManager.getAllBgs(); DOM.bgCountVal.textContent = bgs.length + ' 张'; } catch(e) { DOM.bgCountVal.textContent = '0 张'; } },
+            openImportSheet() { this.showSheet('importSheet'); },
+            exportData() { if (!DataManager.roles?.length) { alert('当前没有可导出的数据。'); return; } const data = { roles: DataManager.roles, globalSettings: DataManager.globalSettings, version: 2, exportedAt: new Date().toISOString() }; const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = 'DeepSeek_RP_Data_' + new Date().toISOString().slice(0, 10) + '.json'; a.click(); URL.revokeObjectURL(url); },
+            importData(file) { if (!file) return; const reader = new FileReader(); reader.onload = event => { try { const data = JSON.parse(event.target.result); const importedRoles = normalizeImportedRoles(data); if (!importedRoles.length) { alert('文件格式错误：未找到有效的角色数据。'); return; } if (confirm('是否覆盖当前所有角色与对话数据？\n点击“确定”覆盖，点击“取消”则追加到现有列表中。')) { DataManager.roles = importedRoles; DataManager.currentRoleId = importedRoles[0]?.id || null; DataManager.currentConversationId = importedRoles[0]?.conversations[0]?.id || null; if (data.globalSettings) DataManager.globalSettings = normalizeGlobalSettings(data.globalSettings); } else { importedRoles.forEach(role => { role.id = DataManager.generateId(); role.conversations.forEach(conv => conv.id = DataManager.generateId()); DataManager.roles.push(role); }); } DataManager.ensureDefaultRoles({ save: false }); DataManager.saveData(); this.loadTheme(); this.renderSettingsUI(); this.renderRoleList(); this.renderChatFeed(); this.closeAllSheets(); alert('数据导入成功！'); } catch(err) { alert('读取文件失败，可能不是合法的 JSON 文件。\n错误信息: ' + err.message); } finally { DOM.importFile.value = ''; } }; reader.readAsText(file); },
+            openAboutSheet() { this.showSheet('aboutSheet'); }, updateDefaultBgItemStyle() {}
         };
 
-        function initThemeFollowSystem() {
-            const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-            mediaQuery.addEventListener('change', (e) => { 
-                if (!localStorage.getItem('deepseek_theme')) { 
-                    document.body.classList.toggle('dark', e.matches); 
-                    DOM.themeToggle.innerHTML = e.matches ? SVGIcons.sun : SVGIcons.moon; 
-                    UIManager.updateDefaultBgItemStyle();
-                } 
-            });
+        function initThemeFollowSystem() { const mq = window.matchMedia('(prefers-color-scheme: dark)'); mq.addEventListener('change', e => { if (!localStorage.getItem('deepseek_theme')) UIManager.setDay(!e.matches, true); }); }
+        function bindEvents() {
+            DOM.addRoleBtn.addEventListener('click', () => UIManager.openNewRolePanel()); document.querySelectorAll('[data-action="theme"]').forEach(btn => btn.addEventListener('click', () => UIManager.toggleTheme())); DOM.roleSearchInput.addEventListener('input', () => UIManager.renderRoleList()); document.querySelectorAll('.tab').forEach(btn => btn.addEventListener('click', () => UIManager.switchTab(btn.dataset.tab))); DOM.backBtn.addEventListener('click', () => UIManager.goBack()); DOM.chatAvatar.addEventListener('click', () => UIManager.openProfile()); DOM.profileScrim.addEventListener('click', () => UIManager.closeProfile()); DOM.chatMenuBtn.addEventListener('click', e => UIManager.toggleChatMenu(e)); DOM.summaryMenuItem.addEventListener('click', () => UIManager.openSummaryControl()); DOM.insertSceneItem.addEventListener('click', () => UIManager.insertSceneSeparator()); DOM.renameConvItem.addEventListener('click', () => UIManager.renameCurrentConversation()); DOM.clearConvItem.addEventListener('click', () => UIManager.clearCurrentConversation()); DOM.editRoleBtn.addEventListener('click', () => UIManager.openEditRolePanel()); DOM.changeBgBtn.addEventListener('click', () => { UIManager.closeProfile(); setTimeout(() => UIManager.openBgSheet('chat'), 260); }); DOM.roleColorBtn.addEventListener('click', () => { UIManager.closeProfile(); setTimeout(() => UIManager.openColorSheet('role'), 260); }); DOM.profileModelBtn.addEventListener('click', e => UIManager.toggleModelMenu(e)); DOM.profileRenameBtn.addEventListener('click', () => { UIManager.closeProfile(); setTimeout(() => UIManager.renameCurrentConversation(), 260); }); DOM.newConvBtn.addEventListener('click', () => UIManager.addConversation()); DOM.deleteCurrentRoleBtn.addEventListener('click', () => UIManager.deleteRole()); DOM.profileConvList.addEventListener('click', e => { const row = e.target.closest('.conv-row'); if (row) UIManager.switchConversation(DataManager.currentRoleId, row.dataset.convId); }); DOM.closeEditBtn.addEventListener('click', () => UIManager.closeEdit()); DOM.saveEditRoleBtn.addEventListener('click', () => UIManager.saveEditedRole()); document.querySelectorAll('[data-edit-mode]').forEach(btn => btn.addEventListener('click', () => setModeButtons('edit', btn.dataset.editMode))); DOM.closeNewRoleBtn.addEventListener('click', () => UIManager.closeNewRolePanel()); DOM.saveNewRoleBtn.addEventListener('click', () => UIManager.saveNewRole()); document.querySelectorAll('[data-new-mode]').forEach(btn => btn.addEventListener('click', () => setModeButtons('new', btn.dataset.newMode))); DOM.sendBtn.addEventListener('click', () => UIManager.sendMessage()); DOM.chatInput.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); UIManager.sendMessage(); } });
+            DOM.chatFeed.addEventListener('click', e => { const scene = e.target.closest('.scene[data-index]'); if (scene && !e.target.closest('button')) { const idx = Number(scene.dataset.index); const conv = DataManager.getCurrentConversation(); const msg = conv?.messages[idx]; if (msg?.role === 'scene_separator') openModal({ title: '编辑场景名', type: 'prompt', inputValue: msg.content || '', confirmLabel: '保存', onConfirm: value => { const v = String(value || '').trim(); if (!v) return false; msg.content = v; DataManager.saveData(); UIManager.renderChatFeed(); return true; } }); return; } const btn = e.target.closest('[data-action]'); if (!btn) return; const index = Number(btn.dataset.index); const conv = DataManager.getCurrentConversation(); switch (btn.dataset.action) { case 'toggle-reasoning': UIManager.toggleReasoning(index); break; case 'version': UIManager.changeAssistantVersion(index, Number(btn.dataset.delta)); break; case 'regenerate': UIManager.regenerateAssistantResponse(index); break; case 'edit-user': openEditUserModal(index, conv?.messages[index]?.content || ''); break; case 'delete-user': UIManager.deleteUserMessageAndAssistant(index); break; case 'generate-summary': { const slider = document.getElementById('summary-slider-' + index); UIManager.generateStorySummary(index, slider ? Number(slider.dataset.start) : 0, slider ? Number(slider.value) : 0); break; } case 'copy-summary': { const msg = conv?.messages[index]; if (!msg) return; const prefix = '[系统指令]\n你现在需要扮演该角色。在开始对话之前，请先仔细阅读并内化以下【前情提要】。这份前情提要是你和用户之间已经发生过的所有事情的记录，它不是需要你分析或回应的内容，而是你的记忆。请将这份记忆完全融入你对角色的理解中，并基于此继续与用户进行互动。\n\n【前情提要】\n'; copyToClipboard(prefix + getSummaryMemoryText(msg), () => { btn.innerHTML = SVGIcons.check + '复制成功'; setTimeout(() => btn.innerHTML = SVGIcons.copy + '复制内容', 1600); }); break; } case 'regenerate-summary': { const msg = conv?.messages[index]; if (msg?.startOffset !== undefined && msg?.endOffset !== undefined && confirm('重新生成会覆盖当前剧情总结，是否继续？')) UIManager.generateStorySummary(index, msg.startOffset, msg.endOffset); break; } case 'next-volume': UIManager.openNextVolumeFromSummary(index); break; case 'link-conv': UIManager.linkExistingConversationFromSummary(index); break; case 'continue-summary': if (conv && !conv.messages.some(m => m.role === 'system_summary' && m.status !== 'done')) { conv.messages.push({ role: 'system_summary', status: 'warning', content: '', timestamp: new Date().toISOString() }); DataManager.saveData(); UIManager.jumpToLastPage(conv.messages.length); UIManager.renderChatFeed(); } break; case 'prev-page': if (Pagination.currentPage > 1) { Pagination.currentPage--; UIManager.renderChatFeed(); } break; case 'next-page': { const pages = Math.ceil((conv?.messages.length || 0) / Config.PAGE_SIZE); if (Pagination.currentPage < pages) { Pagination.currentPage++; UIManager.renderChatFeed(); } break; } } });
+            DOM.chatFeed.addEventListener('input', e => { const slider = e.target.closest('[data-summary-slider]'); if (!slider) return; const text = document.getElementById('range-text-' + slider.dataset.summarySlider); if (text) text.textContent = '存档范围：从第 ' + (Number(slider.dataset.start) + 1) + ' 条 到 第 ' + (Number(slider.value) + 1) + ' 条'; });
+            DOM.confirmEditMsgBtn.addEventListener('click', async () => { const newContent = DOM.editUserMsgContent.value.trim(); if (!newContent) return; const conv = DataManager.getCurrentConversation(); if (!conv || editingUserMessageIndex === null) return; const msg = conv.messages[editingUserMessageIndex]; if (!msg || msg.role !== 'user') return; if (!confirm('重新生成将删除此条消息之后的所有对话，是否继续？')) { closeModal(); editingUserMessageIndex = null; return; } msg.content = newContent; msg.timestamp = new Date().toISOString(); conv.messages.splice(editingUserMessageIndex + 1); DataManager.saveData(); UIManager.jumpToLastPage(conv.messages.length); UIManager.renderChatFeed(); closeModal(); const idx = editingUserMessageIndex; editingUserMessageIndex = null; const role = DataManager.getCurrentRole(); if (role) await UIManager.generateReplyForUserIndex(conv, idx, role.systemPrompt); }); DOM.cancelEditMsgBtn.addEventListener('click', () => { closeModal(); editingUserMessageIndex = null; }); DOM.modalScrim.addEventListener('click', () => closeModal()); DOM.modalCancel.addEventListener('click', () => closeModal()); DOM.modalConfirm.addEventListener('click', () => { const value = DOM.modalInput.style.display === 'block' ? DOM.modalInput.value : undefined; const result = modalState.onConfirm ? modalState.onConfirm(value) : undefined; if (result === false) return; closeModal(); }); DOM.modalInput.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); DOM.modalConfirm.click(); } else if (e.key === 'Escape') closeModal(); }); DOM.dlgScrim.addEventListener('click', () => UIManager.closeAllSheets()); document.getElementById('closeSummaryBtn').addEventListener('click', () => UIManager.closeAllSheets()); [DOM.hSlider, DOM.sSlider, DOM.lSlider].forEach(slider => slider.addEventListener('input', () => UIManager.updateColorPicker())); DOM.cancelColorBtn.addEventListener('click', () => UIManager.cancelColorSheet()); DOM.saveColorBtn.addEventListener('click', () => UIManager.saveColorSheet()); DOM.savedColorsEditBtn.addEventListener('click', () => { DOM.cpSaved.classList.toggle('editing'); DOM.savedColorsEditBtn.textContent = DOM.cpSaved.classList.contains('editing') ? '完成' : '管理'; }); DOM.savedGrid.addEventListener('click', e => { const remove = e.target.closest('[data-remove-color]'); if (remove && DOM.cpSaved.classList.contains('editing')) { DataManager.globalSettings.savedColors = DataManager.globalSettings.savedColors.filter(c => c !== remove.dataset.removeColor); DataManager.saveData(); UIManager.renderSavedColors(); return; } if (e.target.closest('[data-add-color]')) { const color = normalizeHexColor(DOM.cpHex.textContent.toLowerCase()); if (!DataManager.globalSettings.savedColors.includes(color)) DataManager.globalSettings.savedColors.push(color); DataManager.saveData(); UIManager.renderSavedColors(); return; } const swatch = e.target.closest('[data-color]'); if (swatch && !DOM.cpSaved.classList.contains('editing')) { const [h, s, l] = hexToHsl(swatch.dataset.color); DOM.hSlider.value = h; DOM.sSlider.value = s; DOM.lSlider.value = l; UIManager.updateColorPicker(); } });
+            document.getElementById('globalColorRow').addEventListener('click', () => UIManager.openColorSheet('global')); document.getElementById('themeRow').addEventListener('click', () => UIManager.toggleTheme()); document.getElementById('themeSegmented').addEventListener('click', e => { e.stopPropagation(); const btn = e.target.closest('[data-theme]'); if (btn) UIManager.setDay(btn.dataset.theme === 'day'); }); document.getElementById('defaultModelRow').addEventListener('click', () => UIManager.openOptionsSheet('model')); document.getElementById('defaultThinkRow').addEventListener('click', () => UIManager.openOptionsSheet('think')); DOM.optList.addEventListener('click', e => { const row = e.target.closest('[data-option-key]'); if (!row) return; if (optionSheetKind === 'model') UIManager.onModelChange(row.dataset.optionKey, DataManager.currentThinkingMode); else UIManager.onModelChange(DataManager.currentModel, row.dataset.optionKey); UIManager.closeAllSheets(); }); DOM.modelMenu.addEventListener('click', e => { const model = e.target.closest('[data-model]')?.dataset.model; const thinking = e.target.closest('[data-thinking]')?.dataset.thinking; if (model) UIManager.onModelChange(model, DataManager.currentThinkingMode); if (thinking) UIManager.onModelChange(DataManager.currentModel, thinking); if (model || thinking) UIManager.closeModelMenu(); }); document.addEventListener('click', e => { if (!e.target.closest('#chatMenu') && !e.target.closest('#chatMenuBtn')) UIManager.closeChatMenu(); if (!e.target.closest('#modelMenu') && !e.target.closest('#profileModelBtn')) UIManager.closeModelMenu(); }); document.getElementById('bgManageRow').addEventListener('click', () => UIManager.openBgSheet('global')); DOM.bgEditToggle.addEventListener('click', () => { DOM.bgGrid.classList.toggle('editing'); DOM.bgEditToggle.textContent = DOM.bgGrid.classList.contains('editing') ? '完成' : '管理'; }); DOM.bgGrid.addEventListener('click', async e => { const del = e.target.closest('[data-delete-bg]'); if (del) { e.stopPropagation(); await UIManager.deleteBackground(del.dataset.deleteBg); return; } const tile = e.target.closest('[data-bg-id]'); if (tile) await UIManager.pickBackground(tile.dataset.bgId); }); DOM.uploadNewBgBtn.addEventListener('click', () => DOM.bgInput.click()); DOM.bgInput.addEventListener('change', e => { const file = e.target.files[0]; if (file) UIManager.processAndSaveImage(file); e.target.value = ''; }); document.getElementById('importRow').addEventListener('click', () => UIManager.openImportSheet()); DOM.importDrop.addEventListener('click', () => DOM.importFile.click()); DOM.importDrop.addEventListener('dragover', e => e.preventDefault()); DOM.importDrop.addEventListener('drop', e => { e.preventDefault(); UIManager.importData(e.dataTransfer.files[0]); }); DOM.importFile.addEventListener('change', e => UIManager.importData(e.target.files[0])); DOM.cancelImportBtn.addEventListener('click', () => UIManager.closeAllSheets()); document.getElementById('exportRow').addEventListener('click', () => UIManager.exportData()); document.getElementById('aboutRow').addEventListener('click', () => UIManager.openAboutSheet());
         }
-
-        DOM.sendBtn.addEventListener('click', async () => {
-            const text = DOM.messageInput.value.trim(); if (!text) return;
-            if (!DataManager.currentRoleId) { alert('请先选择一个角色'); return; }
-            DOM.messageInput.value = ''; UIManager.adjustTextareaHeight();
-            DOM.sendBtn.disabled = true; DOM.messageInput.disabled = true;
-            const conv = DataManager.getCurrentConversation(); if (!conv) return;
-            
-            conv.messages.push({ role: 'user', content: text, timestamp: new Date().toISOString() }); 
-            UIManager.loadConversationToUI();
-            
-            const role = DataManager.getCurrentRole();
-            // 【应用防 400 机制】确保大模型读取最新的总结点，且总文本不超过上限
-            const apiMessages = UIManager.getSafeApiMessages(conv, role);
-            
-            if (currentAbortController) currentAbortController.abort(); currentAbortController = new AbortController();
-            const loadingDiv = document.createElement('div'); loadingDiv.className = 'loading'; loadingDiv.innerHTML = `${SVGIcons.spinner} 生成中...`; DOM.messagesArea.appendChild(loadingDiv); DOM.messagesArea.scrollTop = DOM.messagesArea.scrollHeight;
-            try {
-                const reply = await callChatApi({ model: DataManager.currentModel, messages: apiMessages, signal: currentAbortController.signal, thinkingMode: DataManager.currentThinkingMode });
-                conv.messages.push({ role: 'assistant', content: reply.content, reasoning: normalizeReplyReasoning(reply), regenerations: [], currentVersion: 0, reasoningCollapsed: false, timestamp: new Date().toISOString() });
-                
-                UIManager.checkConversationLimit();
-                DataManager.saveData(); UIManager.jumpToLastPage(conv.messages.length); UIManager.loadConversationToUI();
-            } catch (err) { if (err.name !== 'AbortError') { alert(`生成失败: ${err.message}`); conv.messages.pop(); UIManager.loadConversationToUI(); } } finally { loadingDiv.remove(); currentAbortController = null; DOM.sendBtn.disabled = false; DOM.messageInput.disabled = false; DOM.messageInput.focus(); }
-        });
-
-        DOM.messageInput.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); DOM.sendBtn.click(); } });
-        DOM.messageInput.addEventListener('input', UIManager.adjustTextareaHeight);
-        DOM.addRoleBtn.addEventListener('click', () => UIManager.openEditRoleModal(null)); DOM.saveRoleBtn.addEventListener('click', UIManager.saveRole.bind(UIManager));
-        DOM.modeStructuredBtn.addEventListener('click', () => UIManager.setRoleEditMode('structured'));
-        DOM.modeRawBtn.addEventListener('click', () => UIManager.setRoleEditMode('raw'));
-        DOM.cancelModalBtn.addEventListener('click', UIManager.closeModal.bind(UIManager)); DOM.confirmRenameBtn.addEventListener('click', UIManager.renameConversation.bind(UIManager));
-        DOM.cancelRenameBtn.addEventListener('click', () => DOM.renameConvModal.style.display = 'none'); DOM.themeToggle.addEventListener('click', UIManager.toggleTheme.bind(UIManager));
-        DOM.sidebarToggleBtn.addEventListener('click', DataManager.toggleSidebar.bind(DataManager));
-        document.addEventListener('click', (e) => { if (DataManager.sidebarOpen && !DOM.roleSidebar.contains(e.target) && !DOM.sidebarToggleBtn.contains(e.target)) DataManager.toggleSidebar(); });
-        DOM.modelSelect.addEventListener('change', UIManager.onModelChange.bind(UIManager));
-        DOM.thinkingModeSelect.addEventListener('change', UIManager.onModelChange.bind(UIManager));
-        DOM.confirmEditMsgBtn.addEventListener('click', async () => {
-            const newContent = DOM.editUserMsgContent.value.trim(); if (!newContent) return;
-            const conv = DataManager.getCurrentConversation(); if (!conv || editingUserMessageIndex === null) return;
-            const userMsg = conv.messages[editingUserMessageIndex]; if (!userMsg || userMsg.role !== 'user') return;
-            if (!confirm('重新生成将删除此条消息之后的所有对话，是否继续？')) { DOM.editUserMsgModal.style.display = 'none'; editingUserMessageIndex = null; return; }
-            userMsg.content = newContent; userMsg.timestamp = new Date().toISOString(); conv.messages.splice(editingUserMessageIndex + 1);
-            DataManager.saveData(); UIManager.jumpToLastPage(conv.messages.length); UIManager.loadConversationToUI();
-            DOM.editUserMsgModal.style.display = 'none'; const idx = editingUserMessageIndex; editingUserMessageIndex = null;
-            const role = DataManager.getCurrentRole(); if (role) await UIManager.generateReplyForUserIndex(conv, idx, role.systemPrompt);
-        });
-        DOM.cancelEditMsgBtn.addEventListener('click', () => { DOM.editUserMsgModal.style.display = 'none'; editingUserMessageIndex = null; });
-        document.querySelectorAll('.modal').forEach(modal => modal.addEventListener('click', (e) => { if (e.target === modal) modal.style.display = 'none'; }));
-
-        // ---- 导入/导出功能实现 ----
-        DOM.exportBtn.addEventListener('click', () => {
-            if (!DataManager.roles || DataManager.roles.length === 0) { alert('当前没有可导出的数据。'); return; }
-            const dataToExport = { roles: DataManager.roles, version: 1, exportedAt: new Date().toISOString() };
-            const blob = new Blob([JSON.stringify(dataToExport, null, 2)], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a'); a.href = url; a.download = `DeepSeek_RP_Data_${new Date().toISOString().slice(0, 10)}.json`; a.click(); URL.revokeObjectURL(url);
-        });
-
-        DOM.importBtn.addEventListener('click', () => DOM.importFile.click());
-
-        DOM.importFile.addEventListener('change', (e) => {
-            const file = e.target.files[0]; if (!file) return;
-            const reader = new FileReader();
-            reader.onload = (event) => {
-                try {
-                    const data = JSON.parse(event.target.result);
-                    const importedRoles = normalizeImportedRoles(data);
-                    if (importedRoles.length > 0) {
-                        if (confirm('是否覆盖当前所有角色与对话数据？\n点击"确定"覆盖，"取消"则追加到现有列表中。')) {
-                            DataManager.roles = importedRoles; DataManager.currentRoleId = importedRoles[0]?.id || null; DataManager.currentConversationId = importedRoles[0]?.conversations[0]?.id || null;
-                        } else {
-                            importedRoles.forEach(role => { role.id = DataManager.generateId(); role.conversations.forEach(c => c.id = DataManager.generateId()); DataManager.roles.push(role); });
-                        }
-                        DataManager.ensureDefaultRoles(); DataManager.saveData(); UIManager.renderSidebar(); UIManager.loadConversationToUI(); alert('数据导入成功！');
-                    } else { alert('文件格式错误：未找到有效的角色数据。'); }
-                } catch (err) { alert('读取文件失败，可能不是合法的 JSON 文件。\n错误信息: ' + err.message); }
-                e.target.value = ''; 
-            };
-            reader.readAsText(file);
-        });
-
-        // ---- 历史背景管理实现 ----
-        function applyCustomBg(dataUrl) {
-            if (dataUrl) { DOM.customBgLayer.style.backgroundImage = `url(${dataUrl})`; DOM.customBgLayer.classList.add('active'); } 
-            else { DOM.customBgLayer.style.backgroundImage = 'none'; DOM.customBgLayer.classList.remove('active'); }
-        }
-
-        function setCurrentBg(id, dataUrl = null) {
-            currentActiveBgId = id;
-            localStorage.setItem('deepseek_current_bg_id', id);
-            applyCustomBg(dataUrl);
-            renderBgGrid(); 
-        }
-
-        async function renderBgGrid() {
-            DOM.bgGrid.innerHTML = '';
-            
-            const defaultItem = document.createElement('div');
-            defaultItem.className = `bg-item bg-item-default ${currentActiveBgId === 'default' ? 'active' : ''}`;
-            defaultItem.id = 'bgItem-default';
-            if (document.body.classList.contains('dark')) defaultItem.classList.add('dark-preview');
-            defaultItem.innerHTML = `默认流体<div class="active-badge">${SVGIcons.check}</div>`;
-            defaultItem.addEventListener('click', () => setCurrentBg('default', null));
-            DOM.bgGrid.appendChild(defaultItem);
-
-            try {
-                const bgs = await DBManager.getAllBgs();
-                bgs.forEach(bg => {
-                    const item = document.createElement('div');
-                    item.className = `bg-item ${currentActiveBgId === bg.id ? 'active' : ''}`;
-                    item.style.backgroundImage = `url(${bg.dataUrl})`;
-                    item.innerHTML = `
-                        <button class="bg-delete-btn" title="删除">${SVGIcons.close}</button>
-                        <div class="active-badge">${SVGIcons.check}</div>
-                    `;
-                    item.addEventListener('click', () => setCurrentBg(bg.id, bg.dataUrl));
-                    
-                    item.querySelector('.bg-delete-btn').addEventListener('click', async (e) => {
-                        e.stopPropagation();
-                        if (confirm('确认删除这张历史背景吗？')) {
-                            await DBManager.deleteBg(bg.id);
-                            if (currentActiveBgId === bg.id) setCurrentBg('default', null);
-                            renderBgGrid();
-                        }
-                    });
-                    
-                    DOM.bgGrid.appendChild(item);
-                });
-            } catch (err) {
-                console.error("加载历史背景失败", err);
-            }
-        }
-
-        function processAndSaveImage(file) {
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                const img = new Image();
-                img.onload = async function() {
-                    const canvas = document.createElement('canvas');
-                    let width = img.width; let height = img.height;
-                    const MAX_SIZE = 1920; 
-                    if (width > height) { if (width > MAX_SIZE) { height *= MAX_SIZE / width; width = MAX_SIZE; } } 
-                    else { if (height > MAX_SIZE) { width *= MAX_SIZE / height; height = MAX_SIZE; } }
-                    
-                    canvas.width = width; canvas.height = height;
-                    const ctx = canvas.getContext('2d');
-                    ctx.drawImage(img, 0, 0, width, height);
-                    const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
-                    
-                    const newId = 'bg_' + Date.now();
-                    try {
-                        await DBManager.saveBg(newId, dataUrl);
-                        setCurrentBg(newId, dataUrl);
-                    } catch (err) {
-                        alert('图片保存失败，数据库写入错误。');
-                        console.error(err);
-                    }
-                };
-                img.src = e.target.result;
-            };
-            reader.readAsDataURL(file);
-        }
-
-        DOM.bgSettingBtn.addEventListener('click', () => { renderBgGrid(); DOM.bgModal.style.display = 'flex'; });
-        DOM.cancelBgModalBtn.addEventListener('click', () => { DOM.bgModal.style.display = 'none'; });
-        DOM.uploadNewBgBtn.addEventListener('click', () => { DOM.bgInput.click(); });
-        DOM.bgInput.addEventListener('change', (e) => {
-            const file = e.target.files[0];
-            if (!file) return;
-            processAndSaveImage(file);
-            e.target.value = ''; 
-            DOM.bgModal.style.display = 'none'; 
-        });
-
-        // ---- 程序入口 ----
-        async function init() {
-            try {
-                await DBManager.init();
-                if (currentActiveBgId !== 'default') {
-                    try {
-                        const bgs = await DBManager.getAllBgs();
-                        const activeBg = bgs.find(b => b.id === currentActiveBgId);
-                        if (activeBg) { applyCustomBg(activeBg.dataUrl); }
-                        else { setCurrentBg('default', null); }
-                    } catch (err) { console.error("恢复背景失败", err); }
-                }
-            } catch (err) {
-                alert('本地数据库初始化失败，背景历史功能将受限。');
-                console.error(err);
-            } finally {
-                await DataManager.loadData();
-                DataManager.loadSidebarState();
-                UIManager.loadTheme();
-                UIManager.renderSidebar();
-                UIManager.loadConversationToUI();
-                initThemeFollowSystem();
-            }
-        }
-
+        async function init() { try { await DBManager.init(); } catch(err) { alert('本地数据库初始化失败，背景历史功能将受限。'); console.error(err); } await DataManager.loadData(); bindEvents(); UIManager.loadTheme(); UIManager.renderSettingsUI(); UIManager.renderRoleList(); UIManager.renderChatFeed(); UIManager.renderModelMenu(); initThemeFollowSystem(); }
+        window.openChat = UIManager.openChat.bind(UIManager); window.goBack = UIManager.goBack.bind(UIManager); window.openProfile = UIManager.openProfile.bind(UIManager); window.closeProfile = UIManager.closeProfile.bind(UIManager); window.switchTab = UIManager.switchTab.bind(UIManager); window.showSheet = UIManager.showSheet.bind(UIManager); window.closeAllSheets = UIManager.closeAllSheets.bind(UIManager);
         init();
