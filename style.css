@@ -43,6 +43,8 @@
 */
 .device{
   --bg:#110f18;
+  --bg-rgb:17 15 24;
+  --bg-opacity:.7;
   --bg2:#1a1722;
   --surface:#1f1c28;
   --surface-2:#252231;
@@ -71,6 +73,7 @@
 */
 .device.day{
   --bg:#f5efe2;
+  --bg-rgb:245 239 226;
   --bg2:#ede5d2;
   --surface:#fbf7ec;
   --surface-2:#f1eadc;
@@ -107,6 +110,9 @@ body:has(.device.day){background:#d6cfbe}
   transition:background .5s var(--ease-out), box-shadow .5s var(--ease-out);
   color:var(--txt);
 }
+.device::before{content:'';position:absolute;inset:0;z-index:2;pointer-events:none;background:rgb(var(--bg-rgb) / var(--bg-opacity));opacity:0;transition:opacity .42s var(--ease-out), background .42s var(--ease-out)}
+.device.has-custom-bg{background:transparent}
+.device.has-custom-bg::before{opacity:1}
 .device.day{box-shadow:0 0 0 11px #c8c0ad, 0 0 0 12px #e2dac4, 0 40px 80px rgba(60,40,10,.18)}
 .island{position:absolute;top:12px;left:50%;transform:translateX(-50%);width:126px;height:36px;background:#000;border-radius:24px;z-index:60}
 .device.day .island{background:#171510}
@@ -211,6 +217,7 @@ body:has(.device.day){background:#d6cfbe}
   background:linear-gradient(var(--bg) 60%, transparent);
   pointer-events:none;transition:background .5s var(--ease-out);
 }
+.device.has-custom-bg .chat-topbar{background:linear-gradient(rgb(var(--bg-rgb) / var(--bg-opacity)) 60%, transparent)}
 .chat-topbar>*{pointer-events:auto}
 .back-btn{
   width:44px;height:44px;display:flex;align-items:center;justify-content:center;
@@ -242,8 +249,8 @@ body:has(.device.day){background:#d6cfbe}
   position:absolute;inset:0;overflow-y:auto;
   padding:104px var(--s6) 96px;
   display:flex;flex-direction:column;gap:var(--s7);z-index:10;
-  -webkit-mask-image:linear-gradient(to bottom, transparent 0px, black 56px, black 100%);
-          mask-image:linear-gradient(to bottom, transparent 0px, black 56px, black 100%);
+  -webkit-mask-image:linear-gradient(to bottom, transparent 0px, black 56px, black calc(100% - 48px), transparent 100%);
+          mask-image:linear-gradient(to bottom, transparent 0px, black 56px, black calc(100% - 48px), transparent 100%);
 }
 .chat-feed::-webkit-scrollbar{width:0}
 
@@ -325,9 +332,10 @@ body:has(.device.day){background:#d6cfbe}
 .chat-input{
   position:absolute;bottom:0;left:0;right:0;z-index:30;
   padding:0 var(--s5) 30px;
-  background:var(--bg);
+  background:linear-gradient(to bottom, transparent 0%, var(--bg) 60%, var(--bg) 100%);
   transition:background .5s var(--ease-out);
 }
+.device.has-custom-bg .chat-input{background:linear-gradient(to bottom, transparent 0%, rgb(var(--bg-rgb) / var(--bg-opacity)) 60%, rgb(var(--bg-rgb) / var(--bg-opacity)) 100%)}
 .input-box{
   display:flex;align-items:center;gap:var(--s2);
   padding:10px 12px 10px 16px;background:var(--input-bg);
@@ -877,10 +885,10 @@ body:has(.device.day){background:#d6cfbe}
    REAL APP WIRING ADDITIONS
    Runtime states used by script.js after migrating off the prototype.
 =============================================================== */
-.custom-bg-layer{position:absolute;inset:0;z-index:1;background-size:cover;background-position:center;opacity:0;pointer-events:none;transition:opacity .42s var(--ease-out), filter .42s var(--ease-out);filter:saturate(.9) brightness(.7)}
-.custom-bg-layer.active{opacity:.32}
-.device.day .custom-bg-layer.active{opacity:.22;filter:saturate(.85) brightness(1.08)}
-.custom-bg-layer::after{content:'';position:absolute;inset:0;background:linear-gradient(to bottom, color-mix(in srgb, var(--bg) 78%, transparent), color-mix(in srgb, var(--bg) 88%, transparent))}
+.custom-bg-layer{position:absolute;inset:0;z-index:1;background-size:cover;background-position:center;opacity:0;pointer-events:none;transition:opacity .42s var(--ease-out), filter .42s var(--ease-out);filter:saturate(.9) brightness(.95)}
+.custom-bg-layer.active{opacity:1}
+.device.day .custom-bg-layer.active{filter:saturate(.9) brightness(1.05)}
+.custom-bg-layer::after{content:none}
 .role-row.active{background:color-mix(in srgb, var(--accent) 10%, transparent)}
 .role-row.active::after{background:color-mix(in srgb, var(--accent) 30%, transparent)}
 .empty-state{padding:var(--s8) var(--s6);text-align:center;color:var(--txt-faint);font-size:13px;line-height:1.7;letter-spacing:.02em}
@@ -904,4 +912,13 @@ body:has(.device.day){background:#d6cfbe}
 .scene[data-index]{cursor:default}.scene-input input{font-size:12px}
 .role-new-panel{z-index:44}.profile-actions .pa-btn{min-height:76px}.profile-section .new-conv{color:inherit}.modal.edit-user-modal{width:316px}.modal-textarea{width:100%;min-height:132px;resize:vertical;font-family:var(--sans);font-size:14px;color:var(--txt);background:var(--bg);border:1px solid var(--border);border-radius:var(--r-s);padding:10px 12px;outline:none;margin-bottom:var(--s5);line-height:1.7}.modal-textarea:focus{border-color:var(--accent)}
 .bg-tile.default .img{background:linear-gradient(160deg,var(--bg2),var(--surface));display:flex;align-items:center;justify-content:center;color:var(--txt-faint);font-family:var(--mono);font-size:10px;letter-spacing:.08em}.bg-tile.default .img::after{content:'DEFAULT'}
+.bg-opacity-control{margin-top:var(--s4);padding:12px 14px;background:var(--search-bg);border:1px solid var(--border-soft);border-radius:var(--r-s)}
+.bg-opacity-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--s2);font-family:var(--mono);font-size:10px;letter-spacing:.08em;color:var(--txt-faint);text-transform:uppercase}
+.bg-opacity-control input[type=range]{width:100%;accent-color:var(--accent)}
 .bg-grid.editing .bg-tile.default .rm{display:none}.import-file-hidden,.bg-file-hidden{display:none!important}.scrim.over-chat{z-index:45}.summary-foot .summary-btn.danger{color:#c47a8a}.edit-action.save:disabled{opacity:.35}.tab[data-tab="activity"] span{white-space:nowrap}
+html.standalone .list-top,html.standalone .top-float{padding-top:env(safe-area-inset-top,0px)}
+html.standalone .chat-topbar{padding-top:env(safe-area-inset-top,0px)}
+@media(display-mode:standalone){
+  .list-top,.top-float{padding-top:env(safe-area-inset-top,0px)}
+  .chat-topbar{padding-top:env(safe-area-inset-top,0px)}
+}
