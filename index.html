@@ -1,133 +1,116 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>DeepSeek AI · 角色扮演</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
-    <link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>角色扮演</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script src="script.js" defer></script>
 </head>
 <body>
-<!-- 背景层 -->
-<div class="dynamic-bg">
-    <div id="customBgLayer" class="custom-bg-layer"></div>
-    <div class="blob blob1"></div>
-    <div class="blob blob2"></div>
-    <div class="blob blob3"></div>
-    <div class="blob blob4"></div>
-</div>
+<div class="device" id="device">
+  <div class="island"></div>
+  <div id="customBgLayer" class="custom-bg-layer"></div>
+  <div class="bg-art"><div class="orb a"></div><div class="orb b"></div><div class="grain"></div></div>
 
-<div class="app-container">
-    <div class="role-sidebar" id="roleSidebar">
-        <div class="sidebar-content">
-            <div class="sidebar-header">
-                <span>角色卡</span>
-                <button class="add-role-btn" id="addRoleBtn"><svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg></button>
-            </div>
-            <div class="role-list" id="roleList"></div>
+  <div class="screen" id="listScreen">
+    <div class="list-top">
+      <div class="list-header">
+        <div class="list-title">消息</div>
+        <div class="list-actions">
+          <button class="icon-btn theme-btn" id="themeToggle" data-action="theme" aria-label="切换日夜">
+            <span class="sun"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><line x1="12" y1="2" x2="12" y2="4"/><line x1="12" y1="20" x2="12" y2="22"/><line x1="4.93" y1="4.93" x2="6.34" y2="6.34"/><line x1="17.66" y1="17.66" x2="19.07" y2="19.07"/><line x1="2" y1="12" x2="4" y2="12"/><line x1="20" y1="12" x2="22" y2="12"/><line x1="4.93" y1="19.07" x2="6.34" y2="17.66"/><line x1="17.66" y1="6.34" x2="19.07" y2="4.93"/></svg></span>
+            <span class="moon"><svg viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg></span>
+          </button>
+          <button class="icon-btn" id="addRoleBtn" aria-label="新建角色"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
         </div>
-        <!-- 侧边栏底部导入导出与背景设置 -->
-        <div class="sidebar-footer">
-            <button id="exportBtn" class="action-btn" title="导出">
-                <svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="none"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
-                导出
-            </button>
-            <button id="importBtn" class="action-btn" title="导入">
-                <svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="none"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-                导入
-            </button>
-            <button id="bgSettingBtn" class="action-btn" title="设置背景">
-                <svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="none"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
-                背景
-            </button>
-            <input type="file" id="importFile" accept=".json" style="display:none">
-            <input type="file" id="bgInput" accept="image/*" style="display:none">
-        </div>
+      </div>
+      <div class="search-box">
+        <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="20" y1="20" x2="16.65" y2="16.65"/></svg>
+        <input id="roleSearchInput" placeholder="搜索角色…" autocomplete="off" />
+      </div>
     </div>
-    <div class="chat-container">
-        <div class="chat-header">
-            <div class="header-left">
-                <span id="headerRoleName">DeepSeek</span>
-            </div>
-            <div class="header-right">
-                <div class="model-selector">
-                    <select id="modelSelect">
-                        <option value="deepseek-v4-flash">V4 Flash</option>
-                        <option value="deepseek-v4-pro">V4 Pro</option>
-                    </select>
-                    <select id="thinkingModeSelect">
-                        <option value="fast">快速回答</option>
-                        <option value="thinking">深度思考</option>
-                    </select>
-                </div>
-                <button class="theme-toggle" id="themeToggle"><svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg></button>
-                <button class="sidebar-toggle-btn" id="sidebarToggleBtn"><svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg></button>
-            </div>
-        </div>
-        <div class="messages-area" id="messagesArea">
-            <div class="assistant-message">请从左侧选择一个角色和会话开始</div>
-        </div>
-        <div class="input-area" id="inputArea">
-            <div class="input-wrapper">
-                <textarea id="messageInput" placeholder="在此输入消息，发送给角色..." autocomplete="off" rows="1"></textarea>
-                <button id="sendBtn"><svg viewBox="0 0 24 24"><line x1="12" y1="19" x2="12" y2="5"></line><polyline points="5 12 12 5 19 12"></polyline></svg></button>
-            </div>
-        </div>
+    <div class="list-feed" id="roleList"></div>
+    <div class="tab-bar">
+      <button class="tab active" data-tab="list"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><span>消息</span></button>
+      <button class="tab future" data-tab="activity"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="3" x2="9" y2="21"/></svg><span>动态 · 以后</span></button>
+      <button class="tab" data-tab="me"><svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg><span>我的</span></button>
     </div>
-</div>
+  </div>
 
-<div id="roleModal" class="modal"><div class="modal-content role-modal-content"><h3 id="modalTitle">编辑角色</h3>
-    <input type="text" id="roleName" placeholder="角色名称">
-    <div class="role-mode-toggle">
-        <button type="button" id="modeStructuredBtn" class="role-mode-btn active">结构化</button>
-        <button type="button" id="modeRawBtn" class="role-mode-btn">自由文本</button>
+  <div class="screen hidden-right" id="activityScreen">
+    <div class="list-top">
+      <div class="list-header">
+        <div class="list-title">动态</div>
+        <div class="list-actions"><button class="icon-btn theme-btn" data-action="theme" aria-label="切换日夜"><span class="sun"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><line x1="12" y1="2" x2="12" y2="4"/><line x1="12" y1="20" x2="12" y2="22"/><line x1="4.93" y1="4.93" x2="6.34" y2="6.34"/><line x1="17.66" y1="17.66" x2="19.07" y2="19.07"/><line x1="2" y1="12" x2="4" y2="12"/><line x1="20" y1="12" x2="22" y2="12"/><line x1="4.93" y1="19.07" x2="6.34" y2="17.66"/><line x1="17.66" y1="6.34" x2="19.07" y2="4.93"/></svg></span><span class="moon"><svg viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg></span></button></div>
+      </div>
     </div>
-    <div id="roleFields" class="role-fields">
-        <label class="field-label">身份背景<span>角色是谁、年龄、身份、外貌关键点</span></label>
-        <textarea id="fieldIdentity" class="role-field" rows="3" placeholder="例：林深，28岁，外表清冷的画廊主理人……"></textarea>
-        <label class="field-label">性格内核<span>性格、价值观、情绪倾向、底层欲望</span></label>
-        <textarea id="fieldPersonality" class="role-field" rows="3" placeholder="例：表面克制疏离，内里固执且占有欲强……"></textarea>
-        <label class="field-label">说话方式<span>语气、口头禅、称呼习惯、表达风格</span></label>
-        <textarea id="fieldSpeech" class="role-field" rows="3" placeholder="例：话少、句子短，称呼你为「你」，很少用语气词……"></textarea>
-        <label class="field-label">用户角色设定<span>「我」在剧情里是谁、身份、与角色的初始距离（选填）</span></label>
-        <textarea id="fieldUserPersona" class="role-field" rows="3" placeholder="例：我是新来的策展助理，今天第一天上班，还不认识你……"></textarea>
-        <label class="field-label">与「我」的关系<span>和你的关系、对你的态度、隐藏动机</span></label>
-        <textarea id="fieldRelationship" class="role-field" rows="3" placeholder="例：是你的旧识，重逢后表面平静，实则一直没放下……"></textarea>
-        <label class="field-label">开场场景 / 世界观<span>选填：故事发生的背景设定</span></label>
-        <textarea id="fieldScene" class="role-field" rows="3" placeholder="例：雨夜的画廊打烊后，只剩你们两人……"></textarea>
-        <label class="field-label">绝不破戒<span>硬性约束：不会做的事、不出戏、不替你做决定</span></label>
-        <textarea id="fieldTaboo" class="role-field" rows="3" placeholder="例：不跳出角色解释设定；不替我（用户角色）说话或做决定；保持人设一致……"></textarea>
+    <div class="empty-wrap"><div class="empty-art"><div class="ring"></div><div class="ring r2"></div><div class="ring r3"></div><div class="dot"></div></div><div class="empty-title">这里还很安静</div><div class="empty-sub">以后这里会是朋友圈和小纸条的合并地。TA 们的随手记，你也可以回。</div><div class="empty-tag">即将推出</div></div>
+    <div class="tab-bar">
+      <button class="tab" data-tab="list"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><span>消息</span></button>
+      <button class="tab active" data-tab="activity"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="3" x2="9" y2="21"/></svg><span>动态</span></button>
+      <button class="tab" data-tab="me"><svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg><span>我的</span></button>
     </div>
-    <textarea id="rolePrompt" placeholder="系统提示词（人设）..." style="display:none;"></textarea>
-    <div class="modal-buttons"><button id="cancelModalBtn">取消</button><button id="saveRoleBtn">保存</button></div></div></div>
-<div id="renameConvModal" class="modal"><div class="modal-content"><h3>重命名会话</h3><input type="text" id="newConvName" placeholder="新名称"><div class="modal-buttons"><button id="cancelRenameBtn">取消</button><button id="confirmRenameBtn">确定</button></div></div></div>
-<div id="editUserMsgModal" class="modal edit-user-modal">
-    <div class="modal-content">
-        <h3>编辑消息</h3>
-        <textarea id="editUserMsgContent" rows="4" placeholder="输入新的消息内容..."></textarea>
-        <div class="modal-buttons">
-            <button id="cancelEditMsgBtn">取消</button>
-            <button id="confirmEditMsgBtn">重新生成</button>
-        </div>
-    </div>
-</div>
+  </div>
 
-<!-- 背景管理弹窗 -->
-<div id="bgModal" class="modal">
-    <div class="modal-content" style="max-width: 400px;">
-        <h3>自定义背景</h3>
-        <div class="bg-grid" id="bgGrid">
-            <!-- 动态生成背景列表 -->
-        </div>
-        <div class="modal-buttons">
-            <button id="uploadNewBgBtn" style="background: var(--button-bg); color: var(--button-text); flex: 2;">
-                <svg style="width: 16px; height: 16px; vertical-align: text-bottom; margin-right: 4px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>上传新图片
-            </button>
-            <button id="cancelBgModalBtn" style="background: var(--badge-bg); color: var(--text-primary); flex: 1;">关闭</button>
-        </div>
+  <div class="screen hidden-right" id="meScreen">
+    <div class="me-top"><div class="me-header"><div class="me-title">我的</div></div></div>
+    <div class="me-feed">
+      <div class="set-group"><div class="set-group-label">外观</div><div class="set-list">
+        <div class="set-row" id="themeRow"><div class="sr-l"><svg viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>日 / 夜模式</div><div class="segmented" id="themeSegmented"><button class="seg-day" data-theme="day">日</button><button class="seg-night on" data-theme="night">夜</button></div></div>
+        <div class="set-row" id="globalColorRow"><div class="sr-l"><svg viewBox="0 0 24 24" stroke-linejoin="round"><circle cx="7.5" cy="14.5" r="3.5"/><circle cx="16.5" cy="14.5" r="3.5"/><circle cx="12" cy="6.5" r="3.5"/></svg>默认强调色</div><div class="sr-r"><span class="val" id="accentHex">#B08968</span><span class="chev-r">›</span></div></div>
+      </div><div style="font-size:11.5px;color:var(--txt-faint);line-height:1.6;letter-spacing:.005em;padding:8px 4px 0">新建角色时的默认强调色，已有角色不受影响。每个角色可在资料页单独修改。</div></div>
+      <div class="set-group"><div class="set-group-label">对话默认</div><div class="set-list">
+        <div class="set-row" id="defaultModelRow"><div class="sr-l"><svg viewBox="0 0 24 24"><path d="M12 2L4 7v10l8 5 8-5V7z"/><path d="M4 7l8 5 8-5"/><path d="M12 12v10"/></svg>默认模型</div><div class="sr-r"><span class="val" id="meModelVal">V4 Pro</span><span class="chev-r">›</span></div></div>
+        <div class="set-row" id="defaultThinkRow"><div class="sr-l"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>思考模式</div><div class="sr-r"><span class="val" id="meThinkVal">深度思考</span><span class="chev-r">›</span></div></div>
+      </div></div>
+      <div class="set-group"><div class="set-group-label">数据</div><div class="set-list">
+        <div class="set-row" id="importRow"><div class="sr-l"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>导入数据</div><div class="sr-r"><span class="val">JSON</span><span class="chev-r">›</span></div></div>
+        <div class="set-row" id="exportRow"><div class="sr-l"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>导出数据</div><div class="sr-r"><span class="val">JSON</span><span class="chev-r">›</span></div></div>
+        <div class="set-row" id="bgManageRow"><div class="sr-l"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>背景图管理</div><div class="sr-r"><span class="val" id="bgCountVal">0 张</span><span class="chev-r">›</span></div></div>
+      </div></div>
+      <div class="set-group"><div class="set-group-label">关于</div><div class="set-list">
+        <div class="set-row" id="aboutRow"><div class="sr-l"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="8"/></svg>关于</div><div class="sr-r"><span class="chev-r">›</span></div></div>
+        <div class="set-row" style="cursor:default"><div class="sr-l"><svg viewBox="0 0 24 24"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>版本</div><div class="sr-r"><span class="val">0.4.0 · build 218</span></div></div>
+      </div></div>
     </div>
-</div>
+    <div class="tab-bar">
+      <button class="tab" data-tab="list"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><span>消息</span></button>
+      <button class="tab future" data-tab="activity"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="3" x2="9" y2="21"/></svg><span>动态 · 以后</span></button>
+      <button class="tab active" data-tab="me"><svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg><span>我的</span></button>
+    </div>
+  </div>
 
-<script src="script.js" defer></script>
+  <div class="screen hidden-right" id="chatScreen">
+    <div class="chat-topbar"><button class="back-btn" id="backBtn" aria-label="返回"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button><div class="chat-name-wrap"><div class="chat-name" id="chatName">DeepSeek</div><button class="chat-menu-btn" id="chatMenuBtn" aria-label="对话菜单"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button></div><div class="chat-avatar" id="chatAvatar">AI</div></div>
+    <div class="menu-pop" id="chatMenu"><div class="mp-label">对话操作</div><div class="mp-item" id="summaryMenuItem"><div class="left">剧情总结</div></div><div class="mp-item" id="insertSceneItem"><div class="left">插入场景分隔</div></div><div class="mp-item" id="renameConvItem"><div class="left">重命名对话</div></div><div class="mp-item" id="clearConvItem"><div class="left" style="color:#c47a8a">清空对话</div></div></div>
+    <div class="chat-feed" id="chatFeed"></div>
+    <div class="chat-input"><div class="input-box"><input class="input-text" id="chatInput" placeholder="发消息…" autocomplete="off" /><button class="send-btn" id="sendBtn" aria-label="发送"><svg viewBox="0 0 24 24"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg></button></div></div>
+    <div class="scrim" id="profileScrim"></div>
+    <div class="sheet profile-panel" id="profilePanel"><div class="sheet-handle"></div><div class="profile-top"><div class="profile-av" id="profileAv">AI<div class="cam"><svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="3.5"/></svg></div></div><div class="profile-name" id="profileName">DeepSeek</div><div class="profile-desc" id="profileDesc"></div></div>
+      <div class="profile-actions"><button class="pa-btn" id="editRoleBtn"><div class="pa-ico"><svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></div><span>编辑人设</span></button><button class="pa-btn" id="changeBgBtn"><div class="pa-ico"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></div><span>换背景</span></button><button class="pa-btn" id="roleColorBtn"><div class="pa-ico swatch-ico"><svg viewBox="0 0 24 24" stroke-linejoin="round"><circle cx="7.5" cy="14.5" r="3.5"/><circle cx="16.5" cy="14.5" r="3.5"/><circle cx="12" cy="6.5" r="3.5"/></svg></div><span>强调色</span></button><button class="pa-btn" id="profileModelBtn"><div class="pa-ico"><svg viewBox="0 0 24 24"><path d="M12 2L4 7v10l8 5 8-5V7z"/><path d="M4 7l8 5 8-5"/></svg></div><span>模型</span></button><button class="pa-btn" id="profileRenameBtn"><div class="pa-ico"><svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg></div><span>重命名</span></button></div>
+      <div class="divider-h"></div><div class="profile-section"><div class="ps-label">对话</div><div id="profileConvList"></div><button class="new-conv" id="newConvBtn"><div class="nc-ico"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></div><span>新建对话</span></button></div><div class="profile-delete"><button class="delete-role-btn" id="deleteCurrentRoleBtn"><svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>删除角色</button></div>
+    </div>
+    <div class="edit-panel" id="editPanel"><div class="edit-topbar"><button class="edit-action" id="closeEditBtn">取消</button><div class="edit-title">编辑人设</div><button class="edit-action save" id="saveEditRoleBtn">保存</button></div><div class="edit-feed"><div class="field"><div class="field-label"><span class="lab">角色名称</span></div><input class="field-input" id="editName" /></div><div class="edit-mode-switch"><div class="segmented"><button class="on" data-edit-mode="struct">结构化</button><button data-edit-mode="free">自由文本</button></div></div><div id="editStruct"><div class="field"><div class="field-label"><span class="lab">身份背景</span><span class="hint">他是谁，做什么的</span></div><textarea class="field-textarea" data-field="identity"></textarea></div><div class="field"><div class="field-label"><span class="lab">性格内核</span><span class="hint">表面与内里的反差</span></div><textarea class="field-textarea" data-field="personality"></textarea></div><div class="field"><div class="field-label"><span class="lab">说话方式</span><span class="hint">句长、语气词、口头禅</span></div><textarea class="field-textarea" data-field="speech"></textarea></div><div class="field"><div class="field-label"><span class="lab">用户角色设定</span><span class="hint">「你」是谁</span></div><textarea class="field-textarea" data-field="userPersona"></textarea></div><div class="field"><div class="field-label"><span class="lab">与用户关系</span><span class="hint">情感线、张力点</span></div><textarea class="field-textarea" data-field="relationship"></textarea></div><div class="field"><div class="field-label"><span class="lab">开场场景</span><span class="hint">第一句话发生在哪里</span></div><textarea class="field-textarea" data-field="scene"></textarea></div><div class="field"><div class="field-label"><span class="lab">绝不破戒</span><span class="hint">无论如何不能做的事</span></div><textarea class="field-textarea" data-field="taboo"></textarea></div></div><div id="editFree" style="display:none"><div class="field"><div class="field-label"><span class="lab">人设描述</span><span class="hint">自由发挥，越具体越好</span></div><textarea class="field-textarea tall" id="editFreeText"></textarea><div class="field-tip">建议涵盖：身份背景 / 性格 / 说话方式 / 与你的关系 / 开场场景 / 不可逾越的红线。</div></div></div></div></div>
+    <div class="menu-pop" id="modelMenu" style="top:auto;bottom:280px;left:50%;transform:translate(-50%,0) scale(.96)"></div>
+  </div>
+
+  <div class="edit-panel role-new-panel" id="roleNewPanel"><div class="edit-topbar"><button class="edit-action" id="closeNewRoleBtn">取消</button><div class="edit-title">新建角色</div><button class="edit-action save" id="saveNewRoleBtn">保存</button></div><div class="edit-feed"><div class="field"><div class="field-label"><span class="lab">角色名称</span></div><input class="field-input" id="newName" placeholder="给 TA 一个名字" /></div><div class="edit-mode-switch"><div class="segmented"><button class="on" data-new-mode="struct">结构化</button><button data-new-mode="free">自由文本</button></div></div><div id="newStruct"><div class="field"><div class="field-label"><span class="lab">身份背景</span><span class="hint">他是谁，做什么的</span></div><textarea class="field-textarea" data-field="identity"></textarea></div><div class="field"><div class="field-label"><span class="lab">性格内核</span><span class="hint">表面与内里的反差</span></div><textarea class="field-textarea" data-field="personality"></textarea></div><div class="field"><div class="field-label"><span class="lab">说话方式</span><span class="hint">句长、语气词、口头禅</span></div><textarea class="field-textarea" data-field="speech"></textarea></div><div class="field"><div class="field-label"><span class="lab">用户角色设定</span><span class="hint">「你」是谁</span></div><textarea class="field-textarea" data-field="userPersona"></textarea></div><div class="field"><div class="field-label"><span class="lab">与用户关系</span><span class="hint">情感线、张力点</span></div><textarea class="field-textarea" data-field="relationship"></textarea></div><div class="field"><div class="field-label"><span class="lab">开场场景</span><span class="hint">第一句话发生在哪里</span></div><textarea class="field-textarea" data-field="scene"></textarea></div><div class="field"><div class="field-label"><span class="lab">绝不破戒</span><span class="hint">无论如何不能做的事</span></div><textarea class="field-textarea" data-field="taboo"></textarea></div></div><div id="newFree" style="display:none"><div class="field"><div class="field-label"><span class="lab">人设描述</span><span class="hint">自由发挥，越具体越好</span></div><textarea class="field-textarea tall" id="newFreeText"></textarea><div class="field-tip">建议涵盖：身份背景 / 性格 / 说话方式 / 与你的关系 / 开场场景 / 不可逾越的红线。</div></div></div></div></div>
+
+  <div class="scrim" id="dlgScrim"></div>
+  <div class="sheet summary-sheet" id="summarySheet"><div class="sheet-handle"></div><div class="summary-head"><div class="summary-eyebrow" id="summaryEyebrow">剧情总结</div><div class="summary-title" id="summaryTitle"></div></div><div class="summary-body" id="summaryBody"></div><div class="summary-foot" id="summaryFoot"><button class="summary-btn" id="closeSummaryBtn">关闭</button></div></div>
+  <div class="sheet color-sheet" id="colorSheet"><div class="sheet-handle"></div><div class="cp-scope"><span class="dot"></span><span id="cpScopeLabel">默认强调色</span></div><div class="cp-scope-hint" id="cpScopeHint"></div><div class="cp-sheet-head"><div class="cp-swatch" id="cpSwatch" style="--cp-color:#b08968"></div><div class="cp-meta"><span class="hex" id="cpHex">#B08968</span><span class="hsl" id="cpHsl">H 30 · S 31 · L 55</span></div></div><div class="cp-sheet-body"><div class="cp-slider"><div class="cp-slider-head"><span class="lab">色相 H</span><span class="num" id="hNum">30</span></div><input type="range" id="hSlider" min="0" max="360" value="30" style="--track:linear-gradient(to right, hsl(0 60% 55%), hsl(60 60% 55%), hsl(120 60% 55%), hsl(180 60% 55%), hsl(240 60% 55%), hsl(300 60% 55%), hsl(360 60% 55%))"></div><div class="cp-slider"><div class="cp-slider-head"><span class="lab">饱和度 S</span><span class="num" id="sNum">31</span></div><input type="range" id="sSlider" min="0" max="100" value="31"></div><div class="cp-slider"><div class="cp-slider-head"><span class="lab">明度 L</span><span class="num" id="lNum">55</span></div><input type="range" id="lSlider" min="0" max="100" value="55"></div></div><div class="cp-sheet-saved" id="cpSaved"><div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:var(--s3)"><div class="cp-saved-label">我的常用色</div><button class="edit-toggle" id="savedColorsEditBtn">管理</button></div><div class="cp-saved-grid" id="savedGrid"></div></div><div class="sheet-foot"><button class="cancel" id="cancelColorBtn">取消</button><button class="save" id="saveColorBtn">保存</button></div></div>
+  <div class="sheet bg-sheet" id="bgSheet"><div class="sheet-handle"></div><div class="sheet-head"><div class="sheet-title" id="bgSheetTitle">换背景</div><button class="bg-edit-toggle" id="bgEditToggle">管理</button></div><div class="sheet-body"><div class="bg-preview-wrap" id="bgPreviewWrap"><div class="bg-preview-label">当前背景</div><div class="bg-preview"><div class="bg-img" id="bgPreviewImg"></div><div class="bg-overlay"><div class="av" id="bgPreviewAv">AI</div><div class="nm" id="bgPreviewName"></div></div></div></div><div class="bg-grid" id="bgGrid"></div><button class="bg-upload" id="uploadNewBgBtn"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>上传新图片</button><input class="bg-file-hidden" type="file" id="bgInput" accept="image/*"></div></div>
+  <div class="sheet options-sheet" id="optionsSheet"><div class="sheet-handle"></div><div class="sheet-head"><div class="sheet-title" id="optSheetTitle">默认模型</div><div class="sheet-sub" id="optSheetSub">选一个</div></div><div class="opt-list" id="optList"></div></div>
+  <div class="sheet import-sheet" id="importSheet"><div class="sheet-handle"></div><div class="sheet-head"><div class="sheet-title">导入数据</div><div class="sheet-sub">JSON</div></div><div class="sheet-body" style="padding:0"><div class="import-drop" id="importDrop"><div class="ic"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></div><div class="ttl">选择 JSON 文件导入</div><div class="sub">点击此处选择文件<br>或拖入一个 .json 备份</div></div><input class="import-file-hidden" type="file" id="importFile" accept=".json,application/json"></div><div class="sheet-foot"><button class="cancel" id="cancelImportBtn">取消</button></div></div>
+  <div class="sheet about-sheet" id="aboutSheet"><div class="sheet-handle"></div><div class="about-wrap"><div class="about-mark">扮</div><div class="about-name">角色扮演</div><div class="about-ver">VERSION 0.4.0 · BUILD 218</div><div class="about-blurb">一个把文字当主角的 AI 角色扮演空间。在这里和你想象中的任何一个人，开始一段只属于你们的故事。</div><div class="about-sig">Claude Design · Codex wiring</div></div></div>
+  <div class="modal-scrim" id="modalScrim"></div>
+  <div class="modal" id="modal"><div class="modal-title" id="modalTitle">提示</div><div class="modal-msg" id="modalMsg"></div><input class="modal-input" id="modalInput" style="display:none" /><div class="modal-actions"><button class="modal-btn cancel" id="modalCancel">取消</button><button class="modal-btn confirm" id="modalConfirm">确定</button></div></div>
+  <div class="modal edit-user-modal" id="editUserMsgModal"><div class="modal-title">编辑消息</div><textarea class="modal-textarea" id="editUserMsgContent" placeholder="输入新的消息内容..."></textarea><div class="modal-actions"><button class="modal-btn cancel" id="cancelEditMsgBtn">取消</button><button class="modal-btn confirm" id="confirmEditMsgBtn">重新生成</button></div></div>
+</div>
 </body>
 </html>
