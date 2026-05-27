@@ -14,7 +14,6 @@
 <body>
 <div class="device" id="device">
   <div class="island"></div>
-  <div id="customBgLayer" class="custom-bg-layer"></div>
   <div class="bg-art"><div class="orb a"></div><div class="orb b"></div><div class="grain"></div></div>
 
   <div class="screen" id="listScreen">
@@ -86,6 +85,7 @@
   </div>
 
   <div class="screen hidden-right" id="chatScreen">
+    <div id="customBgLayer" class="custom-bg-layer"></div>
     <div class="chat-topbar"><button class="back-btn" id="backBtn" aria-label="返回"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button><div class="chat-name-wrap"><div class="chat-name" id="chatName">DeepSeek</div><button class="chat-menu-btn" id="chatMenuBtn" aria-label="对话菜单"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button></div><div class="chat-avatar" id="chatAvatar">AI</div></div>
     <div class="menu-pop" id="chatMenu"><div class="mp-label">对话操作</div><div class="mp-item" id="summaryMenuItem"><div class="left">剧情总结</div></div><div class="mp-item" id="insertSceneItem"><div class="left">插入场景分隔</div></div><div class="mp-item" id="renameConvItem"><div class="left">重命名对话</div></div><div class="mp-item" id="clearConvItem"><div class="left" style="color:#c47a8a">清空对话</div></div></div>
     <div class="chat-feed" id="chatFeed"></div>

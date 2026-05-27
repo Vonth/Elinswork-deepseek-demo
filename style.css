@@ -111,9 +111,6 @@ body:has(.device.day){background:#d6cfbe}
   transition:background .5s var(--ease-out), box-shadow .5s var(--ease-out);
   color:var(--txt);
 }
-.device::before{content:'';position:absolute;inset:0;z-index:2;pointer-events:none;background:rgb(var(--bg-rgb) / var(--bg-opacity));opacity:0;transition:opacity .42s var(--ease-out), background .42s var(--ease-out)}
-.device.has-custom-bg{background:transparent}
-.device.has-custom-bg::before{opacity:1}
 .device.day{box-shadow:0 0 0 11px #c8c0ad, 0 0 0 12px #e2dac4, 0 40px 80px rgba(60,40,10,.18)}
 .island{position:absolute;top:12px;left:50%;transform:translateX(-50%);width:126px;height:36px;background:#000;border-radius:24px;z-index:60}
 .device.day .island{background:#171510}
@@ -224,7 +221,10 @@ body:has(.device.day){background:#d6cfbe}
   background:linear-gradient(var(--bg) 60%, transparent);
   pointer-events:none;transition:background .5s var(--ease-out);
 }
-.device.has-custom-bg .chat-topbar{background:linear-gradient(rgb(var(--bg-rgb) / var(--bg-opacity)) 60%, transparent)}
+#chatScreen{overflow:hidden}
+#chatScreen::before{content:'';position:absolute;inset:0;z-index:2;pointer-events:none;background:rgb(var(--bg-rgb) / var(--bg-opacity));opacity:0;transition:opacity .42s var(--ease-out), background .42s var(--ease-out)}
+#chatScreen.has-custom-bg::before{opacity:1}
+#chatScreen.has-custom-bg .chat-topbar{background:linear-gradient(rgb(var(--bg-rgb) / var(--bg-opacity)) 60%, transparent)}
 .chat-topbar>*{pointer-events:auto}
 .back-btn{
   width:44px;height:44px;display:flex;align-items:center;justify-content:center;
@@ -342,7 +342,7 @@ body:has(.device.day){background:#d6cfbe}
   background:linear-gradient(to bottom, transparent 0%, var(--bg) 60%, var(--bg) 100%);
   transition:background .5s var(--ease-out);
 }
-.device.has-custom-bg .chat-input{background:linear-gradient(to bottom, transparent 0%, rgb(var(--bg-rgb) / var(--bg-opacity)) 60%, rgb(var(--bg-rgb) / var(--bg-opacity)) 100%)}
+#chatScreen.has-custom-bg .chat-input{background:linear-gradient(to bottom, transparent 0%, rgb(var(--bg-rgb) / var(--bg-opacity)) 60%, rgb(var(--bg-rgb) / var(--bg-opacity)) 100%)}
 .input-box{
   display:flex;align-items:center;gap:var(--s2);
   padding:10px 12px 10px 16px;background:var(--input-bg);
