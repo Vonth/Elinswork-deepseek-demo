@@ -180,6 +180,12 @@ body:has(.device.day){background:#d6cfbe}
   box-shadow:var(--shadow-card), inset 0 0 0 .5px rgba(0,0,0,.08);
 }
 .device.day .role-avatar{color:#fbf7ec}
+.role-avatar.has-image,.chat-avatar.has-image,.profile-av.has-image{
+  background-size:cover;
+  background-position:center;
+  color:transparent;
+}
+.profile-av.has-image .cam{color:var(--txt-soft)}
 .role-avatar .unread{position:absolute;top:-1px;right:-1px;width:10px;height:10px;border-radius:50%;border:2.5px solid var(--bg);background:var(--av);transition:border-color .5s var(--ease-out)}
 .role-info{flex:1;min-width:0}
 .role-name{font-family:var(--serif);font-size:var(--t-h);font-weight:600;color:var(--txt);margin-bottom:2px;display:flex;align-items:center;gap:var(--s2);letter-spacing:.02em}
@@ -409,7 +415,7 @@ body:has(.device.day){background:#d6cfbe}
 }
 .profile-av .cam svg{width:11px;height:11px;stroke:var(--txt-soft);stroke-width:2;fill:none;stroke-linecap:round}
 .profile-name{font-family:var(--serif);font-size:22px;font-weight:600;color:var(--txt);letter-spacing:.05em;margin-bottom:6px}
-.profile-desc{font-size:var(--t-sub);color:var(--txt-soft);line-height:1.65;max-width:280px;margin-bottom:var(--s5);letter-spacing:.005em}
+.profile-desc{font-size:var(--t-sub);color:var(--txt-soft);line-height:1.65;max-width:280px;margin-bottom:var(--s5);letter-spacing:.005em;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
 
 /* action row */
 .profile-actions{display:flex;gap:var(--s2);justify-content:center;margin-bottom:var(--s5);padding:0 var(--s3)}
@@ -774,6 +780,28 @@ body:has(.device.day){background:#d6cfbe}
 /* =====================================================
    ABOUT SHEET
 ===================================================== */
+.avatar-crop-sheet{max-height:88%;z-index:38}
+.avatar-crop-body{padding:var(--s5) var(--s6) var(--s4)}
+.avatar-crop-stage{
+  position:relative;width:min(100%,320px);aspect-ratio:1/1;margin:0 auto;
+  overflow:hidden;border-radius:var(--r-m);background:#050409;
+  border:1px solid var(--border-soft);touch-action:none;
+}
+.avatar-crop-stage canvas{display:block;width:100%;height:100%}
+.avatar-crop-frame{
+  position:absolute;left:50%;top:50%;width:min(76%,240px);aspect-ratio:1/1;
+  transform:translate(-50%,-50%);
+  border:2px solid rgba(255,255,255,.92);
+  box-shadow:0 0 0 999px rgba(0,0,0,.42), inset 0 0 0 1px rgba(0,0,0,.2);
+  pointer-events:none;
+}
+.avatar-crop-frame::before,.avatar-crop-frame::after{
+  content:'';position:absolute;inset:33.333% 0 auto;height:1px;background:rgba(255,255,255,.34);
+  box-shadow:0 calc(100% + 1px) 0 rgba(255,255,255,.34);
+}
+.avatar-crop-frame::after{inset:0 auto 0 33.333%;width:1px;height:auto;box-shadow:calc(100% + 1px) 0 0 rgba(255,255,255,.34)}
+.avatar-crop-hint{text-align:center;color:var(--txt-faint);font-family:var(--mono);font-size:10px;letter-spacing:.08em;margin-top:var(--s3)}
+
 .about-sheet{max-height:60%}
 .about-wrap{padding:var(--s6) var(--s6) var(--s4);flex:1;display:flex;flex-direction:column;align-items:center;text-align:center}
 .about-mark{
@@ -915,7 +943,7 @@ body:has(.device.day){background:#d6cfbe}
 .bg-opacity-control{margin-top:var(--s4);padding:12px 14px;background:var(--search-bg);border:1px solid var(--border-soft);border-radius:var(--r-s)}
 .bg-opacity-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--s2);font-family:var(--mono);font-size:10px;letter-spacing:.08em;color:var(--txt-faint);text-transform:uppercase}
 .bg-opacity-control input[type=range]{width:100%;accent-color:var(--accent)}
-.bg-grid.editing .bg-tile.default .rm{display:none}.import-file-hidden,.bg-file-hidden{display:none!important}.scrim.over-chat{z-index:45}.summary-foot .summary-btn.danger{color:#c47a8a}.edit-action.save:disabled{opacity:.35}.tab[data-tab="activity"] span{white-space:nowrap}
+.bg-grid.editing .bg-tile.default .rm{display:none}.import-file-hidden,.bg-file-hidden,.avatar-file-hidden{display:none!important}.scrim.over-chat{z-index:45}.summary-foot .summary-btn.danger{color:#c47a8a}.edit-action.save:disabled{opacity:.35}.tab[data-tab="activity"] span{white-space:nowrap}
 html.standalone .list-top,html.standalone .top-float{padding-top:env(safe-area-inset-top,0px)}
 html.standalone .chat-topbar{padding-top:env(safe-area-inset-top,0px)}
 @media(display-mode:standalone){
