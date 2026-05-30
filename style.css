@@ -299,7 +299,8 @@ body:has(.device.day){background:#d6cfbe}
   max-height:0;overflow:hidden;opacity:0;
   transition:max-height .35s var(--ease-out), opacity .25s var(--ease-out), padding .25s var(--ease-out), margin .25s var(--ease-out);
 }
-.think-content.show{max-height:400px;opacity:1;padding:var(--s2);margin:var(--s2) 0}
+.think-content.show{max-height:70vh;overflow-y:auto;opacity:1;padding:var(--s2);margin:var(--s2) 0}
+.think-content.show::-webkit-scrollbar{width:0}
 
 .ai-body{font-size:var(--t-msg);line-height:var(--lh-prose);color:var(--txt);letter-spacing:.005em}
 .ai-body em{font-style:normal;font-weight:inherit;font-size:inherit;color:inherit;font-family:inherit;opacity:1}
