@@ -646,7 +646,7 @@ body:has(.device.day){background:#d6cfbe}
 }
 .field-input:focus,.field-textarea:focus{border-color:var(--accent);background:var(--surface-2)}
 .field-textarea{resize:none;min-height:84px;line-height:1.75}
-.field-textarea.tall{min-height:400px}
+.field-textarea.tall{min-height:500px}
 .field-tip{font-size:11px;color:var(--txt-faint);margin-top:6px;line-height:1.55;letter-spacing:.01em}
 
 /* =====================================================
