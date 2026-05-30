@@ -331,7 +331,7 @@ body:has(.device.day){background:#d6cfbe}
   border-radius:18px 18px 4px 18px;
   border:1px solid color-mix(in srgb, var(--accent) 22%, transparent);
   background:color-mix(in srgb, var(--accent) 10%, transparent);
-  letter-spacing:.005em;
+  letter-spacing:.005em;white-space:pre-wrap;
 }
 .user-msg .msg-actions{justify-content:flex-end}
 
@@ -344,13 +344,20 @@ body:has(.device.day){background:#d6cfbe}
 }
 #chatScreen.has-custom-bg .chat-input{background:linear-gradient(to bottom, transparent 0%, rgb(var(--bg-rgb) / var(--bg-opacity)) 60%, rgb(var(--bg-rgb) / var(--bg-opacity)) 100%)}
 .input-box{
-  display:flex;align-items:center;gap:var(--s2);
+  display:flex;align-items:flex-end;gap:var(--s2);
   padding:10px 12px 10px 16px;background:var(--input-bg);
   border:1px solid var(--border);border-radius:var(--r-xl);
   transition:border-color .25s var(--ease-out);
 }
 .input-box:focus-within{border-color:var(--txt-faint)}
-.input-text{flex:1;font-family:var(--sans);font-size:13.5px;color:var(--txt);background:none;border:none;outline:none;letter-spacing:.01em;padding:4px 0}
+.input-text{
+  flex:1;min-height:28px;max-height:88px;
+  font-family:var(--sans);font-size:16px;color:var(--txt);line-height:20px;
+  background:none;border:none;outline:none;letter-spacing:.01em;
+  padding:4px 0;resize:none;overflow-y:hidden;
+  white-space:pre-wrap;overflow-wrap:anywhere;
+}
+.input-text::-webkit-scrollbar{width:0}
 .input-text::placeholder{color:var(--txt-faint)}
 .send-btn{
   width:32px;height:32px;border-radius:50%;border:none;cursor:pointer;
