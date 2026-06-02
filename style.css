@@ -764,8 +764,10 @@ body:has(.device.day){background:#d6cfbe}
 /* =====================================================
    OPTIONS SHEET (model / think mode)
 ===================================================== */
-.options-sheet{max-height:60%}
-.opt-list{padding:var(--s3) var(--s6) var(--s5)}
+.options-sheet{max-height:72%;display:flex;flex-direction:column;overflow:hidden}
+.options-sheet .sheet-head{flex:0 0 auto}
+.opt-list{flex:1;min-height:0;overflow-y:auto;padding:var(--s3) var(--s6) calc(var(--s5) + env(safe-area-inset-bottom))}
+.opt-list::-webkit-scrollbar{width:0}
 .opt-row{display:flex;align-items:flex-start;gap:var(--s3);padding:var(--s4) 0;cursor:pointer;border-bottom:1px solid var(--border-soft);transition:opacity .15s}
 .opt-row:last-child{border-bottom:none}
 .opt-row:hover{opacity:.7}
