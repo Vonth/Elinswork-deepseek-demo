@@ -4,8 +4,8 @@
             WORKER_URL: 'https://still-bread-327a.liaoyilin826.workers.dev/',
             MAX_REGENERATIONS: 5,
             PAGE_SIZE: 50,
-            MAX_API_MESSAGES: 40,
-            MAX_CHARS_FOR_CHAT: 80000,
+            MAX_API_MESSAGES: 200,
+            MAX_CHARS_FOR_CHAT: 200000,
             MAX_COMPLETION_TOKENS: 1500,
             SUMMARY_SINGLE_PASS_CHARS: 30000,
             SUMMARY_SEGMENT_CHARS: 15000,
@@ -18,7 +18,7 @@
             SUMMARY_LONG_FINAL_MODEL: 'deepseek-v4-pro',
             SUMMARY_LONG_FINAL_THINKING_MODE: 'fast',
             SUMMARY_ARCHIVE_PROFILE: 'intimacy_multi_role',
-            STORY_ARCHIVE_TRIGGER_CHARS: 80000 // 8万字符触发本卷剧情存档建议
+            STORY_ARCHIVE_TRIGGER_CHARS: 50000 // 5万字符触发本卷剧情存档建议
         };
 
         const SVGIcons = {
@@ -112,6 +112,7 @@
         const Pagination = { currentPage: 1 };
         const STALE_GENERATING_SUMMARY_MS = 10 * 60 * 1000;
         let currentAbortController = null;
+        let currentPendingRequest = null;
 
         function escapeHtml(text) {
             if (!text) return '';
@@ -231,6 +232,38 @@
 
         function normalizeReplyReasoning(reply) {
             return typeof reply?.reasoning === 'string' && reply.reasoning.trim() ? reply.reasoning : null;
+        }
+
+        function startPendingRequest(meta = {}) {
+            if (currentAbortController) currentAbortController.abort();
+            const controller = new AbortController();
+            currentAbortController = controller;
+            currentPendingRequest = { ...meta, controller };
+            return currentPendingRequest;
+        }
+
+        function clearPendingRequest(pending) {
+            if (currentPendingRequest === pending) {
+                currentPendingRequest = null;
+                currentAbortController = null;
+            }
+        }
+
+        function clearAllPendingRequestState() {
+            currentPendingRequest = null;
+            currentAbortController = null;
+        }
+
+        function isPendingForUserMessage(conv, userMessage) {
+            return Boolean(currentPendingRequest && conv && userMessage && currentPendingRequest.conversationId === conv.id && currentPendingRequest.userMessage === userMessage);
+        }
+
+        function isPendingForAssistantMessage(conv, assistantMessage) {
+            return Boolean(currentPendingRequest && conv && assistantMessage && currentPendingRequest.conversationId === conv.id && currentPendingRequest.assistantMessage === assistantMessage);
+        }
+
+        function isMessagePresent(conv, message, role = null) {
+            return Boolean(conv && message && conv.messages.includes(message) && (!role || message.role === role));
         }
 
         function getSummaryMemoryText(msg) {
@@ -616,7 +649,7 @@
         };
         const DEFAULT_ACCENT_COLOR = '#b08968';
         const DEFAULT_SAVED_COLORS = ['#b08968', '#c47a8a', '#8a7ab0', '#7a9a6a'];
-        const DEFAULT_GLOBAL_SETTINGS = { theme: 'night', defaultModel: 'deepseek-v4-pro', defaultThinkingMode: 'thinking', defaultAccentColor: DEFAULT_ACCENT_COLOR, savedColors: DEFAULT_SAVED_COLORS.slice(), contextMessageLimit: 40 };
+        const DEFAULT_GLOBAL_SETTINGS = { theme: 'night', defaultModel: 'deepseek-v4-pro', defaultThinkingMode: 'thinking', defaultAccentColor: DEFAULT_ACCENT_COLOR, savedColors: DEFAULT_SAVED_COLORS.slice(), contextMessageLimit: 200, storyArchiveTriggerChars: 50000 };
 
         function makeId() { return crypto.randomUUID ? crypto.randomUUID() : Date.now() + '-' + Math.random().toString(16).slice(2); }
         function normalizeHexColor(value, fallback = DEFAULT_ACCENT_COLOR) { const raw = String(value || '').trim(); return /^#[0-9a-fA-F]{6}$/.test(raw) ? raw.toLowerCase() : fallback; }
@@ -645,8 +678,10 @@
         function normalizeConversationData(conv, roleName) { const source = conv && typeof conv === 'object' ? conv : {}; const normalized = { id: source.id || makeId(), name: typeof source.name === 'string' && source.name.trim() ? source.name.trim() : '新对话', backgroundId: typeof source.backgroundId === 'string' && source.backgroundId ? source.backgroundId : 'default', bgOpacity: normalizeBgOpacity(source.bgOpacity), accentColor: source.accentColor ? normalizeHexColor(source.accentColor, DEFAULT_ACCENT_COLOR) : null, messages: Array.isArray(source.messages) ? source.messages.map(normalizeImportedMessage).filter(Boolean) : [] }; const continuationFrom = normalizeContinuationFrom(source.continuationFrom); if (continuationFrom) normalized.continuationFrom = continuationFrom; return normalized; }
         function normalizeRoleData(role) { const source = role && typeof role === 'object' ? role : {}; const name = typeof source.name === 'string' && source.name.trim() ? source.name.trim() : '未命名角色'; const fields = normalizeRoleFields(source.fields); const systemPrompt = typeof source.systemPrompt === 'string' && source.systemPrompt.trim() ? source.systemPrompt.trim() : (fields ? buildSystemPromptFromFields(fields) : '你是一个乐于助人的AI助手。'); const normalized = { id: source.id || makeId(), name, systemPrompt, fields, promptMode: source.promptMode === 'struct' || fields ? 'struct' : 'free', accentColor: normalizeHexColor(source.accentColor || source.accent || DEFAULT_ACCENT_COLOR, DEFAULT_ACCENT_COLOR), avatarDataUrl: normalizeAvatarDataUrl(source.avatarDataUrl), unread: Boolean(source.unread), conversations: Array.isArray(source.conversations) ? source.conversations.map(conv => normalizeConversationData(conv, name)) : [] }; if (normalized.conversations.length === 0) normalized.conversations.push(normalizeConversationData(null, name)); return normalized; }
         function normalizeImportedRoles(data) { return data && Array.isArray(data.roles) ? data.roles.filter(role => role && typeof role === 'object').map(normalizeRoleData) : []; }
-        function normalizeContextMessageLimit(value) { const n = Number(value); if (!Number.isFinite(n)) return Config.MAX_API_MESSAGES; return Math.max(20, Math.min(60, Math.round(n))); }
-        function normalizeGlobalSettings(value = {}) { const source = value && typeof value === 'object' ? value : {}; const modelSettings = DataManager.normalizeModelSettings(source.defaultModel, source.defaultThinkingMode); const savedColors = Array.isArray(source.savedColors) ? source.savedColors.map(c => normalizeHexColor(c, '')).filter(Boolean) : DEFAULT_SAVED_COLORS.slice(); return { theme: source.theme === 'day' || source.theme === 'light' ? 'day' : 'night', defaultModel: modelSettings.currentModel, defaultThinkingMode: modelSettings.currentThinkingMode, defaultAccentColor: normalizeHexColor(source.defaultAccentColor, DEFAULT_ACCENT_COLOR), savedColors: [...new Set(savedColors.length ? savedColors : DEFAULT_SAVED_COLORS)].slice(0, 24), contextMessageLimit: normalizeContextMessageLimit(source.contextMessageLimit) }; }
+        function normalizeContextMessageLimit(value) { const n = Number(value); if (!Number.isFinite(n)) return Config.MAX_API_MESSAGES; return Math.max(20, Math.min(200, Math.round(n))); }
+        function normalizeStoryArchiveTriggerChars(value) { const n = Number(value); return [50000, 80000, 100000].includes(n) ? n : Config.STORY_ARCHIVE_TRIGGER_CHARS; }
+        function formatStoryArchiveTriggerChars(value) { return (normalizeStoryArchiveTriggerChars(value) / 10000) + ' 万'; }
+        function normalizeGlobalSettings(value = {}) { const source = value && typeof value === 'object' ? value : {}; const modelSettings = DataManager.normalizeModelSettings(source.defaultModel, source.defaultThinkingMode); const savedColors = Array.isArray(source.savedColors) ? source.savedColors.map(c => normalizeHexColor(c, '')).filter(Boolean) : DEFAULT_SAVED_COLORS.slice(); return { theme: source.theme === 'day' || source.theme === 'light' ? 'day' : 'night', defaultModel: modelSettings.currentModel, defaultThinkingMode: modelSettings.currentThinkingMode, defaultAccentColor: normalizeHexColor(source.defaultAccentColor, DEFAULT_ACCENT_COLOR), savedColors: [...new Set(savedColors.length ? savedColors : DEFAULT_SAVED_COLORS)].slice(0, 24), contextMessageLimit: normalizeContextMessageLimit(source.contextMessageLimit), storyArchiveTriggerChars: normalizeStoryArchiveTriggerChars(source.storyArchiveTriggerChars) }; }
         function formatMessageTime(timestamp) { const d = new Date(timestamp || Date.now()); return Number.isNaN(d.getTime()) ? '' : d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); }
         function formatRelativeTime(timestamp) { const d = new Date(timestamp || Date.now()); if (Number.isNaN(d.getTime())) return ''; const n = new Date(); const a = new Date(n.getFullYear(), n.getMonth(), n.getDate()).getTime(); const b = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime(); const diff = Math.round((a - b) / 86400000); if (diff === 0) return formatMessageTime(timestamp); if (diff === 1) return '昨天'; if (diff < 7) return diff + '天前'; return (d.getMonth() + 1) + '/' + d.getDate(); }
         function truncateText(text, max = 52) { const source = String(text || '').replace(/\s+/g, ' ').trim(); return source.length > max ? source.slice(0, max - 1) + '…' : source; }
@@ -674,7 +709,7 @@
 
         const DOM = { device: document.getElementById('device'), listScreen: document.getElementById('listScreen'), activityScreen: document.getElementById('activityScreen'), meScreen: document.getElementById('meScreen'), chatScreen: document.getElementById('chatScreen'), roleListDiv: document.getElementById('roleList'), roleSearchInput: document.getElementById('roleSearchInput'), addRoleBtn: document.getElementById('addRoleBtn'), messagesArea: document.getElementById('chatFeed'), chatFeed: document.getElementById('chatFeed'), messageInput: document.getElementById('chatInput'), chatInput: document.getElementById('chatInput'), sendBtn: document.getElementById('sendBtn'), backBtn: document.getElementById('backBtn'), chatName: document.getElementById('chatName'), chatAvatar: document.getElementById('chatAvatar'), chatMenuBtn: document.getElementById('chatMenuBtn'), chatMenu: document.getElementById('chatMenu'), summaryMenuItem: document.getElementById('summaryMenuItem'), insertSceneItem: document.getElementById('insertSceneItem'), renameConvItem: document.getElementById('renameConvItem'), clearConvItem: document.getElementById('clearConvItem'), profileScrim: document.getElementById('profileScrim'), profilePanel: document.getElementById('profilePanel'), profileAv: document.getElementById('profileAv'), profileName: document.getElementById('profileName'), profileDesc: document.getElementById('profileDesc'), profileConvList: document.getElementById('profileConvList'), editRoleBtn: document.getElementById('editRoleBtn'), changeBgBtn: document.getElementById('changeBgBtn'), roleColorBtn: document.getElementById('roleColorBtn'), profileModelBtn: document.getElementById('profileModelBtn'), profileRenameBtn: document.getElementById('profileRenameBtn'), newConvBtn: document.getElementById('newConvBtn'), deleteCurrentRoleBtn: document.getElementById('deleteCurrentRoleBtn'), editPanel: document.getElementById('editPanel'), editName: document.getElementById('editName'), editStruct: document.getElementById('editStruct'), editFree: document.getElementById('editFree'), editFreeText: document.getElementById('editFreeText'), closeEditBtn: document.getElementById('closeEditBtn'), saveEditRoleBtn: document.getElementById('saveEditRoleBtn'), modelMenu: document.getElementById('modelMenu'), roleNewPanel: document.getElementById('roleNewPanel'), newName: document.getElementById('newName'), newStruct: document.getElementById('newStruct'), newFree: document.getElementById('newFree'), newFreeText: document.getElementById('newFreeText'), closeNewRoleBtn: document.getElementById('closeNewRoleBtn'), saveNewRoleBtn: document.getElementById('saveNewRoleBtn'), dlgScrim: document.getElementById('dlgScrim'), summarySheet: document.getElementById('summarySheet'), colorSheet: document.getElementById('colorSheet'), bgSheet: document.getElementById('bgSheet'), optionsSheet: document.getElementById('optionsSheet'), importSheet: document.getElementById('importSheet'), aboutSheet: document.getElementById('aboutSheet'), avatarCropSheet: document.getElementById('avatarCropSheet'), roleAvatarInput: document.getElementById('roleAvatarInput'), avatarCropStage: document.getElementById('avatarCropStage'), avatarCropCanvas: document.getElementById('avatarCropCanvas'), cancelAvatarCropBtn: document.getElementById('cancelAvatarCropBtn'), saveAvatarCropBtn: document.getElementById('saveAvatarCropBtn'), cpScopeLabel: document.getElementById('cpScopeLabel'), cpScopeHint: document.getElementById('cpScopeHint'), cpSwatch: document.getElementById('cpSwatch'), cpHex: document.getElementById('cpHex'), cpHsl: document.getElementById('cpHsl'), hSlider: document.getElementById('hSlider'), sSlider: document.getElementById('sSlider'), lSlider: document.getElementById('lSlider'), hNum: document.getElementById('hNum'), sNum: document.getElementById('sNum'), lNum: document.getElementById('lNum'), cpSaved: document.getElementById('cpSaved'), savedGrid: document.getElementById('savedGrid'), savedColorsEditBtn: document.getElementById('savedColorsEditBtn'), cancelColorBtn: document.getElementById('cancelColorBtn'), saveColorBtn: document.getElementById('saveColorBtn'), accentHex: document.getElementById('accentHex'), bgSheetTitle: document.getElementById('bgSheetTitle'), bgEditToggle: document.getElementById('bgEditToggle'), bgPreviewWrap: document.getElementById('bgPreviewWrap'), bgPreviewImg: document.getElementById('bgPreviewImg'), bgPreviewAv: document.getElementById('bgPreviewAv'), bgPreviewName: document.getElementById('bgPreviewName'), bgOpacityControl: document.getElementById('bgOpacityControl'), bgOpacitySlider: document.getElementById('bgOpacitySlider'), bgOpacityVal: document.getElementById('bgOpacityVal'), bgGrid: document.getElementById('bgGrid'), bgCountVal: document.getElementById('bgCountVal'), uploadNewBgBtn: document.getElementById('uploadNewBgBtn'), bgInput: document.getElementById('bgInput'), customBgLayer: document.getElementById('customBgLayer'), optSheetTitle: document.getElementById('optSheetTitle'), optSheetSub: document.getElementById('optSheetSub'), optList: document.getElementById('optList'), meModelVal: document.getElementById('meModelVal'), meThinkVal: document.getElementById('meThinkVal'), meContextVal: document.getElementById('meContextVal'), importDrop: document.getElementById('importDrop'), importFile: document.getElementById('importFile'), cancelImportBtn: document.getElementById('cancelImportBtn'), modalScrim: document.getElementById('modalScrim'), modal: document.getElementById('modal'), modalTitle: document.getElementById('modalTitle'), modalMsg: document.getElementById('modalMsg'), modalInput: document.getElementById('modalInput'), modalCancel: document.getElementById('modalCancel'), modalConfirm: document.getElementById('modalConfirm'), editUserMsgModal: document.getElementById('editUserMsgModal'), editUserMsgContent: document.getElementById('editUserMsgContent'), confirmEditMsgBtn: document.getElementById('confirmEditMsgBtn'), cancelEditMsgBtn: document.getElementById('cancelEditMsgBtn') };
         let editingUserMessageIndex = null, editingAssistantMessageIndex = null, activeTab = 'list', editRoleMode = 'free', newRoleMode = 'struct', colorScope = 'global', bgSheetContext = 'chat', optionSheetKind = null, modalState = {}, avatarCropState = null;
-        const MODEL_OPTIONS = [{ key: 'deepseek-v4-flash', name: 'DeepSeek V4 Flash', shortName: 'V4 Flash', desc: '快 · 日常对话' }, { key: 'deepseek-v4-pro', name: 'DeepSeek V4 Pro', shortName: 'V4 Pro', desc: '慢 · 高质量长文' }]; const THINKING_OPTIONS = [{ key: 'fast', name: '快速回答', desc: '直接出文，省思考时间' }, { key: 'thinking', name: '深度思考', desc: '展示推理过程，更稳更慢' }]; const CONTEXT_LIMIT_OPTIONS = [20, 30, 40, 50, 60].map(value => ({ key: String(value), name: value + ' 条', desc: value === 40 ? '推荐 · 平衡速度和记忆' : value < 40 ? '更快 · 记忆更短' : '更长 · 请求更大' }));
+        const MODEL_OPTIONS = [{ key: 'deepseek-v4-flash', name: 'DeepSeek V4 Flash', shortName: 'V4 Flash', desc: '快 · 日常对话' }, { key: 'deepseek-v4-pro', name: 'DeepSeek V4 Pro', shortName: 'V4 Pro', desc: '慢 · 高质量长文' }]; const THINKING_OPTIONS = [{ key: 'fast', name: '快速回答', desc: '直接出文，省思考时间' }, { key: 'thinking', name: '深度思考', desc: '展示推理过程，更稳更慢' }]; const CONTEXT_LIMIT_OPTIONS = [20, 40, 60, 100, 150, 200].map(value => ({ key: String(value), name: value + ' 条', desc: value === 200 ? '尽量多记 · 请求最大' : value >= 100 ? '长对话 · 记忆更完整' : value === 40 ? '平衡速度和记忆' : '更快 · 记忆更短' })); const ARCHIVE_TRIGGER_OPTIONS = [50000, 80000, 100000].map(value => ({ key: String(value), name: formatStoryArchiveTriggerChars(value), desc: value === 50000 ? '更早总结 · 推荐' : value === 80000 ? '较长剧情后提醒' : '最长剧情后提醒' }));
         function setAvatarText(el, text) { if (!el) return; const node = Array.from(el.childNodes).find(n => n.nodeType === Node.TEXT_NODE); if (node) node.nodeValue = text; else el.insertBefore(document.createTextNode(text), el.firstChild); }
         function setAvatarVisual(el, role) { if (!el || !role) return; const dataUrl = normalizeAvatarDataUrl(role.avatarDataUrl); if (dataUrl) { el.classList.add('has-image'); el.style.backgroundImage = 'url("' + dataUrl.replace(/"/g, '%22') + '")'; setAvatarText(el, ''); return; } el.classList.remove('has-image'); el.style.backgroundImage = ''; setAvatarText(el, getInitialChar(role.name)); }
         function collectFields(container) { const fields = {}; Object.keys(FIELD_LABELS).forEach(key => { fields[key] = container?.querySelector('[data-field="' + key + '"]')?.value.trim() || ''; }); return fields; }
@@ -760,14 +795,15 @@
                 // 判断是否已经有正在显示的存档建议（未完成的总结）
                 const hasPendingSummary = conv.messages.some(m => m.role === 'system_summary' && m.status !== 'done');
 
-                if (totalChars > Config.STORY_ARCHIVE_TRIGGER_CHARS && !hasPendingSummary) {
+                const triggerChars = normalizeStoryArchiveTriggerChars(DataManager.globalSettings?.storyArchiveTriggerChars);
+                if (totalChars > triggerChars && !hasPendingSummary) {
                     conv.messages.push({
                         role: 'system_summary',
                         status: 'warning',
                         content: '',
                         timestamp: new Date().toISOString()
                     });
-                } else if (totalChars <= Config.STORY_ARCHIVE_TRIGGER_CHARS) {
+                } else if (totalChars <= triggerChars) {
                     for (let i = conv.messages.length - 1; i > lastSummaryIdx; i--) {
                         const msg = conv.messages[i];
                         if (msg.role === 'system_summary' && msg.status === 'warning') {
@@ -854,6 +890,7 @@
                 }
 
                 if (currentAbortController) currentAbortController.abort();
+                currentPendingRequest = null;
                 currentAbortController = new AbortController();
 
                 try {
@@ -948,7 +985,7 @@
                     }
                     restoreWarning();
                 } finally {
-                    currentAbortController = null;
+                    clearAllPendingRequestState();
                 }
             },
 
@@ -1097,14 +1134,16 @@
                     }
                 }
                 if (userIndex < 0) return;
+                const triggerUserMsg = conv.messages[userIndex];
                 
                 // 【应用防 400 机制】
                 const apiMessages = this.getSafeApiMessages(conv, role, userIndex);
                 
-                if (currentAbortController) currentAbortController.abort(); currentAbortController = new AbortController();
+                const pending = startPendingRequest({ type: 'regenerate', conversationId: conv.id, userMessage: triggerUserMsg, assistantMessage: assistantMsg });
                 const loadingDiv = document.createElement('div'); loadingDiv.className = 'loading'; loadingDiv.innerHTML = `${SVGIcons.spinner} 生成中...`; DOM.messagesArea.appendChild(loadingDiv); DOM.messagesArea.scrollTop = DOM.messagesArea.scrollHeight;
                 try {
-                    const reply = await callChatApi({ model: DataManager.currentModel, messages: apiMessages, signal: currentAbortController.signal, thinkingMode: DataManager.currentThinkingMode });
+                    const reply = await callChatApi({ model: DataManager.currentModel, messages: apiMessages, signal: pending.controller.signal, thinkingMode: DataManager.currentThinkingMode });
+                    if (!isMessagePresent(conv, triggerUserMsg, 'user') || !isMessagePresent(conv, assistantMsg, 'assistant')) return;
                     // 新版本追加到 regenerations 末尾，保持 1=原始 2=第一次重生成... 的正序
                     const newContent = reply.content;
                     const newReasoning = normalizeReplyReasoning(reply);
@@ -1113,12 +1152,14 @@
                     
                     this.checkConversationLimit();
                     DataManager.saveData(); this.loadConversationToUI();
-                } catch (err) { if (err.name !== 'AbortError') alert(`重新生成失败: ${err.message}`); } finally { loadingDiv.remove(); currentAbortController = null; }
+                } catch (err) { if (err.name !== 'AbortError') alert(`重新生成失败: ${err.message}`); } finally { loadingDiv.remove(); clearPendingRequest(pending); }
             },
             deleteUserMessageAndAssistant(userIndex) {
                 if (!confirm('确定删除此消息及后续回复吗？')) return;
                 const conv = DataManager.getCurrentConversation();
                 if (!conv) return;
+                const userMsg = conv.messages[userIndex];
+                if (isPendingForUserMessage(conv, userMsg)) currentPendingRequest.controller.abort();
                 let deleteCount = 1;
                 for (let i = userIndex + 1; i < conv.messages.length; i++) {
                     if (conv.messages[i].role === 'assistant') {
@@ -1132,31 +1173,90 @@
                 this.adjustPaginationAfterDelete(conv.messages.length);
                 this.loadConversationToUI();
             },
+            deleteAssistantMessage(assistantIndex) {
+                const conv = DataManager.getCurrentConversation();
+                if (!conv) return;
+                const assistantMsg = conv.messages[assistantIndex];
+                if (!assistantMsg || assistantMsg.role !== 'assistant') return;
+                if (!confirm('确定删除这条 AI 回复吗？')) return;
+                if (isPendingForAssistantMessage(conv, assistantMsg)) currentPendingRequest.controller.abort();
+                conv.messages.splice(assistantIndex, 1);
+                DataManager.saveData();
+                this.adjustPaginationAfterDelete(conv.messages.length);
+                this.loadConversationToUI();
+                this.renderRoleList();
+            },
             
             async generateReplyForUserIndex(conv, userIndex, systemPrompt) {
+                const triggerUserMsg = conv?.messages?.[userIndex];
+                if (!triggerUserMsg || triggerUserMsg.role !== 'user') return;
                 // 【应用防 400 机制】
                 const apiMessages = this.getSafeApiMessages(conv, { systemPrompt: systemPrompt }, userIndex);
                 
-                if (currentAbortController) currentAbortController.abort(); currentAbortController = new AbortController();
+                const pending = startPendingRequest({ type: 'reply', conversationId: conv.id, userMessage: triggerUserMsg });
                 const loadingDiv = document.createElement('div'); loadingDiv.className = 'loading'; loadingDiv.innerHTML = `${SVGIcons.spinner} 生成中...`; DOM.messagesArea.appendChild(loadingDiv); DOM.messagesArea.scrollTop = DOM.messagesArea.scrollHeight;
                 try {
-                    const reply = await callChatApi({ model: DataManager.currentModel, messages: apiMessages, signal: currentAbortController.signal, thinkingMode: DataManager.currentThinkingMode });
+                    const reply = await callChatApi({ model: DataManager.currentModel, messages: apiMessages, signal: pending.controller.signal, thinkingMode: DataManager.currentThinkingMode });
+                    if (!isMessagePresent(conv, triggerUserMsg, 'user')) return;
                     conv.messages.push({ role: 'assistant', content: reply.content, reasoning: normalizeReplyReasoning(reply), regenerations: [], currentVersion: 0, reasoningCollapsed: false, timestamp: new Date().toISOString() });
                     
                     this.checkConversationLimit();
                     DataManager.saveData(); this.jumpToLastPage(conv.messages.length); this.loadConversationToUI();
-                } catch (err) { if (err.name !== 'AbortError') alert(`生成失败: ${err.message}`); } finally { loadingDiv.remove(); currentAbortController = null; }
+                } catch (err) { if (err.name !== 'AbortError') alert(`生成失败: ${err.message}`); } finally { loadingDiv.remove(); clearPendingRequest(pending); }
             },
 
             addLoading() { const div = document.createElement('div'); div.className = 'loading'; div.innerHTML = SVGIcons.spinner + ' 生成中...'; DOM.chatFeed.appendChild(div); DOM.chatFeed.scrollTop = DOM.chatFeed.scrollHeight; return div; },
-            async sendMessage() { const text = DOM.chatInput.value.trim(); if (!text) return; if (!DataManager.currentRoleId) { alert('请先选择一个角色'); return; } const conv = DataManager.getCurrentConversation(); const role = DataManager.getCurrentRole(); if (!conv || !role) return; DOM.chatInput.value = ''; adjustChatInputHeight(); DOM.sendBtn.disabled = true; DOM.chatInput.disabled = true; conv.messages.push({ role: 'user', content: text, timestamp: new Date().toISOString() }); this.jumpToLastPage(conv.messages.length); this.loadConversationToUI(); const apiMessages = this.getSafeApiMessages(conv, role); if (currentAbortController) currentAbortController.abort(); currentAbortController = new AbortController(); const loadingDiv = this.addLoading(); try { const reply = await callChatApi({ model: DataManager.currentModel, messages: apiMessages, signal: currentAbortController.signal, thinkingMode: DataManager.currentThinkingMode }); conv.messages.push({ role: 'assistant', content: reply.content, reasoning: normalizeReplyReasoning(reply), regenerations: [], currentVersion: 0, reasoningCollapsed: true, timestamp: new Date().toISOString() }); role.unread = false; this.checkConversationLimit(); DataManager.saveData(); this.jumpToLastPage(conv.messages.length); this.loadConversationToUI(); this.renderRoleList(); } catch (err) { if (err.name !== 'AbortError') { alert('生成失败: ' + err.message); conv.messages.pop(); this.loadConversationToUI(); } } finally { loadingDiv.remove(); currentAbortController = null; DOM.sendBtn.disabled = false; DOM.chatInput.disabled = false; adjustChatInputHeight(); DOM.chatInput.focus(); } },
+            async sendMessage() {
+                const text = DOM.chatInput.value.trim();
+                if (!text) return;
+                if (!DataManager.currentRoleId) { alert('请先选择一个角色'); return; }
+                const conv = DataManager.getCurrentConversation();
+                const role = DataManager.getCurrentRole();
+                if (!conv || !role) return;
+                DOM.chatInput.value = '';
+                adjustChatInputHeight();
+                DOM.sendBtn.disabled = true;
+                DOM.chatInput.disabled = true;
+                const triggerUserMsg = { role: 'user', content: text, timestamp: new Date().toISOString() };
+                conv.messages.push(triggerUserMsg);
+                this.jumpToLastPage(conv.messages.length);
+                this.loadConversationToUI();
+                const apiMessages = this.getSafeApiMessages(conv, role);
+                const pending = startPendingRequest({ type: 'reply', conversationId: conv.id, userMessage: triggerUserMsg });
+                const loadingDiv = this.addLoading();
+                try {
+                    const reply = await callChatApi({ model: DataManager.currentModel, messages: apiMessages, signal: pending.controller.signal, thinkingMode: DataManager.currentThinkingMode });
+                    if (!isMessagePresent(conv, triggerUserMsg, 'user')) return;
+                    conv.messages.push({ role: 'assistant', content: reply.content, reasoning: normalizeReplyReasoning(reply), regenerations: [], currentVersion: 0, reasoningCollapsed: true, timestamp: new Date().toISOString() });
+                    role.unread = false;
+                    this.checkConversationLimit();
+                    DataManager.saveData();
+                    this.jumpToLastPage(conv.messages.length);
+                    this.loadConversationToUI();
+                    this.renderRoleList();
+                } catch (err) {
+                    if (err.name !== 'AbortError') {
+                        alert('生成失败: ' + err.message);
+                        if (isMessagePresent(conv, triggerUserMsg, 'user')) conv.messages.splice(conv.messages.indexOf(triggerUserMsg), 1);
+                        this.loadConversationToUI();
+                    }
+                } finally {
+                    loadingDiv.remove();
+                    clearPendingRequest(pending);
+                    DOM.sendBtn.disabled = false;
+                    DOM.chatInput.disabled = false;
+                    adjustChatInputHeight();
+                    DOM.chatInput.focus();
+                }
+            },
             adjustTextareaHeight() {},
             setDay(isDay, persist = true) { DOM.device.classList.toggle('day', isDay); DataManager.globalSettings.theme = isDay ? 'day' : 'night'; document.querySelectorAll('.seg-day').forEach(btn => btn.classList.toggle('on', isDay)); document.querySelectorAll('.seg-night').forEach(btn => btn.classList.toggle('on', !isDay)); if (persist) { localStorage.setItem('deepseek_theme', isDay ? 'light' : 'dark'); DataManager.saveData(); } },
             loadTheme() { const saved = localStorage.getItem('deepseek_theme'); this.setDay(saved ? saved === 'light' : DataManager.globalSettings.theme === 'day', false); }, toggleTheme() { this.setDay(!DOM.device.classList.contains('day')); },
-            renderSettingsUI() { DOM.accentHex.textContent = normalizeHexColor(DataManager.globalSettings.defaultAccentColor).toUpperCase(); DOM.meModelVal.textContent = MODEL_OPTIONS.find(i => i.key === DataManager.currentModel)?.shortName || DataManager.currentModel; DOM.meThinkVal.textContent = THINKING_OPTIONS.find(i => i.key === DataManager.currentThinkingMode)?.name || DataManager.currentThinkingMode; DOM.meContextVal.textContent = normalizeContextMessageLimit(DataManager.globalSettings.contextMessageLimit) + ' 条'; this.updateBgCount(); },
+            renderSettingsUI() { DOM.accentHex.textContent = normalizeHexColor(DataManager.globalSettings.defaultAccentColor).toUpperCase(); DOM.meModelVal.textContent = MODEL_OPTIONS.find(i => i.key === DataManager.currentModel)?.shortName || DataManager.currentModel; DOM.meThinkVal.textContent = THINKING_OPTIONS.find(i => i.key === DataManager.currentThinkingMode)?.name || DataManager.currentThinkingMode; DOM.meContextVal.textContent = normalizeContextMessageLimit(DataManager.globalSettings.contextMessageLimit) + ' 条'; const archiveVal = document.getElementById('meArchiveTriggerVal'); if (archiveVal) archiveVal.textContent = formatStoryArchiveTriggerChars(DataManager.globalSettings.storyArchiveTriggerChars); this.updateBgCount(); },
             onModelChange(model = DataManager.currentModel, thinking = DataManager.currentThinkingMode) { const s = DataManager.normalizeModelSettings(model, thinking); DataManager.currentModel = s.currentModel; DataManager.currentThinkingMode = s.currentThinkingMode; DataManager.globalSettings.defaultModel = s.currentModel; DataManager.globalSettings.defaultThinkingMode = s.currentThinkingMode; DataManager.saveData(); this.renderSettingsUI(); this.renderModelMenu(); },
             onContextLimitChange(value) { DataManager.globalSettings.contextMessageLimit = normalizeContextMessageLimit(value); DataManager.saveData(); this.renderSettingsUI(); },
-            openOptionsSheet(kind) { optionSheetKind = kind; const isModel = kind === 'model'; const isContext = kind === 'context'; const items = isContext ? CONTEXT_LIMIT_OPTIONS : isModel ? MODEL_OPTIONS : THINKING_OPTIONS; const current = isContext ? String(normalizeContextMessageLimit(DataManager.globalSettings.contextMessageLimit)) : isModel ? DataManager.currentModel : DataManager.currentThinkingMode; DOM.optSheetTitle.textContent = isContext ? '上下文记忆' : isModel ? '默认模型' : '思考模式'; DOM.optSheetSub.textContent = isContext ? '选择每次请求保留的最近消息数' : '选一个'; DOM.optList.innerHTML = items.map(item => '<div class="opt-row ' + (item.key === current ? 'on' : '') + '" data-option-key="' + item.key + '"><div class="opt-info"><div class="opt-name">' + escapeHtml(item.name) + '</div><div class="opt-desc">' + escapeHtml(item.desc) + '</div></div><div class="opt-tick">✓</div></div>').join(''); this.showSheet('optionsSheet'); },
+            onArchiveTriggerChange(value) { DataManager.globalSettings.storyArchiveTriggerChars = normalizeStoryArchiveTriggerChars(value); DataManager.saveData(); this.renderSettingsUI(); },
+            openOptionsSheet(kind) { optionSheetKind = kind; const isModel = kind === 'model'; const isContext = kind === 'context'; const isArchive = kind === 'archive'; const items = isArchive ? ARCHIVE_TRIGGER_OPTIONS : isContext ? CONTEXT_LIMIT_OPTIONS : isModel ? MODEL_OPTIONS : THINKING_OPTIONS; const current = isArchive ? String(normalizeStoryArchiveTriggerChars(DataManager.globalSettings.storyArchiveTriggerChars)) : isContext ? String(normalizeContextMessageLimit(DataManager.globalSettings.contextMessageLimit)) : isModel ? DataManager.currentModel : DataManager.currentThinkingMode; DOM.optSheetTitle.textContent = isArchive ? '剧情总结阈值' : isContext ? '上下文记忆' : isModel ? '默认模型' : '思考模式'; DOM.optSheetSub.textContent = isArchive ? '选择本卷剧情达到多少字符后提醒总结' : isContext ? '选择每次请求保留的最近消息数' : '选一个'; DOM.optList.innerHTML = items.map(item => '<div class="opt-row ' + (item.key === current ? 'on' : '') + '" data-option-key="' + item.key + '"><div class="opt-info"><div class="opt-name">' + escapeHtml(item.name) + '</div><div class="opt-desc">' + escapeHtml(item.desc) + '</div></div><div class="opt-tick">✓</div></div>').join(''); this.showSheet('optionsSheet'); },
             renderModelMenu() { DOM.modelMenu.innerHTML = '<div class="mp-label">模型</div>' + MODEL_OPTIONS.map(item => '<div class="mp-item ' + (item.key === DataManager.currentModel ? 'on' : '') + '" data-model="' + item.key + '"><div class="left">' + escapeHtml(item.name) + '<small>' + escapeHtml(item.desc) + '</small></div><span class="tick">✓</span></div>').join('') + '<div class="mp-label" style="margin-top:6px">思考模式</div>' + THINKING_OPTIONS.map(item => '<div class="mp-item ' + (item.key === DataManager.currentThinkingMode ? 'on' : '') + '" data-thinking="' + item.key + '"><div class="left">' + escapeHtml(item.name) + '<small>' + escapeHtml(item.desc) + '</small></div><span class="tick">✓</span></div>').join(''); },
             toggleChatMenu(e) { e?.stopPropagation(); DOM.chatMenu.classList.toggle('open'); this.closeModelMenu(); }, closeChatMenu() { DOM.chatMenu.classList.remove('open'); }, toggleModelMenu(e) { e?.stopPropagation(); this.renderModelMenu(); DOM.modelMenu.classList.toggle('open'); this.closeChatMenu(); }, closeModelMenu() { DOM.modelMenu.classList.remove('open'); },
             showSheet(id) { this.closeAllSheets(); DOM.dlgScrim.classList.add('open'); document.getElementById(id)?.classList.add('open'); }, closeAllSheets() { DOM.dlgScrim.classList.remove('open'); [DOM.summarySheet, DOM.colorSheet, DOM.bgSheet, DOM.optionsSheet, DOM.importSheet, DOM.aboutSheet, DOM.avatarCropSheet].forEach(sheet => sheet?.classList.remove('open')); avatarCropState = null; DOM.cpSaved.classList.remove('editing'); DOM.savedColorsEditBtn.textContent = '管理'; DOM.bgGrid.classList.remove('editing'); DOM.bgEditToggle.textContent = '管理'; },
@@ -1193,6 +1293,20 @@
             exportData() { if (!DataManager.roles?.length) { alert('当前没有可导出的数据。'); return; } const data = { roles: DataManager.roles, globalSettings: DataManager.globalSettings, version: 2, exportedAt: new Date().toISOString() }; const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = 'DeepSeek_RP_Data_' + new Date().toISOString().slice(0, 10) + '.json'; a.click(); URL.revokeObjectURL(url); },
             importData(file) { if (!file) return; const reader = new FileReader(); reader.onload = event => { try { const data = JSON.parse(event.target.result); const importedRoles = normalizeImportedRoles(data); if (!importedRoles.length) { alert('文件格式错误：未找到有效的角色数据。'); return; } if (confirm('是否覆盖当前所有角色与对话数据？\n点击“确定”覆盖，点击“取消”则追加到现有列表中。')) { DataManager.roles = importedRoles; DataManager.currentRoleId = importedRoles[0]?.id || null; DataManager.currentConversationId = importedRoles[0]?.conversations[0]?.id || null; if (data.globalSettings) DataManager.globalSettings = normalizeGlobalSettings(data.globalSettings); } else { importedRoles.forEach(role => { role.id = DataManager.generateId(); role.conversations.forEach(conv => conv.id = DataManager.generateId()); DataManager.roles.push(role); }); } DataManager.ensureDefaultRoles({ save: false }); DataManager.saveData(); this.loadTheme(); this.renderSettingsUI(); this.renderRoleList(); this.renderChatFeed(); this.closeAllSheets(); alert('数据导入成功！'); } catch(err) { alert('读取文件失败，可能不是合法的 JSON 文件。\n错误信息: ' + err.message); } finally { DOM.importFile.value = ''; } }; reader.readAsText(file); },
             openAboutSheet() { this.showSheet('aboutSheet'); }, updateDefaultBgItemStyle() {}
+        };
+
+        const baseRenderMessageNode = UIManager.renderMessageNode.bind(UIManager);
+        UIManager.renderMessageNode = function(msg, globalIdx, allMessages) {
+            const node = baseRenderMessageNode(msg, globalIdx, allMessages);
+            if (msg?.role === 'assistant' && node && !node.querySelector('[data-action="delete-assistant"]')) {
+                const deleteBtn = document.createElement('button');
+                deleteBtn.dataset.action = 'delete-assistant';
+                deleteBtn.dataset.index = String(globalIdx);
+                deleteBtn.innerHTML = SVGIcons.delete + '删除';
+                const regenBtn = node.querySelector('[data-action="regenerate"]');
+                if (regenBtn) regenBtn.before(deleteBtn);
+            }
+            return node;
         };
 
         function initDisplayModeClass() { const mq = window.matchMedia('(display-mode: standalone)'); const update = () => { const isStandalone = mq.matches || window.navigator.standalone === true; document.documentElement.classList.toggle('standalone', isStandalone); DOM.device?.classList.toggle('standalone', isStandalone); }; update(); if (mq.addEventListener) mq.addEventListener('change', update); else if (mq.addListener) mq.addListener(update); }
@@ -1242,8 +1356,15 @@
                 const role = DataManager.getCurrentRole();
                 if (role) await UIManager.generateReplyForUserIndex(conv, idx, role.systemPrompt);
             }); DOM.cancelEditMsgBtn.addEventListener('click', () => { closeModal(); editingUserMessageIndex = null; editingAssistantMessageIndex = null; }); DOM.modalScrim.addEventListener('click', () => closeModal()); DOM.modalCancel.addEventListener('click', () => closeModal()); DOM.modalConfirm.addEventListener('click', () => { const value = DOM.modalInput.style.display === 'block' ? DOM.modalInput.value : undefined; const result = modalState.onConfirm ? modalState.onConfirm(value) : undefined; if (result === false) return; closeModal(); }); DOM.modalInput.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); DOM.modalConfirm.click(); } else if (e.key === 'Escape') closeModal(); }); DOM.dlgScrim.addEventListener('click', () => UIManager.closeAllSheets()); document.getElementById('closeSummaryBtn').addEventListener('click', () => UIManager.closeAllSheets()); [DOM.hSlider, DOM.sSlider, DOM.lSlider].forEach(slider => slider.addEventListener('input', () => UIManager.updateColorPicker())); DOM.cancelColorBtn.addEventListener('click', () => UIManager.cancelColorSheet()); DOM.saveColorBtn.addEventListener('click', () => UIManager.saveColorSheet()); DOM.savedColorsEditBtn.addEventListener('click', () => { DOM.cpSaved.classList.toggle('editing'); DOM.savedColorsEditBtn.textContent = DOM.cpSaved.classList.contains('editing') ? '完成' : '管理'; }); DOM.savedGrid.addEventListener('click', e => { const remove = e.target.closest('[data-remove-color]'); if (remove && DOM.cpSaved.classList.contains('editing')) { DataManager.globalSettings.savedColors = DataManager.globalSettings.savedColors.filter(c => c !== remove.dataset.removeColor); DataManager.saveData(); UIManager.renderSavedColors(); return; } if (e.target.closest('[data-add-color]')) { const color = normalizeHexColor(DOM.cpHex.textContent.toLowerCase()); if (!DataManager.globalSettings.savedColors.includes(color)) DataManager.globalSettings.savedColors.push(color); DataManager.saveData(); UIManager.renderSavedColors(); return; } const swatch = e.target.closest('[data-color]'); if (swatch && !DOM.cpSaved.classList.contains('editing')) { const [h, s, l] = hexToHsl(swatch.dataset.color); DOM.hSlider.value = h; DOM.sSlider.value = s; DOM.lSlider.value = l; UIManager.updateColorPicker(); } });
-            document.getElementById('globalColorRow').addEventListener('click', () => UIManager.openColorSheet('global')); document.getElementById('themeRow').addEventListener('click', () => UIManager.toggleTheme()); document.getElementById('themeSegmented').addEventListener('click', e => { e.stopPropagation(); const btn = e.target.closest('[data-theme]'); if (btn) UIManager.setDay(btn.dataset.theme === 'day'); }); document.getElementById('defaultModelRow').addEventListener('click', () => UIManager.openOptionsSheet('model')); document.getElementById('defaultThinkRow').addEventListener('click', () => UIManager.openOptionsSheet('think')); document.getElementById('contextMemoryRow').addEventListener('click', () => UIManager.openOptionsSheet('context')); DOM.optList.addEventListener('click', e => { const row = e.target.closest('[data-option-key]'); if (!row) return; if (optionSheetKind === 'model') UIManager.onModelChange(row.dataset.optionKey, DataManager.currentThinkingMode); else if (optionSheetKind === 'context') UIManager.onContextLimitChange(row.dataset.optionKey); else UIManager.onModelChange(DataManager.currentModel, row.dataset.optionKey); UIManager.closeAllSheets(); }); DOM.modelMenu.addEventListener('click', e => { const model = e.target.closest('[data-model]')?.dataset.model; const thinking = e.target.closest('[data-thinking]')?.dataset.thinking; if (model) UIManager.onModelChange(model, DataManager.currentThinkingMode); if (thinking) UIManager.onModelChange(DataManager.currentModel, thinking); if (model || thinking) UIManager.closeModelMenu(); }); document.addEventListener('click', e => { if (!e.target.closest('#chatMenu') && !e.target.closest('#chatMenuBtn')) UIManager.closeChatMenu(); if (!e.target.closest('#modelMenu') && !e.target.closest('#profileModelBtn')) UIManager.closeModelMenu(); }); document.getElementById('bgManageRow').addEventListener('click', () => UIManager.openBgSheet('global')); DOM.bgEditToggle.addEventListener('click', () => { DOM.bgGrid.classList.toggle('editing'); DOM.bgEditToggle.textContent = DOM.bgGrid.classList.contains('editing') ? '完成' : '管理'; }); DOM.bgGrid.addEventListener('click', async e => { const del = e.target.closest('[data-delete-bg]'); if (del) { e.stopPropagation(); await UIManager.deleteBackground(del.dataset.deleteBg); return; } const tile = e.target.closest('[data-bg-id]'); if (tile) await UIManager.pickBackground(tile.dataset.bgId); }); DOM.bgOpacitySlider.addEventListener('input', e => UIManager.applyBgOpacity(Number(e.target.value) / 100)); DOM.bgOpacitySlider.addEventListener('change', e => UIManager.saveBgOpacity(Number(e.target.value) / 100)); DOM.uploadNewBgBtn.addEventListener('click', () => DOM.bgInput.click()); DOM.bgInput.addEventListener('change', e => { const file = e.target.files[0]; if (file) UIManager.processAndSaveImage(file); e.target.value = ''; }); DOM.roleAvatarInput.addEventListener('change', e => { const file = e.target.files[0]; if (file) UIManager.loadAvatarFile(file); }); DOM.avatarCropStage.addEventListener('pointerdown', e => UIManager.handleAvatarPointerDown(e)); DOM.avatarCropStage.addEventListener('pointermove', e => UIManager.handleAvatarPointerMove(e)); DOM.avatarCropStage.addEventListener('pointerup', e => UIManager.handleAvatarPointerUp(e)); DOM.avatarCropStage.addEventListener('pointercancel', e => UIManager.handleAvatarPointerUp(e)); DOM.avatarCropStage.addEventListener('wheel', e => UIManager.handleAvatarWheel(e), { passive: false }); DOM.cancelAvatarCropBtn.addEventListener('click', () => UIManager.cancelAvatarCrop()); DOM.saveAvatarCropBtn.addEventListener('click', () => UIManager.saveAvatarCrop()); window.addEventListener('resize', () => { if (avatarCropState) { UIManager.refreshAvatarCropGeometry(); UIManager.renderAvatarCrop(); } }); document.getElementById('importRow').addEventListener('click', () => UIManager.openImportSheet()); DOM.importDrop.addEventListener('click', () => DOM.importFile.click()); DOM.importDrop.addEventListener('dragover', e => e.preventDefault()); DOM.importDrop.addEventListener('drop', e => { e.preventDefault(); UIManager.importData(e.dataTransfer.files[0]); }); DOM.importFile.addEventListener('change', e => UIManager.importData(e.target.files[0])); DOM.cancelImportBtn.addEventListener('click', () => UIManager.closeAllSheets()); document.getElementById('exportRow').addEventListener('click', () => UIManager.exportData()); document.getElementById('aboutRow').addEventListener('click', () => UIManager.openAboutSheet());
+            document.getElementById('globalColorRow').addEventListener('click', () => UIManager.openColorSheet('global')); document.getElementById('themeRow').addEventListener('click', () => UIManager.toggleTheme()); document.getElementById('themeSegmented').addEventListener('click', e => { e.stopPropagation(); const btn = e.target.closest('[data-theme]'); if (btn) UIManager.setDay(btn.dataset.theme === 'day'); }); document.getElementById('defaultModelRow').addEventListener('click', () => UIManager.openOptionsSheet('model')); document.getElementById('defaultThinkRow').addEventListener('click', () => UIManager.openOptionsSheet('think')); document.getElementById('contextMemoryRow').addEventListener('click', () => UIManager.openOptionsSheet('context')); document.getElementById('archiveTriggerRow')?.addEventListener('click', () => UIManager.openOptionsSheet('archive')); DOM.optList.addEventListener('click', e => { const row = e.target.closest('[data-option-key]'); if (!row) return; if (optionSheetKind === 'model') UIManager.onModelChange(row.dataset.optionKey, DataManager.currentThinkingMode); else if (optionSheetKind === 'context') UIManager.onContextLimitChange(row.dataset.optionKey); else if (optionSheetKind === 'archive') UIManager.onArchiveTriggerChange(row.dataset.optionKey); else UIManager.onModelChange(DataManager.currentModel, row.dataset.optionKey); UIManager.closeAllSheets(); }); DOM.modelMenu.addEventListener('click', e => { const model = e.target.closest('[data-model]')?.dataset.model; const thinking = e.target.closest('[data-thinking]')?.dataset.thinking; if (model) UIManager.onModelChange(model, DataManager.currentThinkingMode); if (thinking) UIManager.onModelChange(DataManager.currentModel, thinking); if (model || thinking) UIManager.closeModelMenu(); }); document.addEventListener('click', e => { if (!e.target.closest('#chatMenu') && !e.target.closest('#chatMenuBtn')) UIManager.closeChatMenu(); if (!e.target.closest('#modelMenu') && !e.target.closest('#profileModelBtn')) UIManager.closeModelMenu(); }); document.getElementById('bgManageRow').addEventListener('click', () => UIManager.openBgSheet('global')); DOM.bgEditToggle.addEventListener('click', () => { DOM.bgGrid.classList.toggle('editing'); DOM.bgEditToggle.textContent = DOM.bgGrid.classList.contains('editing') ? '完成' : '管理'; }); DOM.bgGrid.addEventListener('click', async e => { const del = e.target.closest('[data-delete-bg]'); if (del) { e.stopPropagation(); await UIManager.deleteBackground(del.dataset.deleteBg); return; } const tile = e.target.closest('[data-bg-id]'); if (tile) await UIManager.pickBackground(tile.dataset.bgId); }); DOM.bgOpacitySlider.addEventListener('input', e => UIManager.applyBgOpacity(Number(e.target.value) / 100)); DOM.bgOpacitySlider.addEventListener('change', e => UIManager.saveBgOpacity(Number(e.target.value) / 100)); DOM.uploadNewBgBtn.addEventListener('click', () => DOM.bgInput.click()); DOM.bgInput.addEventListener('change', e => { const file = e.target.files[0]; if (file) UIManager.processAndSaveImage(file); e.target.value = ''; }); DOM.roleAvatarInput.addEventListener('change', e => { const file = e.target.files[0]; if (file) UIManager.loadAvatarFile(file); }); DOM.avatarCropStage.addEventListener('pointerdown', e => UIManager.handleAvatarPointerDown(e)); DOM.avatarCropStage.addEventListener('pointermove', e => UIManager.handleAvatarPointerMove(e)); DOM.avatarCropStage.addEventListener('pointerup', e => UIManager.handleAvatarPointerUp(e)); DOM.avatarCropStage.addEventListener('pointercancel', e => UIManager.handleAvatarPointerUp(e)); DOM.avatarCropStage.addEventListener('wheel', e => UIManager.handleAvatarWheel(e), { passive: false }); DOM.cancelAvatarCropBtn.addEventListener('click', () => UIManager.cancelAvatarCrop()); DOM.saveAvatarCropBtn.addEventListener('click', () => UIManager.saveAvatarCrop()); window.addEventListener('resize', () => { if (avatarCropState) { UIManager.refreshAvatarCropGeometry(); UIManager.renderAvatarCrop(); } }); document.getElementById('importRow').addEventListener('click', () => UIManager.openImportSheet()); DOM.importDrop.addEventListener('click', () => DOM.importFile.click()); DOM.importDrop.addEventListener('dragover', e => e.preventDefault()); DOM.importDrop.addEventListener('drop', e => { e.preventDefault(); UIManager.importData(e.dataTransfer.files[0]); }); DOM.importFile.addEventListener('change', e => UIManager.importData(e.target.files[0])); DOM.cancelImportBtn.addEventListener('click', () => UIManager.closeAllSheets()); document.getElementById('exportRow').addEventListener('click', () => UIManager.exportData()); document.getElementById('aboutRow').addEventListener('click', () => UIManager.openAboutSheet());
         }
-        async function init() { try { await DBManager.init(); } catch(err) { alert('本地数据库初始化失败，背景历史功能将受限。'); console.error(err); } await DataManager.loadData(); bindEvents(); initDisplayModeClass(); UIManager.loadTheme(); UIManager.renderSettingsUI(); UIManager.renderRoleList(); UIManager.renderChatFeed(); UIManager.renderModelMenu(); adjustChatInputHeight(); initThemeFollowSystem(); }
+        function bindAssistantDeleteEvent() {
+            DOM.chatFeed.addEventListener('click', e => {
+                const btn = e.target.closest('[data-action="delete-assistant"]');
+                if (!btn) return;
+                UIManager.deleteAssistantMessage(Number(btn.dataset.index));
+            });
+        }
+        async function init() { try { await DBManager.init(); } catch(err) { alert('本地数据库初始化失败，背景历史功能将受限。'); console.error(err); } await DataManager.loadData(); bindEvents(); bindAssistantDeleteEvent(); initDisplayModeClass(); UIManager.loadTheme(); UIManager.renderSettingsUI(); UIManager.renderRoleList(); UIManager.renderChatFeed(); UIManager.renderModelMenu(); adjustChatInputHeight(); initThemeFollowSystem(); }
         window.openChat = UIManager.openChat.bind(UIManager); window.goBack = UIManager.goBack.bind(UIManager); window.openProfile = UIManager.openProfile.bind(UIManager); window.closeProfile = UIManager.closeProfile.bind(UIManager); window.switchTab = UIManager.switchTab.bind(UIManager); window.showSheet = UIManager.showSheet.bind(UIManager); window.closeAllSheets = UIManager.closeAllSheets.bind(UIManager);
         init();
