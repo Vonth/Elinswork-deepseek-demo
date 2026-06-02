@@ -2,7 +2,7 @@
 
         const Config = {
             WORKER_URL: 'https://still-bread-327a.liaoyilin826.workers.dev/',
-            MAX_REGENERATIONS: 5,
+            MAX_REGENERATIONS: 10,
             PAGE_SIZE: 50,
             MAX_API_MESSAGES: 200,
             MAX_CHARS_FOR_CHAT: 200000,
