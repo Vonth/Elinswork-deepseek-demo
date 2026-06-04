@@ -364,6 +364,188 @@
             return { title: '', userArchive, continuationPrompt };
         }
 
+        const RELATIONSHIP_ARCHIVE_SYSTEM_PROMPT = [
+            '你是一位专业的角色扮演"关系档案"整理员。你的任务是阅读一段角色扮演对话，',
+            '并基于"现有档案 + 新增对话"，推演出角色经历这段剧情后的最新状态档案，供后续对话延续人设之用。',
+            '',
+            '你必须遵守：',
+            '- 你只整理已经发生的内容，绝不续写剧情、绝不替用户角色做任何决定、绝不改写或推翻已发生的事实。',
+            '- 你不进行角色扮演，不回应对话内容，只输出档案。',
+            '- 如对话中存在亲密内容，只客观记录其关系性质、情感与心理影响，',
+            '  不露骨复述细节，不新增未发生的内容。',
+            '- 你的全部输出必须是一个合法的 JSON 对象，不含任何 JSON 之外的文字。',
+            '',
+            '核心写作原则：',
+            '1. 你要写的是"角色经历这些之后、现在是谁、对用户是什么状态"，而不是流水账式地复述"发生了哪些事"。',
+            '2. 保留角色的本性张力，不要抹平。角色初始设定中的核心性格特质、防御机制与内心创伤不会凭空消失——',
+            '   剧情改变的往往不是这些特质本身，而是它们\\*对用户\\*的朝向与表现方式（例：原本用于自我保护的某种言行，',
+            '   对用户可能转化为亲昵或信任的表达）。请把"本性仍在、但对用户已然不同"的张力如实写出。',
+            '   绝不要为了表现关系进展，就把角色简化成一味顺从、温柔或甜腻的样子——那会让角色失真、扁平。',
+            '3. 不要遗漏有情感重量的关键细节。具体的物件、场景、对话（如某个有意义的礼物、某次关键的坦白），',
+            '   即使只出现一次，只要承载情感意义，就必须保留；不要因为某些闲聊出现多次就记录它、却漏掉真正重要的东西。'
+        ].join('\n');
+
+        const RELATIONSHIP_ARCHIVE_OUTPUT_EXAMPLE = [
+            '{',
+            '  "state": {',
+            '    "relationshipDefinition": "……",',
+            '    "attitudeToUser": "……",',
+            '    "relationshipTemperature": "……",',
+            '    "emotionalState": "……",',
+            '    "traumaStatus": "……"',
+            '  },',
+            '  "journal": "（完整的、包含旧内容+新内容的情感日记全文）",',
+            '  "toneExamples": \\["……", "……"],',
+            '  "newAnchors": \\["……", "……"]',
+            '}'
+        ].join('\n');
+
+        function buildRelationshipArchivePersonInstruction(archive, roleName) {
+            if (archive?.journalPerson === 'first') {
+                return [
+                    `· journal 的叙述人称：以角色【${roleName}】的第一人称口吻书写，角色自称"我"，称呼对方为"用户"或角色对用户惯用的称呼。`,
+                    '  日记是角色的内心独白，要带入角色的语气、心境与主观感受去回顾这段关系。',
+                    '  注意：日记只记录角色自己视角所知、所感的内容；对于用户的想法，只能是角色的揣测与观察，不可替用户断定其内心。'
+                ].join('\n');
+            }
+            return '· journal 的叙述人称：第三人称客观视角。以旁观者口吻叙述，角色称其名（如"风澪"），用户称"用户"。';
+        }
+
+        function isArchiveEmptyForPrompt(archive) {
+            if (!archive) return true;
+            const state = normalizeArchiveState(archive.state);
+            return !state.relationshipDefinition.trim()
+                && !state.attitudeToUser.trim()
+                && !state.relationshipTemperature.trim()
+                && !state.emotionalState.trim()
+                && !state.traumaStatus.trim()
+                && !(archive.journal || '').trim()
+                && !(archive.toneExamples || []).length
+                && !(archive.anchors || []).length;
+        }
+
+        function buildExistingArchiveJson(archive) {
+            if (isArchiveEmptyForPrompt(archive)) return '{}';
+            return JSON.stringify({
+                state: normalizeArchiveState(archive.state),
+                journal: typeof archive.journal === 'string' ? archive.journal : '',
+                toneExamples: Array.isArray(archive.toneExamples) ? archive.toneExamples : [],
+                anchors: Array.isArray(archive.anchors) ? archive.anchors : []
+            }, null, 2);
+        }
+
+        function buildRelationshipArchiveMessages({ role, roleLabel, archive, newChunkText }) {
+            const roleName = role?.name || roleLabel || 'AI侧角色/角色组';
+            const personInstruction = buildRelationshipArchivePersonInstruction(archive, roleName);
+            const existingArchiveJson = buildExistingArchiveJson(archive);
+            const userPrompt = [
+                `角色名：${roleName}`,
+                '',
+                '角色初始设定（供参考，理解角色底色，不要直接抄进档案）：',
+                role?.systemPrompt || '',
+                '',
+                personInstruction,
+                '',
+                '【现有档案】（上次更新后的档案 JSON；若为空对象 {} 表示首次生成，直接基于新增对话生成）：',
+                existingArchiveJson,
+                '',
+                `【新增对话】（从上次更新到现在新发生的对话。"${roleLabel}："为角色台词，"用户："为用户台词）：`,
+                '====================',
+                newChunkText,
+                '====================',
+                '',
+                '请基于「现有档案 + 新增对话」，推演角色的最新状态，按下列规则更新各字段，并严格只输出一个 JSON 对象。',
+                '',
+                '字段更新规则：',
+                '· state：基于现有 state 演进、整体重写，反映最新现状。包含：',
+                '  - relationshipDefinition：两人关系的当前定性。',
+                '  - attitudeToUser：【最重要】角色此刻对用户的态度——信任程度、亲疏、防备是否卸下、以何种方式表达在乎；',
+                '    相比故事开始有何转变，写清楚。',
+                '  - relationshipTemperature：用一个词概括当前关系温度（可加括号补充），如"炽热（伴随患得患失）"。',
+                '  - emotionalState：角色当前的情绪与心理状态。',
+                '  - traumaStatus：角色核心创伤/软肋现在以什么形式存在（缓和了，还是变了形式）。',
+                '    ★若本段新增对话未涉及这一方面，请原样沿用现有档案中的该项描述，不要凭空编造变化。',
+                '· journal：见下方"journal 专项规则"。',
+                '· toneExamples：从【新增对话】中挑选 1-2 句最能代表角色"现在"对用户说话方式的台词，',
+                '  尽量摘录原话，可在括号内补一句神态。整体替换。',
+                '· newAnchors：★只输出【现有档案】的 anchors 列表里"尚未出现"的、有情感重量的具体细节（物件 / 场景 / 具体对话）。',
+                '  已经在列表里的绝不重复；本段没有新的就输出空数组 \\[]。不要输出已有 anchors。',
+                '',
+                'journal 专项规则：',
+                '· journal 是这段关系的"情感日记"——一段连续、流动的叙事，记录两人一路走来的历程，而非事件清单。',
+                '· 记录的核心是"这段时间里两人之间发生了什么、对这段关系与角色心境意味着什么"，把关系、情感、态度的变化',
+                '  自然融入叙述。每个有分量的节点都要写到，交代清楚来龙去脉（起承转合），但只写其情感意义，',
+                '  不铺陈具体动作细节（具体物件 / 场景 / 对话由 anchors 负责，journal 不重复）。',
+                '· 不必强求每段都有"重大转折"。关系早期转折可能密集；进入平稳相处后，则如实记录相处的质感、氛围与',
+                '  情感的细微加深——平淡的温情同样是关系的重要部分，不要因为"没有大事发生"就略过或硬拔高成转折。',
+                '· 更新方式：在【现有档案】journal 的结尾，把【新增对话】这一段自然续写下去，输出完整的最新 journal',
+                '  （包含旧内容 + 新内容）。保持前后连贯的叙事感。',
+                '  ★已有的早期内容必须保持原貌，绝不要为了简短而压缩、概括或删改前面的部分。',
+                '· journal 没有字数上限。它随剧情自然增长，长度由内容决定，绝不要为了控制篇幅而牺牲早期内容或主线的完整性。',
+                '',
+                '输出格式（严格遵守）：',
+                '- 只输出一个合法 JSON 对象，不要任何解释、前言、结尾，不要 Markdown 代码块标记（不要出现 ```）。',
+                '- newAnchors 只放本次新增，不要带上已有的（系统会自行合并）。',
+                '- 严格使用以下结构（见 5.4 示例）。',
+                RELATIONSHIP_ARCHIVE_OUTPUT_EXAMPLE
+            ].join('\n');
+
+            return [
+                { role: 'system', content: RELATIONSHIP_ARCHIVE_SYSTEM_PROMPT },
+                { role: 'user', content: userPrompt }
+            ];
+        }
+
+        function stripJsonCodeFence(text) {
+            const source = String(text || '').trim();
+            const match = source.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
+            return (match ? match[1].trim() : source).replace(/\\([\[\]])/g, '$1');
+        }
+
+        function parseRelationshipArchiveReply(text) {
+            let parsed;
+            try {
+                parsed = JSON.parse(stripJsonCodeFence(text));
+            } catch (err) {
+                throw new Error('模型返回不是合法 JSON');
+            }
+            if (!parsed || typeof parsed !== 'object' || !parsed.state || typeof parsed.state !== 'object' || typeof parsed.journal !== 'string') {
+                throw new Error('模型返回缺少 state 或 journal');
+            }
+            return {
+                state: normalizeArchiveState(parsed.state),
+                journal: parsed.journal,
+                toneExamples: Array.isArray(parsed.toneExamples) ? parsed.toneExamples.filter(item => typeof item === 'string') : [],
+                newAnchors: Array.isArray(parsed.newAnchors) ? parsed.newAnchors.filter(item => typeof item === 'string') : []
+            };
+        }
+
+        function dedupeAppendAnchors(existing, additions) {
+            const result = Array.isArray(existing) ? existing.filter(item => typeof item === 'string') : [];
+            const seen = new Set(result.map(item => item.trim()).filter(Boolean));
+            (Array.isArray(additions) ? additions : []).forEach(item => {
+                const text = typeof item === 'string' ? item.trim() : '';
+                if (!text || seen.has(text)) return;
+                seen.add(text);
+                result.push(text);
+            });
+            return result;
+        }
+
+        function mergeRelationshipArchive(oldArchive, draft, currentEnd) {
+            const normalizedOld = normalizeConversationArchive(oldArchive);
+            return {
+                version: normalizedOld.version + 1,
+                lastIndex: Number.isInteger(currentEnd?.effectiveIndex) ? currentEnd.effectiveIndex : normalizedOld.lastIndex,
+                lastMessageId: typeof currentEnd?.messageId === 'string' ? currentEnd.messageId : normalizedOld.lastMessageId,
+                journalPerson: normalizedOld.journalPerson,
+                state: normalizeArchiveState(draft.state),
+                journal: typeof draft.journal === 'string' ? draft.journal : '',
+                toneExamples: Array.isArray(draft.toneExamples) ? draft.toneExamples.filter(item => typeof item === 'string') : [],
+                anchors: dedupeAppendAnchors(normalizedOld.anchors, draft.newAnchors)
+            };
+        }
+
         function appendDefaultContinuationConstraints(text) {
             const constraints = `
 
@@ -660,7 +842,7 @@
             if (!msg || typeof msg !== 'object') return null;
             const allowedRoles = new Set(['user', 'assistant', 'system_summary', 'scene_separator']);
             if (!allowedRoles.has(msg.role)) return null;
-            const normalized = { role: msg.role, content: typeof msg.content === 'string' ? msg.content : '', timestamp: msg.timestamp || new Date().toISOString() };
+            const normalized = { id: typeof msg.id === 'string' && msg.id ? msg.id : makeId(), role: msg.role, content: typeof msg.content === 'string' ? msg.content : '', timestamp: msg.timestamp || new Date().toISOString() };
             if (msg.role === 'assistant') {
                 normalized.reasoning = typeof msg.reasoning === 'string' ? msg.reasoning : null;
                 normalized.regenerations = Array.isArray(msg.regenerations) ? msg.regenerations.map(regen => ({ content: typeof regen?.content === 'string' ? regen.content : '', reasoning: typeof regen?.reasoning === 'string' ? regen.reasoning : null, timestamp: regen?.timestamp || Date.now() })) : [];
@@ -675,9 +857,9 @@
             }
             return normalized;
         }
-        function createEmptyArchive() { return { version: 0, lastIndex: -1, journalPerson: 'third', state: { relationshipDefinition: '', attitudeToUser: '', relationshipTemperature: '', emotionalState: '', traumaStatus: '' }, journal: '', toneExamples: [], anchors: [] }; }
+        function createEmptyArchive() { return { version: 0, lastIndex: -1, lastMessageId: null, journalPerson: 'third', state: { relationshipDefinition: '', attitudeToUser: '', relationshipTemperature: '', emotionalState: '', traumaStatus: '' }, journal: '', toneExamples: [], anchors: [] }; }
         function normalizeArchiveState(value) { const source = value && typeof value === 'object' ? value : {}; return { relationshipDefinition: typeof source.relationshipDefinition === 'string' ? source.relationshipDefinition : '', attitudeToUser: typeof source.attitudeToUser === 'string' ? source.attitudeToUser : '', relationshipTemperature: typeof source.relationshipTemperature === 'string' ? source.relationshipTemperature : '', emotionalState: typeof source.emotionalState === 'string' ? source.emotionalState : '', traumaStatus: typeof source.traumaStatus === 'string' ? source.traumaStatus : '' }; }
-        function normalizeConversationArchive(value) { const source = value && typeof value === 'object' ? value : {}; const empty = createEmptyArchive(); return { version: Number.isInteger(source.version) && source.version >= 0 ? source.version : empty.version, lastIndex: Number.isInteger(source.lastIndex) ? source.lastIndex : empty.lastIndex, journalPerson: source.journalPerson === 'first' ? 'first' : 'third', state: normalizeArchiveState(source.state), journal: typeof source.journal === 'string' ? source.journal : '', toneExamples: Array.isArray(source.toneExamples) ? source.toneExamples.filter(item => typeof item === 'string') : [], anchors: Array.isArray(source.anchors) ? source.anchors.filter(item => typeof item === 'string') : [] }; }
+        function normalizeConversationArchive(value) { const source = value && typeof value === 'object' ? value : {}; const empty = createEmptyArchive(); return { version: Number.isInteger(source.version) && source.version >= 0 ? source.version : empty.version, lastIndex: Number.isInteger(source.lastIndex) ? source.lastIndex : empty.lastIndex, lastMessageId: typeof source.lastMessageId === 'string' && source.lastMessageId ? source.lastMessageId : null, journalPerson: source.journalPerson === 'first' ? 'first' : 'third', state: normalizeArchiveState(source.state), journal: typeof source.journal === 'string' ? source.journal : '', toneExamples: Array.isArray(source.toneExamples) ? source.toneExamples.filter(item => typeof item === 'string') : [], anchors: Array.isArray(source.anchors) ? source.anchors.filter(item => typeof item === 'string') : [] }; }
         function normalizeConversationData(conv, roleName) { const source = conv && typeof conv === 'object' ? conv : {}; const normalized = { id: source.id || makeId(), name: typeof source.name === 'string' && source.name.trim() ? source.name.trim() : '新对话', backgroundId: typeof source.backgroundId === 'string' && source.backgroundId ? source.backgroundId : 'default', bgOpacity: normalizeBgOpacity(source.bgOpacity), accentColor: source.accentColor ? normalizeHexColor(source.accentColor, DEFAULT_ACCENT_COLOR) : null, messages: Array.isArray(source.messages) ? source.messages.map(normalizeImportedMessage).filter(Boolean) : [], archive: normalizeConversationArchive(source.archive) }; const continuationFrom = normalizeContinuationFrom(source.continuationFrom); if (continuationFrom) normalized.continuationFrom = continuationFrom; return normalized; }
         function normalizeRoleData(role) { const source = role && typeof role === 'object' ? role : {}; const name = typeof source.name === 'string' && source.name.trim() ? source.name.trim() : '未命名角色'; const fields = normalizeRoleFields(source.fields); const systemPrompt = typeof source.systemPrompt === 'string' && source.systemPrompt.trim() ? source.systemPrompt.trim() : (fields ? buildSystemPromptFromFields(fields) : '你是一个乐于助人的AI助手。'); const normalized = { id: source.id || makeId(), name, systemPrompt, fields, promptMode: source.promptMode === 'struct' || fields ? 'struct' : 'free', accentColor: normalizeHexColor(source.accentColor || source.accent || DEFAULT_ACCENT_COLOR, DEFAULT_ACCENT_COLOR), avatarDataUrl: normalizeAvatarDataUrl(source.avatarDataUrl), unread: Boolean(source.unread), conversations: Array.isArray(source.conversations) ? source.conversations.map(conv => normalizeConversationData(conv, name)) : [] }; if (normalized.conversations.length === 0) normalized.conversations.push(normalizeConversationData(null, name)); return normalized; }
         function normalizeImportedRoles(data) { return data && Array.isArray(data.roles) ? data.roles.filter(role => role && typeof role === 'object').map(normalizeRoleData) : []; }
@@ -710,7 +892,7 @@
             loadSidebarState() {}, toggleSidebar() {}
         };
 
-        const DOM = { device: document.getElementById('device'), listScreen: document.getElementById('listScreen'), activityScreen: document.getElementById('activityScreen'), meScreen: document.getElementById('meScreen'), chatScreen: document.getElementById('chatScreen'), roleListDiv: document.getElementById('roleList'), roleSearchInput: document.getElementById('roleSearchInput'), addRoleBtn: document.getElementById('addRoleBtn'), messagesArea: document.getElementById('chatFeed'), chatFeed: document.getElementById('chatFeed'), messageInput: document.getElementById('chatInput'), chatInput: document.getElementById('chatInput'), sendBtn: document.getElementById('sendBtn'), backBtn: document.getElementById('backBtn'), chatName: document.getElementById('chatName'), chatAvatar: document.getElementById('chatAvatar'), chatMenuBtn: document.getElementById('chatMenuBtn'), chatMenu: document.getElementById('chatMenu'), summaryMenuItem: document.getElementById('summaryMenuItem'), insertSceneItem: document.getElementById('insertSceneItem'), renameConvItem: document.getElementById('renameConvItem'), clearConvItem: document.getElementById('clearConvItem'), profileScrim: document.getElementById('profileScrim'), profilePanel: document.getElementById('profilePanel'), profileAv: document.getElementById('profileAv'), profileName: document.getElementById('profileName'), profileDesc: document.getElementById('profileDesc'), profileConvList: document.getElementById('profileConvList'), editRoleBtn: document.getElementById('editRoleBtn'), changeBgBtn: document.getElementById('changeBgBtn'), roleColorBtn: document.getElementById('roleColorBtn'), profileModelBtn: document.getElementById('profileModelBtn'), profileRenameBtn: document.getElementById('profileRenameBtn'), newConvBtn: document.getElementById('newConvBtn'), deleteCurrentRoleBtn: document.getElementById('deleteCurrentRoleBtn'), editPanel: document.getElementById('editPanel'), editName: document.getElementById('editName'), editStruct: document.getElementById('editStruct'), editFree: document.getElementById('editFree'), editFreeText: document.getElementById('editFreeText'), closeEditBtn: document.getElementById('closeEditBtn'), saveEditRoleBtn: document.getElementById('saveEditRoleBtn'), modelMenu: document.getElementById('modelMenu'), roleNewPanel: document.getElementById('roleNewPanel'), newName: document.getElementById('newName'), newStruct: document.getElementById('newStruct'), newFree: document.getElementById('newFree'), newFreeText: document.getElementById('newFreeText'), closeNewRoleBtn: document.getElementById('closeNewRoleBtn'), saveNewRoleBtn: document.getElementById('saveNewRoleBtn'), dlgScrim: document.getElementById('dlgScrim'), summarySheet: document.getElementById('summarySheet'), colorSheet: document.getElementById('colorSheet'), bgSheet: document.getElementById('bgSheet'), optionsSheet: document.getElementById('optionsSheet'), importSheet: document.getElementById('importSheet'), aboutSheet: document.getElementById('aboutSheet'), avatarCropSheet: document.getElementById('avatarCropSheet'), roleAvatarInput: document.getElementById('roleAvatarInput'), avatarCropStage: document.getElementById('avatarCropStage'), avatarCropCanvas: document.getElementById('avatarCropCanvas'), cancelAvatarCropBtn: document.getElementById('cancelAvatarCropBtn'), saveAvatarCropBtn: document.getElementById('saveAvatarCropBtn'), cpScopeLabel: document.getElementById('cpScopeLabel'), cpScopeHint: document.getElementById('cpScopeHint'), cpSwatch: document.getElementById('cpSwatch'), cpHex: document.getElementById('cpHex'), cpHsl: document.getElementById('cpHsl'), hSlider: document.getElementById('hSlider'), sSlider: document.getElementById('sSlider'), lSlider: document.getElementById('lSlider'), hNum: document.getElementById('hNum'), sNum: document.getElementById('sNum'), lNum: document.getElementById('lNum'), cpSaved: document.getElementById('cpSaved'), savedGrid: document.getElementById('savedGrid'), savedColorsEditBtn: document.getElementById('savedColorsEditBtn'), cancelColorBtn: document.getElementById('cancelColorBtn'), saveColorBtn: document.getElementById('saveColorBtn'), accentHex: document.getElementById('accentHex'), bgSheetTitle: document.getElementById('bgSheetTitle'), bgEditToggle: document.getElementById('bgEditToggle'), bgPreviewWrap: document.getElementById('bgPreviewWrap'), bgPreviewImg: document.getElementById('bgPreviewImg'), bgPreviewAv: document.getElementById('bgPreviewAv'), bgPreviewName: document.getElementById('bgPreviewName'), bgOpacityControl: document.getElementById('bgOpacityControl'), bgOpacitySlider: document.getElementById('bgOpacitySlider'), bgOpacityVal: document.getElementById('bgOpacityVal'), bgGrid: document.getElementById('bgGrid'), bgCountVal: document.getElementById('bgCountVal'), uploadNewBgBtn: document.getElementById('uploadNewBgBtn'), bgInput: document.getElementById('bgInput'), customBgLayer: document.getElementById('customBgLayer'), optSheetTitle: document.getElementById('optSheetTitle'), optSheetSub: document.getElementById('optSheetSub'), optList: document.getElementById('optList'), meModelVal: document.getElementById('meModelVal'), meThinkVal: document.getElementById('meThinkVal'), meContextVal: document.getElementById('meContextVal'), importDrop: document.getElementById('importDrop'), importFile: document.getElementById('importFile'), cancelImportBtn: document.getElementById('cancelImportBtn'), modalScrim: document.getElementById('modalScrim'), modal: document.getElementById('modal'), modalTitle: document.getElementById('modalTitle'), modalMsg: document.getElementById('modalMsg'), modalInput: document.getElementById('modalInput'), modalCancel: document.getElementById('modalCancel'), modalConfirm: document.getElementById('modalConfirm'), editUserMsgModal: document.getElementById('editUserMsgModal'), editUserMsgContent: document.getElementById('editUserMsgContent'), confirmEditMsgBtn: document.getElementById('confirmEditMsgBtn'), cancelEditMsgBtn: document.getElementById('cancelEditMsgBtn') };
+        const DOM = { device: document.getElementById('device'), listScreen: document.getElementById('listScreen'), activityScreen: document.getElementById('activityScreen'), meScreen: document.getElementById('meScreen'), chatScreen: document.getElementById('chatScreen'), roleListDiv: document.getElementById('roleList'), roleSearchInput: document.getElementById('roleSearchInput'), addRoleBtn: document.getElementById('addRoleBtn'), messagesArea: document.getElementById('chatFeed'), chatFeed: document.getElementById('chatFeed'), messageInput: document.getElementById('chatInput'), chatInput: document.getElementById('chatInput'), sendBtn: document.getElementById('sendBtn'), backBtn: document.getElementById('backBtn'), chatName: document.getElementById('chatName'), chatAvatar: document.getElementById('chatAvatar'), chatMenuBtn: document.getElementById('chatMenuBtn'), chatMenu: document.getElementById('chatMenu'), summaryMenuItem: document.getElementById('summaryMenuItem'), relationshipArchiveMenuItem: document.getElementById('relationshipArchiveMenuItem'), insertSceneItem: document.getElementById('insertSceneItem'), renameConvItem: document.getElementById('renameConvItem'), clearConvItem: document.getElementById('clearConvItem'), profileScrim: document.getElementById('profileScrim'), profilePanel: document.getElementById('profilePanel'), profileAv: document.getElementById('profileAv'), profileName: document.getElementById('profileName'), profileDesc: document.getElementById('profileDesc'), profileConvList: document.getElementById('profileConvList'), editRoleBtn: document.getElementById('editRoleBtn'), changeBgBtn: document.getElementById('changeBgBtn'), roleColorBtn: document.getElementById('roleColorBtn'), profileModelBtn: document.getElementById('profileModelBtn'), profileRenameBtn: document.getElementById('profileRenameBtn'), newConvBtn: document.getElementById('newConvBtn'), deleteCurrentRoleBtn: document.getElementById('deleteCurrentRoleBtn'), editPanel: document.getElementById('editPanel'), editName: document.getElementById('editName'), editStruct: document.getElementById('editStruct'), editFree: document.getElementById('editFree'), editFreeText: document.getElementById('editFreeText'), closeEditBtn: document.getElementById('closeEditBtn'), saveEditRoleBtn: document.getElementById('saveEditRoleBtn'), modelMenu: document.getElementById('modelMenu'), roleNewPanel: document.getElementById('roleNewPanel'), newName: document.getElementById('newName'), newStruct: document.getElementById('newStruct'), newFree: document.getElementById('newFree'), newFreeText: document.getElementById('newFreeText'), closeNewRoleBtn: document.getElementById('closeNewRoleBtn'), saveNewRoleBtn: document.getElementById('saveNewRoleBtn'), dlgScrim: document.getElementById('dlgScrim'), summarySheet: document.getElementById('summarySheet'), colorSheet: document.getElementById('colorSheet'), bgSheet: document.getElementById('bgSheet'), optionsSheet: document.getElementById('optionsSheet'), importSheet: document.getElementById('importSheet'), aboutSheet: document.getElementById('aboutSheet'), avatarCropSheet: document.getElementById('avatarCropSheet'), roleAvatarInput: document.getElementById('roleAvatarInput'), avatarCropStage: document.getElementById('avatarCropStage'), avatarCropCanvas: document.getElementById('avatarCropCanvas'), cancelAvatarCropBtn: document.getElementById('cancelAvatarCropBtn'), saveAvatarCropBtn: document.getElementById('saveAvatarCropBtn'), cpScopeLabel: document.getElementById('cpScopeLabel'), cpScopeHint: document.getElementById('cpScopeHint'), cpSwatch: document.getElementById('cpSwatch'), cpHex: document.getElementById('cpHex'), cpHsl: document.getElementById('cpHsl'), hSlider: document.getElementById('hSlider'), sSlider: document.getElementById('sSlider'), lSlider: document.getElementById('lSlider'), hNum: document.getElementById('hNum'), sNum: document.getElementById('sNum'), lNum: document.getElementById('lNum'), cpSaved: document.getElementById('cpSaved'), savedGrid: document.getElementById('savedGrid'), savedColorsEditBtn: document.getElementById('savedColorsEditBtn'), cancelColorBtn: document.getElementById('cancelColorBtn'), saveColorBtn: document.getElementById('saveColorBtn'), accentHex: document.getElementById('accentHex'), bgSheetTitle: document.getElementById('bgSheetTitle'), bgEditToggle: document.getElementById('bgEditToggle'), bgPreviewWrap: document.getElementById('bgPreviewWrap'), bgPreviewImg: document.getElementById('bgPreviewImg'), bgPreviewAv: document.getElementById('bgPreviewAv'), bgPreviewName: document.getElementById('bgPreviewName'), bgOpacityControl: document.getElementById('bgOpacityControl'), bgOpacitySlider: document.getElementById('bgOpacitySlider'), bgOpacityVal: document.getElementById('bgOpacityVal'), bgGrid: document.getElementById('bgGrid'), bgCountVal: document.getElementById('bgCountVal'), uploadNewBgBtn: document.getElementById('uploadNewBgBtn'), bgInput: document.getElementById('bgInput'), customBgLayer: document.getElementById('customBgLayer'), optSheetTitle: document.getElementById('optSheetTitle'), optSheetSub: document.getElementById('optSheetSub'), optList: document.getElementById('optList'), meModelVal: document.getElementById('meModelVal'), meThinkVal: document.getElementById('meThinkVal'), meContextVal: document.getElementById('meContextVal'), importDrop: document.getElementById('importDrop'), importFile: document.getElementById('importFile'), cancelImportBtn: document.getElementById('cancelImportBtn'), modalScrim: document.getElementById('modalScrim'), modal: document.getElementById('modal'), modalTitle: document.getElementById('modalTitle'), modalMsg: document.getElementById('modalMsg'), modalInput: document.getElementById('modalInput'), modalCancel: document.getElementById('modalCancel'), modalConfirm: document.getElementById('modalConfirm'), editUserMsgModal: document.getElementById('editUserMsgModal'), editUserMsgContent: document.getElementById('editUserMsgContent'), confirmEditMsgBtn: document.getElementById('confirmEditMsgBtn'), cancelEditMsgBtn: document.getElementById('cancelEditMsgBtn') };
         let editingUserMessageIndex = null, editingAssistantMessageIndex = null, activeTab = 'list', editRoleMode = 'free', newRoleMode = 'struct', colorScope = 'global', bgSheetContext = 'chat', optionSheetKind = null, modalState = {}, avatarCropState = null;
         const MODEL_OPTIONS = [{ key: 'deepseek-v4-flash', name: 'DeepSeek V4 Flash', shortName: 'V4 Flash', desc: '快 · 日常对话' }, { key: 'deepseek-v4-pro', name: 'DeepSeek V4 Pro', shortName: 'V4 Pro', desc: '慢 · 高质量长文' }]; const THINKING_OPTIONS = [{ key: 'fast', name: '快速回答', desc: '直接出文，省思考时间' }, { key: 'thinking', name: '深度思考', desc: '展示推理过程，更稳更慢' }]; const CONTEXT_LIMIT_OPTIONS = [20, 40, 60, 100, 150, 200].map(value => ({ key: String(value), name: value + ' 条', desc: value === 200 ? '尽量多记 · 请求最大' : value >= 100 ? '长对话 · 记忆更完整' : value === 40 ? '平衡速度和记忆' : '更快 · 记忆更短' })); const ARCHIVE_TRIGGER_OPTIONS = [20000, 30000, 50000, 80000, 100000].map(value => ({ key: String(value), name: formatStoryArchiveTriggerChars(value), desc: value === 20000 ? '最早提醒 · 细节最全' : value === 30000 ? '更早总结 · 推荐' : value === 50000 ? '较长剧情后提醒' : value === 80000 ? '更长剧情后提醒' : '最长剧情后提醒' }));
         function setAvatarText(el, text) { if (!el) return; const node = Array.from(el.childNodes).find(n => n.nodeType === Node.TEXT_NODE); if (node) node.nodeValue = text; else el.insertBefore(document.createTextNode(text), el.firstChild); }
@@ -740,6 +922,59 @@
                 if (!msg) return '';
                 if (msg.role === 'assistant') return this.getActiveAssistantVersion(msg)?.content || '';
                 return msg.content || '';
+            },
+            getArchiveEffectiveMessages(conv) {
+                return (conv?.messages || [])
+                    .filter(msg => msg?.role === 'user' || msg?.role === 'assistant')
+                    .map((msg, effectiveIndex) => ({
+                        message: msg,
+                        messageId: msg.id || '',
+                        effectiveIndex,
+                        role: msg.role,
+                        content: this.getDialogueContent(msg)
+                    }))
+                    .filter(item => item.messageId && item.content.trim());
+            },
+            getArchiveIncrement(conv) {
+                const archive = normalizeConversationArchive(conv?.archive);
+                const effective = this.getArchiveEffectiveMessages(conv);
+                let start = 0;
+                let boundaryMissing = false;
+                if (archive.lastMessageId) {
+                    const boundary = effective.findIndex(item => item.messageId === archive.lastMessageId);
+                    if (boundary >= 0) {
+                        start = boundary + 1;
+                    } else if (archive.version > 0) {
+                        start = 0;
+                        boundaryMissing = true;
+                    }
+                } else if (archive.lastIndex >= 0) {
+                    start = Math.max(0, Math.min(effective.length, archive.lastIndex + 1));
+                }
+                const items = effective.slice(start);
+                return {
+                    archive,
+                    items,
+                    totalChars: items.reduce((sum, item) => sum + item.content.length, 0),
+                    currentEnd: items.length ? items[items.length - 1] : null,
+                    boundaryMissing
+                };
+            },
+            formatArchiveIncrementText(items, roleLabel) {
+                return items.map(item => `【第${item.effectiveIndex + 1}条】${item.role === 'user' ? '用户' : roleLabel}：${item.content}`).join('\n\n');
+            },
+            updateRelationshipArchiveMenuState(conv = DataManager.getCurrentConversation()) {
+                const item = DOM.relationshipArchiveMenuItem;
+                if (!item) return;
+                const left = item.querySelector('.left');
+                if (!left) return;
+                if (item.dataset.generating === 'true') {
+                    left.textContent = '关系档案 · 更新中';
+                    return;
+                }
+                const info = this.getArchiveIncrement(conv);
+                const triggerChars = normalizeStoryArchiveTriggerChars(DataManager.globalSettings?.storyArchiveTriggerChars);
+                left.textContent = info.totalChars > triggerChars ? '关系档案 · 可更新' : '关系档案';
             },
             
             // 【核心防 400 机制】：智能提取有效上下文，动态截断长对话
@@ -785,6 +1020,16 @@
             checkConversationLimit() {
                 const conv = DataManager.getCurrentConversation();
                 if (!conv) return;
+                if (normalizeConversationArchive(conv.archive).version > 0) {
+                    for (let i = conv.messages.length - 1; i >= 0; i--) {
+                        const msg = conv.messages[i];
+                        if (msg.role === 'system_summary' && msg.status === 'warning') {
+                            conv.messages.splice(i, 1);
+                        }
+                    }
+                    this.updateRelationshipArchiveMenuState(conv);
+                    return;
+                }
                 
                 // 寻找上一个已完成存档点，只计算在那之后的字数
                 const lastSummaryIdx = conv.messages.findLastIndex(m => m.role === 'system_summary' && m.status === 'done');
@@ -801,6 +1046,7 @@
                 const triggerChars = normalizeStoryArchiveTriggerChars(DataManager.globalSettings?.storyArchiveTriggerChars);
                 if (totalChars > triggerChars && !hasPendingSummary) {
                     conv.messages.push({
+                        id: DataManager.generateId(),
                         role: 'system_summary',
                         status: 'warning',
                         content: '',
@@ -813,6 +1059,72 @@
                             conv.messages.splice(i, 1);
                         }
                     }
+                }
+                this.updateRelationshipArchiveMenuState(conv);
+            },
+            async generateArchiveUpdate() {
+                const conv = DataManager.getCurrentConversation();
+                const role = DataManager.getCurrentRole();
+                if (!conv || !role) return;
+                conv.archive = normalizeConversationArchive(conv.archive);
+                const increment = this.getArchiveIncrement(conv);
+                if (!increment.items.length) {
+                    alert('当前没有新的有效对话可更新档案。');
+                    this.updateRelationshipArchiveMenuState(conv);
+                    return;
+                }
+                if (increment.boundaryMissing && !confirm('上次档案更新的边界消息已被删除。为避免漏读，本次会从当前完整有效对话重新整理档案，是否继续？')) {
+                    return;
+                }
+
+                this.closeChatMenu();
+                const roleLabel = role.name || 'AI侧角色/角色组';
+                const newChunkText = this.formatArchiveIncrementText(increment.items, roleLabel);
+                const apiMessages = buildRelationshipArchiveMessages({
+                    role,
+                    roleLabel,
+                    archive: increment.archive,
+                    newChunkText
+                });
+
+                const pending = startPendingRequest({ type: 'relationship_archive', conversationId: conv.id });
+                if (DOM.relationshipArchiveMenuItem) DOM.relationshipArchiveMenuItem.dataset.generating = 'true';
+                this.updateRelationshipArchiveMenuState(conv);
+
+                try {
+                    let lastError = null;
+                    for (let attempt = 0; attempt < 2; attempt++) {
+                        try {
+                            const reply = await callChatApi({
+                                model: Config.SUMMARY_FINAL_MODEL,
+                                messages: apiMessages,
+                                signal: pending.controller.signal,
+                                thinkingMode: Config.SUMMARY_FINAL_THINKING_MODE,
+                                maxTokens: Config.SUMMARY_FINAL_MAX_TOKENS
+                            });
+                            if (reply.finishReason === 'length') throw new Error('档案 JSON 被 max_tokens 截断');
+                            const draft = parseRelationshipArchiveReply(reply.content);
+                            conv.archive = mergeRelationshipArchive(increment.archive, draft, increment.currentEnd);
+                            DataManager.saveData();
+                            this.renderChatFeed();
+                            this.renderProfile();
+                            this.renderRoleList();
+                            alert('关系档案已更新。');
+                            return;
+                        } catch (err) {
+                            lastError = err;
+                            if (err.name === 'AbortError' || attempt === 1) throw err;
+                        }
+                    }
+                    throw lastError || new Error('档案更新失败');
+                } catch (err) {
+                    if (err.name !== 'AbortError') {
+                        alert('档案更新失败，请重试。\n' + err.message);
+                    }
+                } finally {
+                    if (DOM.relationshipArchiveMenuItem) delete DOM.relationshipArchiveMenuItem.dataset.generating;
+                    clearPendingRequest(pending);
+                    this.updateRelationshipArchiveMenuState(conv);
                 }
             },
             
@@ -1000,7 +1312,7 @@
             getConversationTime(conv) { const msg = [...(conv?.messages || [])].reverse().find(item => item.timestamp); return formatRelativeTime(msg?.timestamp || Date.now()); },
             renderRoleList() { const query = (DOM.roleSearchInput?.value || '').trim().toLowerCase(); DOM.roleListDiv.innerHTML = ''; const roles = DataManager.roles.filter(role => !query || role.name.toLowerCase().includes(query)).map((role, index) => ({ role, index, activity: DataManager.getRoleActivityTime(role) })).sort((a, b) => b.activity - a.activity || a.index - b.index).map(item => item.role); if (!roles.length) { DOM.roleListDiv.innerHTML = '<div class="empty-state">没有找到角色。</div>'; return; } roles.forEach(role => { const conv = DataManager.getLatestConversation(role); const accent = normalizeHexColor(role.accentColor || DataManager.globalSettings.defaultAccentColor); const row = document.createElement('div'); row.className = 'role-row ' + (DataManager.currentRoleId === role.id ? 'active' : ''); row.dataset.roleId = role.id; row.innerHTML = '<div class="role-stripe" style="background:' + accent + '"></div><div class="role-avatar" style="--av:' + accent + '">' + escapeHtml(getInitialChar(role.name)) + (role.unread ? '<div class="unread" style="--av:' + accent + '"></div>' : '') + '</div><div class="role-info"><div class="role-name">' + escapeHtml(role.name) + '<span class="role-time">' + escapeHtml(this.getConversationTime(conv)) + '</span></div><div class="role-preview">' + escapeHtml(this.getConversationPreview(conv)) + '</div></div>'; setAvatarVisual(row.querySelector('.role-avatar'), role); row.addEventListener('click', () => this.openChat(role.id)); DOM.roleListDiv.appendChild(row); }); },
             renderProfile() { const role = DataManager.getCurrentRole(); const conv = DataManager.getCurrentConversation(); if (!role) return; setAvatarVisual(DOM.profileAv, role); DOM.profileName.textContent = role.name; DOM.profileDesc.textContent = this.getRoleDescription(role); DOM.profileConvList.innerHTML = role.conversations.map(item => { const active = item.id === conv?.id; return '<div class="conv-row ' + (active ? 'active' : '') + '" data-conv-id="' + item.id + '"><div class="conv-dot ' + (active ? 'active' : '') + '"></div><div class="conv-info"><div class="conv-title">' + escapeHtml(item.name || '新对话') + '</div><div class="conv-sub">' + escapeHtml(this.getConversationPreview(item)) + '</div></div><div class="conv-time">' + escapeHtml(this.getConversationTime(item)) + '</div></div>'; }).join(''); },
-            renderChatHeader() { const role = DataManager.getCurrentRole(); const conv = DataManager.getCurrentConversation(); if (!role) return; DOM.chatName.textContent = role.name; setAvatarVisual(DOM.chatAvatar, role); DOM.chatInput.placeholder = '发消息给 ' + role.name + '…'; this.applyAccentColor(this.getEffectiveAccent(role, conv)); },
+            renderChatHeader() { const role = DataManager.getCurrentRole(); const conv = DataManager.getCurrentConversation(); if (!role) return; DOM.chatName.textContent = role.name; setAvatarVisual(DOM.chatAvatar, role); DOM.chatInput.placeholder = '发消息给 ' + role.name + '…'; this.applyAccentColor(this.getEffectiveAccent(role, conv)); this.updateRelationshipArchiveMenuState(conv); },
             renderChatFeed() { const conv = DataManager.getCurrentConversation(); const role = DataManager.getCurrentRole(); this.renderChatHeader(); this.renderProfile(); if (!conv || !role) { DOM.chatFeed.innerHTML = '<div class="empty-state">从列表里选择一个角色开始。</div>'; return; } if (recoverStaleGeneratingSummaries(conv)) DataManager.saveData(); const allMessages = conv.messages; const totalPages = Math.ceil(allMessages.length / Config.PAGE_SIZE); if (Pagination.currentPage < 1) Pagination.currentPage = 1; if (totalPages > 0 && Pagination.currentPage > totalPages) Pagination.currentPage = totalPages; const startIdx = (Pagination.currentPage - 1) * Config.PAGE_SIZE; const pageMessages = allMessages.slice(startIdx, Math.min(startIdx + Config.PAGE_SIZE, allMessages.length)); DOM.chatFeed.innerHTML = ''; pageMessages.forEach((msg, i) => { const node = this.renderMessageNode(msg, startIdx + i, allMessages); if (node) DOM.chatFeed.appendChild(node); }); if (totalPages > 1) { const p = document.createElement('div'); p.className = 'pagination-controls'; p.innerHTML = '<button class="pagination-btn" data-action="prev-page" ' + (Pagination.currentPage === 1 ? 'disabled' : '') + '>上一页</button><span class="page-info">' + Pagination.currentPage + ' / ' + totalPages + '</span><button class="pagination-btn" data-action="next-page" ' + (Pagination.currentPage === totalPages ? 'disabled' : '') + '>下一页</button>'; DOM.chatFeed.appendChild(p); } const spacer = document.createElement('div'); spacer.style.height = '24px'; DOM.chatFeed.appendChild(spacer); DOM.chatFeed.scrollTop = DOM.chatFeed.scrollHeight; this.scrollChatToBottom(); this.applyConversationBackground(conv.backgroundId, conv.bgOpacity); },
             loadConversationToUI() { this.renderChatFeed(); }, renderSidebar() { this.renderRoleList(); },
             renderMessageNode(msg, globalIdx, allMessages) { const time = formatMessageTime(msg.timestamp); if (msg.role === 'scene_separator') { const scene = document.createElement('div'); scene.className = 'scene'; scene.dataset.index = String(globalIdx); scene.textContent = (msg.content || '新场景') + ' · ' + time; return scene; } if (msg.role === 'user') { const w = document.createElement('div'); w.className = 'user-msg'; w.innerHTML = '<div class="user-bubble">' + escapeHtml(msg.content) + '</div><div class="msg-actions"><button class="meta">' + escapeHtml(time) + '</button><button data-action="edit-user" data-index="' + globalIdx + '">' + SVGIcons.edit + '编辑</button><button data-action="delete-user" data-index="' + globalIdx + '">' + SVGIcons.delete + '删除</button></div>'; return w; } if (msg.role === 'assistant') { const active = this.getActiveAssistantVersion(msg); const reasoning = active?.reasoning || null; const isOpen = reasoning && !msg.reasoningCollapsed; const w = document.createElement('div'); w.className = 'ai-msg'; const reason = reasoning ? '<button class="think-toggle ' + (isOpen ? 'open' : '') + '" data-action="toggle-reasoning" data-index="' + globalIdx + '"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>思考过程 <span class="chev">›</span></button><div class="think-content ' + (isOpen ? 'show' : '') + '">' + escapeHtml(reasoning) + '</div>' : ''; w.innerHTML = reason + '<div class="ai-body">' + renderMarkdown(active?.content || '') + '</div><div class="msg-actions"><button class="meta">' + escapeHtml(time) + '</button><button data-action="edit-assistant" data-index="' + globalIdx + '">' + SVGIcons.edit + '编辑</button><button data-action="regenerate" data-index="' + globalIdx + '">' + SVGIcons.regenerate + '重新生成</button><span class="version-control"><button data-action="version" data-index="' + globalIdx + '" data-delta="-1">' + SVGIcons.chevronLeft + '</button><span>' + (msg.currentVersion + 1) + '/' + ((msg.regenerations?.length || 0) + 1) + '</span><button data-action="version" data-index="' + globalIdx + '" data-delta="1">' + SVGIcons.chevronRight + '</button></span></div>'; return w; } if (msg.role === 'system_summary') return this.renderSummaryNode(msg, globalIdx, allMessages); return null; },
@@ -1018,9 +1330,9 @@
             switchConversation(roleId, convId) { DataManager.currentRoleId = roleId; DataManager.currentConversationId = convId; DataManager.saveData(); this.jumpToLastPage(DataManager.getCurrentConversation()?.messages?.length || 0); this.renderChatFeed(); this.renderProfile(); },
             renameCurrentConversation() { const conv = DataManager.getCurrentConversation(); if (!conv) return; this.closeChatMenu(); openModal({ title: '重命名对话', type: 'prompt', inputValue: conv.name || '', confirmLabel: '保存', onConfirm: value => { const name = String(value || '').trim(); if (!name) return false; conv.name = name; DataManager.saveData(); this.renderRoleList(); this.renderProfile(); return true; } }); },
             clearCurrentConversation() { const conv = DataManager.getCurrentConversation(); if (!conv) return; this.closeChatMenu(); if (!confirm('确定清空所有消息？此操作不可撤销。')) return; conv.messages = []; DataManager.saveData(); this.resetPagination(); this.renderChatFeed(); this.renderRoleList(); },
-            insertSceneSeparator() { const conv = DataManager.getCurrentConversation(); if (!conv) return; this.closeChatMenu(); openModal({ title: '插入场景分隔', type: 'prompt', msg: '给这一幕起一个短名字。', confirmLabel: '插入', onConfirm: value => { const content = String(value || '').trim(); if (!content) return false; conv.messages.push({ role: 'scene_separator', content, timestamp: new Date().toISOString() }); DataManager.saveData(); this.jumpToLastPage(conv.messages.length); this.renderChatFeed(); return true; } }); },
+            insertSceneSeparator() { const conv = DataManager.getCurrentConversation(); if (!conv) return; this.closeChatMenu(); openModal({ title: '插入场景分隔', type: 'prompt', msg: '给这一幕起一个短名字。', confirmLabel: '插入', onConfirm: value => { const content = String(value || '').trim(); if (!content) return false; conv.messages.push({ id: DataManager.generateId(), role: 'scene_separator', content, timestamp: new Date().toISOString() }); DataManager.saveData(); this.jumpToLastPage(conv.messages.length); this.renderChatFeed(); return true; } }); },
             deleteRole(roleId = DataManager.currentRoleId) { const role = DataManager.roles.find(r => r.id === roleId); if (!role) return; if (!confirm('确定删除 ' + role.name + ' 及其所有对话？此操作不可撤销')) return; DataManager.roles = DataManager.roles.filter(r => r.id !== roleId); if (DataManager.currentRoleId === roleId) { DataManager.currentRoleId = DataManager.roles[0]?.id || null; DataManager.currentConversationId = DataManager.roles[0]?.conversations[0]?.id || null; } DataManager.ensureDefaultRoles({ save: false }); DataManager.saveData(); this.goBack(); this.renderRoleList(); this.renderChatFeed(); },
-            openSummaryControl() { const conv = DataManager.getCurrentConversation(); if (!conv) return; this.closeChatMenu(); let idx = -1; for (let i = conv.messages.length - 1; i >= 0; i--) { if (conv.messages[i].role === 'system_summary' && conv.messages[i].status !== 'done') { idx = i; break; } } if (idx === -1) { conv.messages.push({ role: 'system_summary', status: 'warning', content: '', timestamp: new Date().toISOString() }); idx = conv.messages.length - 1; DataManager.saveData(); } this.jumpToLastPage(conv.messages.length); this.renderChatFeed(); },
+            openSummaryControl() { const conv = DataManager.getCurrentConversation(); if (!conv) return; this.closeChatMenu(); let idx = -1; for (let i = conv.messages.length - 1; i >= 0; i--) { if (conv.messages[i].role === 'system_summary' && conv.messages[i].status !== 'done') { idx = i; break; } } if (idx === -1) { conv.messages.push({ id: DataManager.generateId(), role: 'system_summary', status: 'warning', content: '', timestamp: new Date().toISOString() }); idx = conv.messages.length - 1; DataManager.saveData(); } this.jumpToLastPage(conv.messages.length); this.renderChatFeed(); },
             openNextVolumeFromSummary(summaryIndex) {
                 const role = DataManager.getCurrentRole();
                 const conv = DataManager.getCurrentConversation();
@@ -1049,6 +1361,7 @@
                     name: `${conv.name || '当前会话'} · 下一卷`,
                     continuationFrom,
                     messages: [{
+                        id: DataManager.generateId(),
                         role: 'assistant',
                         content: '已载入上一卷剧情存档，可以继续剧情。',
                         reasoning: null,
@@ -1201,7 +1514,7 @@
                 try {
                     const reply = await callChatApi({ model: DataManager.currentModel, messages: apiMessages, signal: pending.controller.signal, thinkingMode: DataManager.currentThinkingMode });
                     if (!isMessagePresent(conv, triggerUserMsg, 'user')) return;
-                    conv.messages.push({ role: 'assistant', content: reply.content, reasoning: normalizeReplyReasoning(reply), regenerations: [], currentVersion: 0, reasoningCollapsed: false, timestamp: new Date().toISOString() });
+                    conv.messages.push({ id: DataManager.generateId(), role: 'assistant', content: reply.content, reasoning: normalizeReplyReasoning(reply), regenerations: [], currentVersion: 0, reasoningCollapsed: false, timestamp: new Date().toISOString() });
                     
                     this.checkConversationLimit();
                     DataManager.saveData(); this.jumpToLastPage(conv.messages.length); this.loadConversationToUI();
@@ -1220,7 +1533,7 @@
                 adjustChatInputHeight();
                 DOM.sendBtn.disabled = true;
                 DOM.chatInput.disabled = true;
-                const triggerUserMsg = { role: 'user', content: text, timestamp: new Date().toISOString() };
+                const triggerUserMsg = { id: DataManager.generateId(), role: 'user', content: text, timestamp: new Date().toISOString() };
                 conv.messages.push(triggerUserMsg);
                 this.jumpToLastPage(conv.messages.length);
                 this.loadConversationToUI();
@@ -1230,7 +1543,7 @@
                 try {
                     const reply = await callChatApi({ model: DataManager.currentModel, messages: apiMessages, signal: pending.controller.signal, thinkingMode: DataManager.currentThinkingMode });
                     if (!isMessagePresent(conv, triggerUserMsg, 'user')) return;
-                    conv.messages.push({ role: 'assistant', content: reply.content, reasoning: normalizeReplyReasoning(reply), regenerations: [], currentVersion: 0, reasoningCollapsed: true, timestamp: new Date().toISOString() });
+                    conv.messages.push({ id: DataManager.generateId(), role: 'assistant', content: reply.content, reasoning: normalizeReplyReasoning(reply), regenerations: [], currentVersion: 0, reasoningCollapsed: true, timestamp: new Date().toISOString() });
                     role.unread = false;
                     this.checkConversationLimit();
                     DataManager.saveData();
@@ -1261,7 +1574,7 @@
             onArchiveTriggerChange(value) { DataManager.globalSettings.storyArchiveTriggerChars = normalizeStoryArchiveTriggerChars(value); DataManager.saveData(); this.renderSettingsUI(); },
             openOptionsSheet(kind) { optionSheetKind = kind; const isModel = kind === 'model'; const isContext = kind === 'context'; const isArchive = kind === 'archive'; const items = isArchive ? ARCHIVE_TRIGGER_OPTIONS : isContext ? CONTEXT_LIMIT_OPTIONS : isModel ? MODEL_OPTIONS : THINKING_OPTIONS; const current = isArchive ? String(normalizeStoryArchiveTriggerChars(DataManager.globalSettings.storyArchiveTriggerChars)) : isContext ? String(normalizeContextMessageLimit(DataManager.globalSettings.contextMessageLimit)) : isModel ? DataManager.currentModel : DataManager.currentThinkingMode; DOM.optSheetTitle.textContent = isArchive ? '剧情总结阈值' : isContext ? '上下文记忆' : isModel ? '默认模型' : '思考模式'; DOM.optSheetSub.textContent = isArchive ? '选择本卷剧情达到多少字符后提醒总结' : isContext ? '选择每次请求保留的最近消息数' : '选一个'; DOM.optList.innerHTML = items.map(item => '<div class="opt-row ' + (item.key === current ? 'on' : '') + '" data-option-key="' + item.key + '"><div class="opt-info"><div class="opt-name">' + escapeHtml(item.name) + '</div><div class="opt-desc">' + escapeHtml(item.desc) + '</div></div><div class="opt-tick">✓</div></div>').join(''); this.showSheet('optionsSheet'); DOM.optionsSheet.dataset.kind = kind; },
             renderModelMenu() { DOM.modelMenu.innerHTML = '<div class="mp-label">模型</div>' + MODEL_OPTIONS.map(item => '<div class="mp-item ' + (item.key === DataManager.currentModel ? 'on' : '') + '" data-model="' + item.key + '"><div class="left">' + escapeHtml(item.name) + '<small>' + escapeHtml(item.desc) + '</small></div><span class="tick">✓</span></div>').join('') + '<div class="mp-label" style="margin-top:6px">思考模式</div>' + THINKING_OPTIONS.map(item => '<div class="mp-item ' + (item.key === DataManager.currentThinkingMode ? 'on' : '') + '" data-thinking="' + item.key + '"><div class="left">' + escapeHtml(item.name) + '<small>' + escapeHtml(item.desc) + '</small></div><span class="tick">✓</span></div>').join(''); },
-            toggleChatMenu(e) { e?.stopPropagation(); DOM.chatMenu.classList.toggle('open'); this.closeModelMenu(); }, closeChatMenu() { DOM.chatMenu.classList.remove('open'); }, toggleModelMenu(e) { e?.stopPropagation(); this.renderModelMenu(); DOM.modelMenu.classList.toggle('open'); this.closeChatMenu(); }, closeModelMenu() { DOM.modelMenu.classList.remove('open'); },
+            toggleChatMenu(e) { e?.stopPropagation(); this.updateRelationshipArchiveMenuState(); DOM.chatMenu.classList.toggle('open'); this.closeModelMenu(); }, closeChatMenu() { DOM.chatMenu.classList.remove('open'); }, toggleModelMenu(e) { e?.stopPropagation(); this.renderModelMenu(); DOM.modelMenu.classList.toggle('open'); this.closeChatMenu(); }, closeModelMenu() { DOM.modelMenu.classList.remove('open'); },
             showSheet(id) { this.closeAllSheets(); DOM.dlgScrim.classList.add('open'); document.getElementById(id)?.classList.add('open'); }, closeAllSheets() { DOM.dlgScrim.classList.remove('open'); [DOM.summarySheet, DOM.colorSheet, DOM.bgSheet, DOM.optionsSheet, DOM.importSheet, DOM.aboutSheet, DOM.avatarCropSheet].forEach(sheet => sheet?.classList.remove('open')); if (DOM.optionsSheet) delete DOM.optionsSheet.dataset.kind; avatarCropState = null; DOM.cpSaved.classList.remove('editing'); DOM.savedColorsEditBtn.textContent = '管理'; DOM.bgGrid.classList.remove('editing'); DOM.bgEditToggle.textContent = '管理'; },
             openColorSheet(scope = 'global') { colorScope = scope; const role = DataManager.getCurrentRole(); const startHex = scope === 'role' ? this.getEffectiveAccent(role, DataManager.getCurrentConversation()) : DataManager.globalSettings.defaultAccentColor; const [h, s, l] = hexToHsl(startHex); DOM.hSlider.value = h; DOM.sSlider.value = s; DOM.lSlider.value = l; DOM.cpScopeLabel.textContent = scope === 'role' && role ? '「' + role.name + '」的强调色' : '默认强调色'; DOM.cpScopeHint.textContent = scope === 'role' ? '仅影响当前角色。修改后会同步到列表、头像、对话中的高亮。' : '新建角色时的默认强调色，已有角色不受影响。'; this.renderSavedColors(); this.updateColorPicker(); this.showSheet('colorSheet'); },
             updateColorPicker() { const h = Number(DOM.hSlider.value), s = Number(DOM.sSlider.value), l = Number(DOM.lSlider.value); const hex = hslToHex(h, s, l); DOM.hNum.textContent = h; DOM.sNum.textContent = s; DOM.lNum.textContent = l; DOM.cpHex.textContent = hex.toUpperCase(); DOM.cpHsl.textContent = 'H ' + h + ' · S ' + s + ' · L ' + l; DOM.cpSwatch.style.setProperty('--cp-color', hex); DOM.sSlider.style.background = 'linear-gradient(to right, hsl(' + h + ' 0% ' + l + '%), hsl(' + h + ' 100% ' + l + '%))'; DOM.lSlider.style.background = 'linear-gradient(to right, hsl(' + h + ' ' + s + '% 5%), hsl(' + h + ' ' + s + '% 50%), hsl(' + h + ' ' + s + '% 95%))'; this.applyAccentColor(hex); if (colorScope === 'global') DOM.accentHex.textContent = hex.toUpperCase(); },
@@ -1315,8 +1628,8 @@
         function initDisplayModeClass() { const mq = window.matchMedia('(display-mode: standalone)'); const update = () => { const isStandalone = mq.matches || window.navigator.standalone === true; document.documentElement.classList.toggle('standalone', isStandalone); DOM.device?.classList.toggle('standalone', isStandalone); }; update(); if (mq.addEventListener) mq.addEventListener('change', update); else if (mq.addListener) mq.addListener(update); }
         function initThemeFollowSystem() { const mq = window.matchMedia('(prefers-color-scheme: dark)'); mq.addEventListener('change', e => { if (!localStorage.getItem('deepseek_theme')) UIManager.setDay(!e.matches, true); }); }
         function bindEvents() {
-            DOM.addRoleBtn.addEventListener('click', () => UIManager.openNewRolePanel()); document.querySelectorAll('[data-action="theme"]').forEach(btn => btn.addEventListener('click', () => UIManager.toggleTheme())); DOM.roleSearchInput.addEventListener('input', () => UIManager.renderRoleList()); document.querySelectorAll('.tab').forEach(btn => btn.addEventListener('click', () => UIManager.switchTab(btn.dataset.tab))); DOM.backBtn.addEventListener('click', () => UIManager.goBack()); DOM.chatAvatar.addEventListener('click', () => UIManager.openProfile()); DOM.profileAv.addEventListener('click', () => UIManager.openAvatarPicker()); DOM.profileScrim.addEventListener('click', () => UIManager.closeProfile()); DOM.chatMenuBtn.addEventListener('click', e => UIManager.toggleChatMenu(e)); DOM.summaryMenuItem.addEventListener('click', () => UIManager.openSummaryControl()); DOM.insertSceneItem.addEventListener('click', () => UIManager.insertSceneSeparator()); DOM.renameConvItem.addEventListener('click', () => UIManager.renameCurrentConversation()); DOM.clearConvItem.addEventListener('click', () => UIManager.clearCurrentConversation()); DOM.editRoleBtn.addEventListener('click', () => UIManager.openEditRolePanel()); DOM.changeBgBtn.addEventListener('click', () => { UIManager.closeProfile(); setTimeout(() => UIManager.openBgSheet('chat'), 260); }); DOM.roleColorBtn.addEventListener('click', () => { UIManager.closeProfile(); setTimeout(() => UIManager.openColorSheet('role'), 260); }); DOM.profileModelBtn.addEventListener('click', e => UIManager.toggleModelMenu(e)); DOM.profileRenameBtn.addEventListener('click', () => { UIManager.closeProfile(); setTimeout(() => UIManager.renameCurrentConversation(), 260); }); DOM.newConvBtn.addEventListener('click', () => UIManager.addConversation()); DOM.deleteCurrentRoleBtn.addEventListener('click', () => UIManager.deleteRole()); DOM.profileConvList.addEventListener('click', e => { const row = e.target.closest('.conv-row'); if (row) UIManager.switchConversation(DataManager.currentRoleId, row.dataset.convId); }); DOM.closeEditBtn.addEventListener('click', () => UIManager.closeEdit()); DOM.saveEditRoleBtn.addEventListener('click', () => UIManager.saveEditedRole()); document.querySelectorAll('[data-edit-mode]').forEach(btn => btn.addEventListener('click', () => setModeButtons('edit', btn.dataset.editMode))); DOM.closeNewRoleBtn.addEventListener('click', () => UIManager.closeNewRolePanel()); DOM.saveNewRoleBtn.addEventListener('click', () => UIManager.saveNewRole()); document.querySelectorAll('[data-new-mode]').forEach(btn => btn.addEventListener('click', () => setModeButtons('new', btn.dataset.newMode))); DOM.sendBtn.addEventListener('click', () => UIManager.sendMessage()); DOM.chatInput.addEventListener('input', () => adjustChatInputHeight()); DOM.chatInput.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); UIManager.sendMessage(); } });
-            DOM.chatFeed.addEventListener('click', e => { const scene = e.target.closest('.scene[data-index]'); if (scene && !e.target.closest('button')) { const idx = Number(scene.dataset.index); const conv = DataManager.getCurrentConversation(); const msg = conv?.messages[idx]; if (msg?.role === 'scene_separator') openModal({ title: '编辑场景名', type: 'prompt', inputValue: msg.content || '', confirmLabel: '保存', onConfirm: value => { const v = String(value || '').trim(); if (!v) return false; msg.content = v; DataManager.saveData(); UIManager.renderChatFeed(); return true; } }); return; } const btn = e.target.closest('[data-action]'); if (!btn) return; const index = Number(btn.dataset.index); const conv = DataManager.getCurrentConversation(); switch (btn.dataset.action) { case 'toggle-reasoning': UIManager.toggleReasoning(index); break; case 'version': UIManager.changeAssistantVersion(index, Number(btn.dataset.delta)); break; case 'regenerate': UIManager.regenerateAssistantResponse(index); break; case 'edit-user': openEditUserModal(index, conv?.messages[index]?.content || ''); break; case 'edit-assistant': openEditAssistantModal(index, UIManager.getDialogueContent(conv?.messages[index])); break; case 'delete-user': UIManager.deleteUserMessageAndAssistant(index); break; case 'generate-summary': { const slider = document.getElementById('summary-slider-' + index); UIManager.generateStorySummary(index, slider ? Number(slider.dataset.start) : 0, slider ? Number(slider.value) : 0); break; } case 'copy-summary': { const msg = conv?.messages[index]; if (!msg) return; const prefix = '[系统指令]\n你现在需要扮演该角色。在开始对话之前，请先仔细阅读并内化以下【前情提要】。这份前情提要是你和用户之间已经发生过的所有事情的记录，它不是需要你分析或回应的内容，而是你的记忆。请将这份记忆完全融入你对角色的理解中，并基于此继续与用户进行互动。\n\n【前情提要】\n'; copyToClipboard(prefix + getSummaryMemoryText(msg), () => { btn.innerHTML = SVGIcons.check + '复制成功'; setTimeout(() => btn.innerHTML = SVGIcons.copy + '复制内容', 1600); }); break; } case 'regenerate-summary': { const msg = conv?.messages[index]; if (msg?.startOffset !== undefined && msg?.endOffset !== undefined && confirm('重新生成会覆盖当前剧情总结，是否继续？')) UIManager.generateStorySummary(index, msg.startOffset, msg.endOffset); break; } case 'next-volume': UIManager.openNextVolumeFromSummary(index); break; case 'link-conv': UIManager.linkExistingConversationFromSummary(index); break; case 'continue-summary': if (conv && !conv.messages.some(m => m.role === 'system_summary' && m.status !== 'done')) { conv.messages.push({ role: 'system_summary', status: 'warning', content: '', timestamp: new Date().toISOString() }); DataManager.saveData(); UIManager.jumpToLastPage(conv.messages.length); UIManager.renderChatFeed(); } break; case 'prev-page': if (Pagination.currentPage > 1) { Pagination.currentPage--; UIManager.renderChatFeed(); } break; case 'next-page': { const pages = Math.ceil((conv?.messages.length || 0) / Config.PAGE_SIZE); if (Pagination.currentPage < pages) { Pagination.currentPage++; UIManager.renderChatFeed(); } break; } } });
+            DOM.addRoleBtn.addEventListener('click', () => UIManager.openNewRolePanel()); document.querySelectorAll('[data-action="theme"]').forEach(btn => btn.addEventListener('click', () => UIManager.toggleTheme())); DOM.roleSearchInput.addEventListener('input', () => UIManager.renderRoleList()); document.querySelectorAll('.tab').forEach(btn => btn.addEventListener('click', () => UIManager.switchTab(btn.dataset.tab))); DOM.backBtn.addEventListener('click', () => UIManager.goBack()); DOM.chatAvatar.addEventListener('click', () => UIManager.openProfile()); DOM.profileAv.addEventListener('click', () => UIManager.openAvatarPicker()); DOM.profileScrim.addEventListener('click', () => UIManager.closeProfile()); DOM.chatMenuBtn.addEventListener('click', e => UIManager.toggleChatMenu(e)); DOM.summaryMenuItem.addEventListener('click', () => UIManager.openSummaryControl()); DOM.relationshipArchiveMenuItem?.addEventListener('click', () => UIManager.generateArchiveUpdate()); DOM.insertSceneItem.addEventListener('click', () => UIManager.insertSceneSeparator()); DOM.renameConvItem.addEventListener('click', () => UIManager.renameCurrentConversation()); DOM.clearConvItem.addEventListener('click', () => UIManager.clearCurrentConversation()); DOM.editRoleBtn.addEventListener('click', () => UIManager.openEditRolePanel()); DOM.changeBgBtn.addEventListener('click', () => { UIManager.closeProfile(); setTimeout(() => UIManager.openBgSheet('chat'), 260); }); DOM.roleColorBtn.addEventListener('click', () => { UIManager.closeProfile(); setTimeout(() => UIManager.openColorSheet('role'), 260); }); DOM.profileModelBtn.addEventListener('click', e => UIManager.toggleModelMenu(e)); DOM.profileRenameBtn.addEventListener('click', () => { UIManager.closeProfile(); setTimeout(() => UIManager.renameCurrentConversation(), 260); }); DOM.newConvBtn.addEventListener('click', () => UIManager.addConversation()); DOM.deleteCurrentRoleBtn.addEventListener('click', () => UIManager.deleteRole()); DOM.profileConvList.addEventListener('click', e => { const row = e.target.closest('.conv-row'); if (row) UIManager.switchConversation(DataManager.currentRoleId, row.dataset.convId); }); DOM.closeEditBtn.addEventListener('click', () => UIManager.closeEdit()); DOM.saveEditRoleBtn.addEventListener('click', () => UIManager.saveEditedRole()); document.querySelectorAll('[data-edit-mode]').forEach(btn => btn.addEventListener('click', () => setModeButtons('edit', btn.dataset.editMode))); DOM.closeNewRoleBtn.addEventListener('click', () => UIManager.closeNewRolePanel()); DOM.saveNewRoleBtn.addEventListener('click', () => UIManager.saveNewRole()); document.querySelectorAll('[data-new-mode]').forEach(btn => btn.addEventListener('click', () => setModeButtons('new', btn.dataset.newMode))); DOM.sendBtn.addEventListener('click', () => UIManager.sendMessage()); DOM.chatInput.addEventListener('input', () => adjustChatInputHeight()); DOM.chatInput.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); UIManager.sendMessage(); } });
+            DOM.chatFeed.addEventListener('click', e => { const scene = e.target.closest('.scene[data-index]'); if (scene && !e.target.closest('button')) { const idx = Number(scene.dataset.index); const conv = DataManager.getCurrentConversation(); const msg = conv?.messages[idx]; if (msg?.role === 'scene_separator') openModal({ title: '编辑场景名', type: 'prompt', inputValue: msg.content || '', confirmLabel: '保存', onConfirm: value => { const v = String(value || '').trim(); if (!v) return false; msg.content = v; DataManager.saveData(); UIManager.renderChatFeed(); return true; } }); return; } const btn = e.target.closest('[data-action]'); if (!btn) return; const index = Number(btn.dataset.index); const conv = DataManager.getCurrentConversation(); switch (btn.dataset.action) { case 'toggle-reasoning': UIManager.toggleReasoning(index); break; case 'version': UIManager.changeAssistantVersion(index, Number(btn.dataset.delta)); break; case 'regenerate': UIManager.regenerateAssistantResponse(index); break; case 'edit-user': openEditUserModal(index, conv?.messages[index]?.content || ''); break; case 'edit-assistant': openEditAssistantModal(index, UIManager.getDialogueContent(conv?.messages[index])); break; case 'delete-user': UIManager.deleteUserMessageAndAssistant(index); break; case 'generate-summary': { const slider = document.getElementById('summary-slider-' + index); UIManager.generateStorySummary(index, slider ? Number(slider.dataset.start) : 0, slider ? Number(slider.value) : 0); break; } case 'copy-summary': { const msg = conv?.messages[index]; if (!msg) return; const prefix = '[系统指令]\n你现在需要扮演该角色。在开始对话之前，请先仔细阅读并内化以下【前情提要】。这份前情提要是你和用户之间已经发生过的所有事情的记录，它不是需要你分析或回应的内容，而是你的记忆。请将这份记忆完全融入你对角色的理解中，并基于此继续与用户进行互动。\n\n【前情提要】\n'; copyToClipboard(prefix + getSummaryMemoryText(msg), () => { btn.innerHTML = SVGIcons.check + '复制成功'; setTimeout(() => btn.innerHTML = SVGIcons.copy + '复制内容', 1600); }); break; } case 'regenerate-summary': { const msg = conv?.messages[index]; if (msg?.startOffset !== undefined && msg?.endOffset !== undefined && confirm('重新生成会覆盖当前剧情总结，是否继续？')) UIManager.generateStorySummary(index, msg.startOffset, msg.endOffset); break; } case 'next-volume': UIManager.openNextVolumeFromSummary(index); break; case 'link-conv': UIManager.linkExistingConversationFromSummary(index); break; case 'continue-summary': if (conv && !conv.messages.some(m => m.role === 'system_summary' && m.status !== 'done')) { conv.messages.push({ id: DataManager.generateId(), role: 'system_summary', status: 'warning', content: '', timestamp: new Date().toISOString() }); DataManager.saveData(); UIManager.jumpToLastPage(conv.messages.length); UIManager.renderChatFeed(); } break; case 'prev-page': if (Pagination.currentPage > 1) { Pagination.currentPage--; UIManager.renderChatFeed(); } break; case 'next-page': { const pages = Math.ceil((conv?.messages.length || 0) / Config.PAGE_SIZE); if (Pagination.currentPage < pages) { Pagination.currentPage++; UIManager.renderChatFeed(); } break; } } });
             DOM.chatFeed.addEventListener('input', e => { const slider = e.target.closest('[data-summary-slider]'); if (!slider) return; const text = document.getElementById('range-text-' + slider.dataset.summarySlider); if (text) text.textContent = '存档范围：从第 ' + (Number(slider.dataset.start) + 1) + ' 条 到 第 ' + (Number(slider.value) + 1) + ' 条'; });
             DOM.confirmEditMsgBtn.addEventListener('click', async () => {
                 const newContent = DOM.editUserMsgContent.value.trim();
