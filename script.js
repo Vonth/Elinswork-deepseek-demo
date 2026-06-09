@@ -424,6 +424,55 @@
                 && !(archive.anchors || []).length;
         }
 
+        const RELATIONSHIP_ARCHIVE_INJECTION_NOTICE = [
+            '【演绎须知】',
+            '以下"关系档案"描述的是角色经过长期相处后的\\*当前状态\\*，其优先级高于上面的初始人设设定。',
+            '初始设定描述的是角色面对外人、以及故事最开始时的状态；而对用户，角色早已走过这段历程、',
+            '形成了下方档案所述的当前关系与态度。请严格依据下方档案把握角色此刻对用户的态度与关系——',
+            '例如档案显示角色已卸下防备，则其偶尔的调侃应表现为亲昵，而非疏离的防御。',
+            '请自然延续这一状态，不要让角色无故退回初始设定的样子。'
+        ].join('\n');
+
+        const RELATIONSHIP_ARCHIVE_INJECTION_FOOTER = '（以上档案是你已经拥有的记忆与现状，不要主动复述或向用户念出，自然融入扮演即可。）';
+
+        function hasActiveRelationshipArchive(archive) {
+            const normalized = normalizeConversationArchive(archive);
+            if (normalized.version > 0) return true;
+            const state = normalized.state;
+            return Boolean(
+                state.relationshipDefinition.trim()
+                || state.attitudeToUser.trim()
+                || state.relationshipTemperature.trim()
+                || state.emotionalState.trim()
+                || state.traumaStatus.trim()
+                || normalized.journal.trim()
+                || normalized.toneExamples.some(item => item.trim())
+                || normalized.anchors.some(item => item.trim())
+            );
+        }
+
+        function buildRelationshipArchiveInjection(archive) {
+            const normalized = normalizeConversationArchive(archive);
+            const stateLines = [
+                ['· 关系定性：', normalized.state.relationshipDefinition],
+                ['· 对用户的态度：', normalized.state.attitudeToUser],
+                ['· 关系温度：', normalized.state.relationshipTemperature],
+                ['· 当前情绪心理：', normalized.state.emotionalState],
+                ['· 核心软肋现状：', normalized.state.traumaStatus]
+            ].filter(([, value]) => value.trim()).map(([label, value]) => label + value);
+            const toneLines = normalized.toneExamples.filter(item => item.trim()).map(item => '· ' + item);
+            const anchorLines = normalized.anchors.filter(item => item.trim()).map(item => '· ' + item);
+            const sections = [RELATIONSHIP_ARCHIVE_INJECTION_NOTICE];
+
+            if (stateLines.length) sections.push('【关系档案 · 当前状态】\n' + stateLines.join('\n'));
+            if (toneLines.length) sections.push('【角色当前说话方式示例】\n' + toneLines.join('\n'));
+            if (normalized.journal.trim()) sections.push('【关系历程 · 情感日记】\n' + normalized.journal);
+            if (anchorLines.length) sections.push('【关键记忆锚点】（这些是你必须记得的具体细节）\n' + anchorLines.join('\n'));
+            sections.push(RELATIONSHIP_ARCHIVE_INJECTION_FOOTER);
+
+            return sections.join('\n\n');
+        }
+
         function buildExistingArchiveJson(archive) {
             if (isArchiveEmptyForPrompt(archive)) return '{}';
             return JSON.stringify({
@@ -980,10 +1029,9 @@
             // 【核心防 400 机制】：智能提取有效上下文，动态截断长对话
             getSafeApiMessages(conv, role, userIndex = null) {
                 const rawHistory = userIndex !== null ? conv.messages.slice(0, userIndex + 1) : conv.messages;
-                const memoryBlock = buildMemoryBlock(rawHistory, conv);
                 
                 let apiMsgs = [];
-                // 1. 从所有记录中提取真实对话；已完成的存档点进入 system memoryBlock，不参与历史裁剪
+                // 1. 从所有记录中提取真实对话；系统卡片不参与历史裁剪
                 for (let m of rawHistory) {
                     if (m.role === 'system_summary') continue;
                     if (m.role === 'user' || m.role === 'assistant') {
@@ -1012,7 +1060,10 @@
                 // 4. 始终把系统角色设定顶在最前面
                 const contextLimit = normalizeContextMessageLimit(DataManager.globalSettings?.contextMessageLimit);
                 const recentMessages = truncated.slice(-contextLimit);
-                const systemContent = [role.systemPrompt || '', memoryBlock].filter(Boolean).join('\n\n');
+                const archive = normalizeConversationArchive(conv?.archive);
+                const systemContent = hasActiveRelationshipArchive(archive)
+                    ? [role.systemPrompt || '', buildRelationshipArchiveInjection(archive)].filter(Boolean).join('\n\n')
+                    : [role.systemPrompt || '', buildMemoryBlock(rawHistory, conv)].filter(Boolean).join('\n\n');
                 return [{ role: "system", content: systemContent }, ...recentMessages];
             },
 
