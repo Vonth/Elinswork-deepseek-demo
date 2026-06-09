@@ -949,6 +949,7 @@
             relationshipArchiveSheet: document.getElementById('relationshipArchiveSheet'),
             archiveVersionMeta: document.getElementById('archiveVersionMeta'),
             archiveModeLabel: document.getElementById('archiveModeLabel'),
+            archiveJournalTitle: document.getElementById('archiveJournalTitle'),
             archiveJournal: document.getElementById('archiveJournal'),
             archiveToneList: document.getElementById('archiveToneList'),
             archiveAnchorList: document.getElementById('archiveAnchorList'),
@@ -1194,9 +1195,15 @@
                     field.value = normalized.state[field.dataset.archiveState] || '';
                 });
                 if (DOM.archiveJournal) DOM.archiveJournal.value = normalized.journal;
+                this.updateArchiveJournalCount();
                 this.renderArchiveEditableList(DOM.archiveToneList, normalized.toneExamples, 'tone');
                 this.renderArchiveEditableList(DOM.archiveAnchorList, normalized.anchors, 'anchor');
                 this.renderArchiveEditableList(DOM.archiveNewAnchorList, normalized.newAnchors, 'newAnchor');
+            },
+            updateArchiveJournalCount() {
+                if (!DOM.archiveJournalTitle) return;
+                const count = (DOM.archiveJournal?.value || '').length;
+                DOM.archiveJournalTitle.textContent = '情感日记（约 ' + count.toLocaleString('en-US') + ' 字）';
             },
             updateArchivePanelChrome(status = '', isError = false) {
                 if (!archivePanelState || !DOM.relationshipArchiveSheet) return;
@@ -1915,6 +1922,7 @@
             DOM.saveArchiveBtn?.addEventListener('click', () => UIManager.saveArchivePanel());
             DOM.updateArchiveBtn?.addEventListener('click', () => UIManager.generateArchiveUpdate());
             DOM.addToneExampleBtn?.addEventListener('click', () => UIManager.addArchiveListItem('tone'));
+            DOM.archiveJournal?.addEventListener('input', () => UIManager.updateArchiveJournalCount());
             DOM.relationshipArchiveSheet?.addEventListener('click', e => {
                 const remove = e.target.closest('[data-remove-archive-item]');
                 if (!remove) return;
