@@ -105,6 +105,47 @@
 
   <div class="scrim" id="dlgScrim"></div>
   <div class="sheet summary-sheet" id="summarySheet"><div class="sheet-handle"></div><div class="summary-head"><div class="summary-eyebrow" id="summaryEyebrow">剧情总结</div><div class="summary-title" id="summaryTitle"></div></div><div class="summary-body" id="summaryBody"></div><div class="summary-foot" id="summaryFoot"><button class="summary-btn" id="closeSummaryBtn">关闭</button></div></div>
+  <div class="sheet archive-sheet" id="relationshipArchiveSheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-head archive-sheet-head">
+      <div><div class="sheet-title">关系档案</div><div class="archive-mode-label" id="archiveModeLabel">第三人称关系记录</div></div>
+      <div class="sheet-sub" id="archiveVersionMeta">尚未更新</div>
+    </div>
+    <div class="sheet-body archive-sheet-body">
+      <section class="archive-section">
+        <div class="archive-section-head"><div class="archive-section-title">当前状态</div><div class="archive-section-hint">可直接修订</div></div>
+        <div class="archive-state-grid">
+          <label class="archive-field"><span>关系定性</span><textarea data-archive-state="relationshipDefinition"></textarea></label>
+          <label class="archive-field"><span>对用户的态度</span><textarea data-archive-state="attitudeToUser"></textarea></label>
+          <label class="archive-field"><span>关系温度</span><textarea data-archive-state="relationshipTemperature"></textarea></label>
+          <label class="archive-field"><span>当前情绪心理</span><textarea data-archive-state="emotionalState"></textarea></label>
+          <label class="archive-field archive-field-wide"><span>核心软肋现状</span><textarea data-archive-state="traumaStatus"></textarea></label>
+        </div>
+      </section>
+      <section class="archive-section">
+        <div class="archive-section-head"><div class="archive-section-title">情感日记</div><div class="archive-section-hint">第三人称</div></div>
+        <textarea class="archive-journal" id="archiveJournal"></textarea>
+      </section>
+      <section class="archive-section">
+        <div class="archive-section-head"><div class="archive-section-title">说话方式示例</div><button class="archive-add-btn" id="addToneExampleBtn" type="button" aria-label="新增说话方式示例">＋ 新增</button></div>
+        <div class="archive-edit-list" id="archiveToneList"></div>
+      </section>
+      <section class="archive-section archive-protected-section">
+        <div class="archive-section-head"><div><div class="archive-section-title">关键记忆锚点</div><div class="archive-protected-note">受保护列表 · 自动更新不会覆盖已有锚点</div></div></div>
+        <div class="archive-edit-list" id="archiveAnchorList"></div>
+      </section>
+      <section class="archive-section archive-new-section" id="archiveNewAnchorsSection">
+        <div class="archive-section-head"><div><div class="archive-section-title">本次新增锚点</div><div class="archive-section-hint">保存草稿后追加，可先修改或删除</div></div></div>
+        <div class="archive-edit-list" id="archiveNewAnchorList"></div>
+      </section>
+    </div>
+    <div class="archive-status" id="archiveStatus"></div>
+    <div class="sheet-foot archive-sheet-foot">
+      <button class="cancel" id="cancelArchiveBtn">取消</button>
+      <button class="archive-update" id="updateArchiveBtn">更新档案</button>
+      <button class="save" id="saveArchiveBtn">保存</button>
+    </div>
+  </div>
   <div class="sheet color-sheet" id="colorSheet"><div class="sheet-handle"></div><div class="cp-scope"><span class="dot"></span><span id="cpScopeLabel">默认强调色</span></div><div class="cp-scope-hint" id="cpScopeHint"></div><div class="cp-sheet-head"><div class="cp-swatch" id="cpSwatch" style="--cp-color:#b08968"></div><div class="cp-meta"><span class="hex" id="cpHex">#B08968</span><span class="hsl" id="cpHsl">H 30 · S 31 · L 55</span></div></div><div class="cp-sheet-body"><div class="cp-slider"><div class="cp-slider-head"><span class="lab">色相 H</span><span class="num" id="hNum">30</span></div><input type="range" id="hSlider" min="0" max="360" value="30" style="--track:linear-gradient(to right, hsl(0 60% 55%), hsl(60 60% 55%), hsl(120 60% 55%), hsl(180 60% 55%), hsl(240 60% 55%), hsl(300 60% 55%), hsl(360 60% 55%))"></div><div class="cp-slider"><div class="cp-slider-head"><span class="lab">饱和度 S</span><span class="num" id="sNum">31</span></div><input type="range" id="sSlider" min="0" max="100" value="31"></div><div class="cp-slider"><div class="cp-slider-head"><span class="lab">明度 L</span><span class="num" id="lNum">55</span></div><input type="range" id="lSlider" min="0" max="100" value="55"></div></div><div class="cp-sheet-saved" id="cpSaved"><div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:var(--s3)"><div class="cp-saved-label">我的常用色</div><button class="edit-toggle" id="savedColorsEditBtn">管理</button></div><div class="cp-saved-grid" id="savedGrid"></div></div><div class="sheet-foot"><button class="cancel" id="cancelColorBtn">取消</button><button class="save" id="saveColorBtn">保存</button></div></div>
   <div class="sheet bg-sheet" id="bgSheet"><div class="sheet-handle"></div><div class="sheet-head"><div class="sheet-title" id="bgSheetTitle">换背景</div><button class="bg-edit-toggle" id="bgEditToggle">管理</button></div><div class="sheet-body"><div class="bg-preview-wrap" id="bgPreviewWrap"><div class="bg-preview-label">当前背景</div><div class="bg-preview"><div class="bg-img" id="bgPreviewImg"></div><div class="bg-overlay"><div class="av" id="bgPreviewAv">AI</div><div class="nm" id="bgPreviewName"></div></div></div><div class="bg-opacity-control" id="bgOpacityControl"><div class="bg-opacity-head"><span>底色透明度</span><span id="bgOpacityVal">70%</span></div><input type="range" id="bgOpacitySlider" min="0" max="100" value="70"></div></div><div class="bg-grid" id="bgGrid"></div><button class="bg-upload" id="uploadNewBgBtn"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>上传新图片</button><input class="bg-file-hidden" type="file" id="bgInput" accept="image/*"></div></div>
   <div class="sheet options-sheet" id="optionsSheet"><div class="sheet-handle"></div><div class="sheet-head"><div class="sheet-title" id="optSheetTitle">默认模型</div><div class="sheet-sub" id="optSheetSub">选一个</div></div><div class="opt-list" id="optList"></div></div>

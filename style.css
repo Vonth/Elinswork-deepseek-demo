@@ -684,6 +684,59 @@ body:has(.device.day){background:#d6cfbe}
 .summary-btn:hover{background:var(--surface-2)}
 
 /* =====================================================
+   RELATIONSHIP ARCHIVE SHEET
+===================================================== */
+.archive-sheet{max-height:calc(100% - 20px);height:calc(100% - 20px);display:flex;flex-direction:column;overflow:hidden}
+.archive-sheet-head{flex:0 0 auto;align-items:flex-start}
+.archive-mode-label{margin-top:4px;font-family:var(--mono);font-size:10.5px;color:var(--txt-faint);letter-spacing:.04em}
+.archive-sheet-body{min-height:0;padding-top:0}
+.archive-section{padding:var(--s5) 0;border-bottom:1px solid var(--border-soft)}
+.archive-section:last-child{border-bottom:none}
+.archive-section-head{display:flex;align-items:flex-start;justify-content:space-between;gap:var(--s3);margin-bottom:var(--s3)}
+.archive-section-title{font-family:var(--serif);font-size:15px;font-weight:600;color:var(--txt)}
+.archive-section-hint,.archive-protected-note{margin-top:3px;font-family:var(--sans);font-size:11px;line-height:1.5;color:var(--txt-faint)}
+.archive-state-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--s3)}
+.archive-field{display:flex;flex-direction:column;gap:7px;min-width:0}
+.archive-field-wide{grid-column:1/-1}
+.archive-field>span{font-family:var(--sans);font-size:11.5px;color:var(--txt-soft)}
+.archive-field textarea,.archive-journal,.archive-list-input{
+  width:100%;box-sizing:border-box;border:1px solid var(--border-soft);border-radius:var(--r-s);
+  background:var(--surface);color:var(--txt);font-family:var(--sans);font-size:13px;line-height:1.65;
+  outline:none;resize:vertical;transition:border-color .18s var(--ease-out),background .18s var(--ease-out);
+}
+.archive-field textarea{min-height:78px;padding:10px 11px}
+.archive-field textarea:focus,.archive-journal:focus,.archive-list-input:focus{border-color:var(--accent);background:var(--surface-2)}
+.archive-journal{min-height:230px;max-height:52vh;padding:12px 13px}
+.archive-edit-list{display:flex;flex-direction:column;gap:var(--s2)}
+.archive-list-row{display:grid;grid-template-columns:minmax(0,1fr) 34px;gap:var(--s2);align-items:stretch}
+.archive-list-input{min-height:48px;padding:10px 11px}
+.archive-list-remove{
+  width:34px;border:1px solid var(--border-soft);border-radius:var(--r-s);background:transparent;
+  color:var(--txt-faint);display:flex;align-items:center;justify-content:center;cursor:pointer;
+}
+.archive-list-remove:hover{color:#c47a8a;border-color:color-mix(in srgb,#c47a8a 45%,var(--border-soft));background:color-mix(in srgb,#c47a8a 8%,transparent)}
+.archive-list-remove svg{width:15px;height:15px}
+.archive-add-btn{border:none;background:none;color:var(--accent);font-family:var(--sans);font-size:12px;cursor:pointer;padding:3px 0}
+.archive-empty{padding:10px 0;font-family:var(--sans);font-size:12px;color:var(--txt-faint)}
+.archive-protected-section{margin:0 calc(var(--s6) * -1);padding-left:var(--s6);padding-right:var(--s6);border-left:3px solid color-mix(in srgb,var(--accent) 58%,transparent);background:color-mix(in srgb,var(--accent) 5%,transparent)}
+.archive-new-section{display:none;margin:0 calc(var(--s6) * -1);padding-left:var(--s6);padding-right:var(--s6);background:color-mix(in srgb,var(--accent) 10%,transparent)}
+.archive-new-section.visible{display:block}
+.archive-status{display:none;flex:0 0 auto;padding:9px var(--s6);border-top:1px solid var(--border-soft);font-family:var(--sans);font-size:11.5px;color:var(--txt-soft)}
+.archive-status.visible{display:block}
+.archive-status.error{color:#c47a8a}
+.archive-sheet-foot{flex:0 0 auto;padding-bottom:calc(var(--s4) + env(safe-area-inset-bottom))}
+.archive-sheet-foot .archive-update{background:var(--surface);color:var(--txt);border-color:var(--border)}
+.archive-sheet-foot .archive-update:hover{background:var(--surface-2)}
+.archive-sheet-foot button:disabled{opacity:.48;cursor:default;filter:none}
+.archive-sheet.draft-mode .archive-update{display:none}
+
+@media (max-width:520px){
+  .archive-state-grid{grid-template-columns:1fr}
+  .archive-field-wide{grid-column:auto}
+  .archive-sheet-foot{padding-left:var(--s4);padding-right:var(--s4)}
+}
+
+/* =====================================================
    COLOR PICKER SHEET (强调色)
 ===================================================== */
 .color-sheet{max-height:88%}

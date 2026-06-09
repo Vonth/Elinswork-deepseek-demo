@@ -587,11 +587,14 @@
                 version: normalizedOld.version + 1,
                 lastIndex: Number.isInteger(currentEnd?.effectiveIndex) ? currentEnd.effectiveIndex : normalizedOld.lastIndex,
                 lastMessageId: typeof currentEnd?.messageId === 'string' ? currentEnd.messageId : normalizedOld.lastMessageId,
-                journalPerson: normalizedOld.journalPerson,
+                journalPerson: 'third',
                 state: normalizeArchiveState(draft.state),
                 journal: typeof draft.journal === 'string' ? draft.journal : '',
                 toneExamples: Array.isArray(draft.toneExamples) ? draft.toneExamples.filter(item => typeof item === 'string') : [],
-                anchors: dedupeAppendAnchors(normalizedOld.anchors, draft.newAnchors)
+                anchors: dedupeAppendAnchors(
+                    Array.isArray(draft.protectedAnchors) ? draft.protectedAnchors : normalizedOld.anchors,
+                    draft.newAnchors
+                )
             };
         }
 
@@ -942,7 +945,22 @@
         };
 
         const DOM = { device: document.getElementById('device'), listScreen: document.getElementById('listScreen'), activityScreen: document.getElementById('activityScreen'), meScreen: document.getElementById('meScreen'), chatScreen: document.getElementById('chatScreen'), roleListDiv: document.getElementById('roleList'), roleSearchInput: document.getElementById('roleSearchInput'), addRoleBtn: document.getElementById('addRoleBtn'), messagesArea: document.getElementById('chatFeed'), chatFeed: document.getElementById('chatFeed'), messageInput: document.getElementById('chatInput'), chatInput: document.getElementById('chatInput'), sendBtn: document.getElementById('sendBtn'), backBtn: document.getElementById('backBtn'), chatName: document.getElementById('chatName'), chatAvatar: document.getElementById('chatAvatar'), chatMenuBtn: document.getElementById('chatMenuBtn'), chatMenu: document.getElementById('chatMenu'), summaryMenuItem: document.getElementById('summaryMenuItem'), relationshipArchiveMenuItem: document.getElementById('relationshipArchiveMenuItem'), insertSceneItem: document.getElementById('insertSceneItem'), renameConvItem: document.getElementById('renameConvItem'), clearConvItem: document.getElementById('clearConvItem'), profileScrim: document.getElementById('profileScrim'), profilePanel: document.getElementById('profilePanel'), profileAv: document.getElementById('profileAv'), profileName: document.getElementById('profileName'), profileDesc: document.getElementById('profileDesc'), profileConvList: document.getElementById('profileConvList'), editRoleBtn: document.getElementById('editRoleBtn'), changeBgBtn: document.getElementById('changeBgBtn'), roleColorBtn: document.getElementById('roleColorBtn'), profileModelBtn: document.getElementById('profileModelBtn'), profileRenameBtn: document.getElementById('profileRenameBtn'), newConvBtn: document.getElementById('newConvBtn'), deleteCurrentRoleBtn: document.getElementById('deleteCurrentRoleBtn'), editPanel: document.getElementById('editPanel'), editName: document.getElementById('editName'), editStruct: document.getElementById('editStruct'), editFree: document.getElementById('editFree'), editFreeText: document.getElementById('editFreeText'), closeEditBtn: document.getElementById('closeEditBtn'), saveEditRoleBtn: document.getElementById('saveEditRoleBtn'), modelMenu: document.getElementById('modelMenu'), roleNewPanel: document.getElementById('roleNewPanel'), newName: document.getElementById('newName'), newStruct: document.getElementById('newStruct'), newFree: document.getElementById('newFree'), newFreeText: document.getElementById('newFreeText'), closeNewRoleBtn: document.getElementById('closeNewRoleBtn'), saveNewRoleBtn: document.getElementById('saveNewRoleBtn'), dlgScrim: document.getElementById('dlgScrim'), summarySheet: document.getElementById('summarySheet'), colorSheet: document.getElementById('colorSheet'), bgSheet: document.getElementById('bgSheet'), optionsSheet: document.getElementById('optionsSheet'), importSheet: document.getElementById('importSheet'), aboutSheet: document.getElementById('aboutSheet'), avatarCropSheet: document.getElementById('avatarCropSheet'), roleAvatarInput: document.getElementById('roleAvatarInput'), avatarCropStage: document.getElementById('avatarCropStage'), avatarCropCanvas: document.getElementById('avatarCropCanvas'), cancelAvatarCropBtn: document.getElementById('cancelAvatarCropBtn'), saveAvatarCropBtn: document.getElementById('saveAvatarCropBtn'), cpScopeLabel: document.getElementById('cpScopeLabel'), cpScopeHint: document.getElementById('cpScopeHint'), cpSwatch: document.getElementById('cpSwatch'), cpHex: document.getElementById('cpHex'), cpHsl: document.getElementById('cpHsl'), hSlider: document.getElementById('hSlider'), sSlider: document.getElementById('sSlider'), lSlider: document.getElementById('lSlider'), hNum: document.getElementById('hNum'), sNum: document.getElementById('sNum'), lNum: document.getElementById('lNum'), cpSaved: document.getElementById('cpSaved'), savedGrid: document.getElementById('savedGrid'), savedColorsEditBtn: document.getElementById('savedColorsEditBtn'), cancelColorBtn: document.getElementById('cancelColorBtn'), saveColorBtn: document.getElementById('saveColorBtn'), accentHex: document.getElementById('accentHex'), bgSheetTitle: document.getElementById('bgSheetTitle'), bgEditToggle: document.getElementById('bgEditToggle'), bgPreviewWrap: document.getElementById('bgPreviewWrap'), bgPreviewImg: document.getElementById('bgPreviewImg'), bgPreviewAv: document.getElementById('bgPreviewAv'), bgPreviewName: document.getElementById('bgPreviewName'), bgOpacityControl: document.getElementById('bgOpacityControl'), bgOpacitySlider: document.getElementById('bgOpacitySlider'), bgOpacityVal: document.getElementById('bgOpacityVal'), bgGrid: document.getElementById('bgGrid'), bgCountVal: document.getElementById('bgCountVal'), uploadNewBgBtn: document.getElementById('uploadNewBgBtn'), bgInput: document.getElementById('bgInput'), customBgLayer: document.getElementById('customBgLayer'), optSheetTitle: document.getElementById('optSheetTitle'), optSheetSub: document.getElementById('optSheetSub'), optList: document.getElementById('optList'), meModelVal: document.getElementById('meModelVal'), meThinkVal: document.getElementById('meThinkVal'), meContextVal: document.getElementById('meContextVal'), importDrop: document.getElementById('importDrop'), importFile: document.getElementById('importFile'), cancelImportBtn: document.getElementById('cancelImportBtn'), modalScrim: document.getElementById('modalScrim'), modal: document.getElementById('modal'), modalTitle: document.getElementById('modalTitle'), modalMsg: document.getElementById('modalMsg'), modalInput: document.getElementById('modalInput'), modalCancel: document.getElementById('modalCancel'), modalConfirm: document.getElementById('modalConfirm'), editUserMsgModal: document.getElementById('editUserMsgModal'), editUserMsgContent: document.getElementById('editUserMsgContent'), confirmEditMsgBtn: document.getElementById('confirmEditMsgBtn'), cancelEditMsgBtn: document.getElementById('cancelEditMsgBtn') };
-        let editingUserMessageIndex = null, editingAssistantMessageIndex = null, activeTab = 'list', editRoleMode = 'free', newRoleMode = 'struct', colorScope = 'global', bgSheetContext = 'chat', optionSheetKind = null, modalState = {}, avatarCropState = null;
+        Object.assign(DOM, {
+            relationshipArchiveSheet: document.getElementById('relationshipArchiveSheet'),
+            archiveVersionMeta: document.getElementById('archiveVersionMeta'),
+            archiveModeLabel: document.getElementById('archiveModeLabel'),
+            archiveJournal: document.getElementById('archiveJournal'),
+            archiveToneList: document.getElementById('archiveToneList'),
+            archiveAnchorList: document.getElementById('archiveAnchorList'),
+            archiveNewAnchorsSection: document.getElementById('archiveNewAnchorsSection'),
+            archiveNewAnchorList: document.getElementById('archiveNewAnchorList'),
+            archiveStatus: document.getElementById('archiveStatus'),
+            addToneExampleBtn: document.getElementById('addToneExampleBtn'),
+            cancelArchiveBtn: document.getElementById('cancelArchiveBtn'),
+            updateArchiveBtn: document.getElementById('updateArchiveBtn'),
+            saveArchiveBtn: document.getElementById('saveArchiveBtn')
+        });
+        let editingUserMessageIndex = null, editingAssistantMessageIndex = null, activeTab = 'list', editRoleMode = 'free', newRoleMode = 'struct', colorScope = 'global', bgSheetContext = 'chat', optionSheetKind = null, modalState = {}, avatarCropState = null, archivePanelState = null;
         const MODEL_OPTIONS = [{ key: 'deepseek-v4-flash', name: 'DeepSeek V4 Flash', shortName: 'V4 Flash', desc: '快 · 日常对话' }, { key: 'deepseek-v4-pro', name: 'DeepSeek V4 Pro', shortName: 'V4 Pro', desc: '慢 · 高质量长文' }]; const THINKING_OPTIONS = [{ key: 'fast', name: '快速回答', desc: '直接出文，省思考时间' }, { key: 'thinking', name: '深度思考', desc: '展示推理过程，更稳更慢' }]; const CONTEXT_LIMIT_OPTIONS = [20, 40, 60, 100, 150, 200].map(value => ({ key: String(value), name: value + ' 条', desc: value === 200 ? '尽量多记 · 请求最大' : value >= 100 ? '长对话 · 记忆更完整' : value === 40 ? '平衡速度和记忆' : '更快 · 记忆更短' })); const ARCHIVE_TRIGGER_OPTIONS = [20000, 30000, 50000, 80000, 100000].map(value => ({ key: String(value), name: formatStoryArchiveTriggerChars(value), desc: value === 20000 ? '最早提醒 · 细节最全' : value === 30000 ? '更早总结 · 推荐' : value === 50000 ? '较长剧情后提醒' : value === 80000 ? '更长剧情后提醒' : '最长剧情后提醒' }));
         function setAvatarText(el, text) { if (!el) return; const node = Array.from(el.childNodes).find(n => n.nodeType === Node.TEXT_NODE); if (node) node.nodeValue = text; else el.insertBefore(document.createTextNode(text), el.firstChild); }
         function setAvatarVisual(el, role) { if (!el || !role) return; const dataUrl = normalizeAvatarDataUrl(role.avatarDataUrl); if (dataUrl) { el.classList.add('has-image'); el.style.backgroundImage = 'url("' + dataUrl.replace(/"/g, '%22') + '")'; setAvatarText(el, ''); return; } el.classList.remove('has-image'); el.style.backgroundImage = ''; setAvatarText(el, getInitialChar(role.name)); }
@@ -1113,35 +1131,212 @@
                 }
                 this.updateRelationshipArchiveMenuState(conv);
             },
-            async generateArchiveUpdate() {
+            // 关系档案面板使用内存工作副本，只有显式保存才写入 conversation。
+            cloneArchivePanelWork(value) {
+                return JSON.parse(JSON.stringify({
+                    state: normalizeArchiveState(value?.state),
+                    journal: typeof value?.journal === 'string' ? value.journal : '',
+                    toneExamples: Array.isArray(value?.toneExamples) ? value.toneExamples.filter(item => typeof item === 'string') : [],
+                    anchors: Array.isArray(value?.anchors) ? value.anchors.filter(item => typeof item === 'string') : [],
+                    newAnchors: Array.isArray(value?.newAnchors) ? value.newAnchors.filter(item => typeof item === 'string') : []
+                }));
+            },
+            collectArchivePanelWork() {
+                const state = {};
+                DOM.relationshipArchiveSheet?.querySelectorAll('[data-archive-state]').forEach(field => {
+                    state[field.dataset.archiveState] = field.value;
+                });
+                const collectList = container => Array.from(container?.querySelectorAll('.archive-list-input') || [])
+                    .map(input => input.value.trim())
+                    .filter(Boolean);
+                return this.cloneArchivePanelWork({
+                    state,
+                    journal: DOM.archiveJournal?.value || '',
+                    toneExamples: collectList(DOM.archiveToneList),
+                    anchors: collectList(DOM.archiveAnchorList),
+                    newAnchors: collectList(DOM.archiveNewAnchorList)
+                });
+            },
+            renderArchiveEditableList(container, items, kind) {
+                if (!container) return;
+                container.innerHTML = '';
+                const values = Array.isArray(items) ? items : [];
+                if (!values.length) {
+                    const empty = document.createElement('div');
+                    empty.className = 'archive-empty';
+                    empty.textContent = kind === 'anchor' ? '暂时没有关键锚点。' : kind === 'newAnchor' ? '本次没有新增锚点。' : '暂时没有说话方式示例。';
+                    container.appendChild(empty);
+                    return;
+                }
+                values.forEach((value, index) => {
+                    const row = document.createElement('div');
+                    row.className = 'archive-list-row';
+                    const input = document.createElement('textarea');
+                    input.className = 'archive-list-input';
+                    input.value = value;
+                    input.rows = 2;
+                    input.dataset.archiveListKind = kind;
+                    input.dataset.archiveListIndex = String(index);
+                    const remove = document.createElement('button');
+                    remove.className = 'archive-list-remove';
+                    remove.type = 'button';
+                    remove.dataset.removeArchiveItem = kind;
+                    remove.dataset.archiveListIndex = String(index);
+                    remove.setAttribute('aria-label', '删除此条');
+                    remove.innerHTML = SVGIcons.delete;
+                    row.append(input, remove);
+                    container.appendChild(row);
+                });
+            },
+            applyArchivePanelWork(work) {
+                const normalized = this.cloneArchivePanelWork(work);
+                DOM.relationshipArchiveSheet?.querySelectorAll('[data-archive-state]').forEach(field => {
+                    field.value = normalized.state[field.dataset.archiveState] || '';
+                });
+                if (DOM.archiveJournal) DOM.archiveJournal.value = normalized.journal;
+                this.renderArchiveEditableList(DOM.archiveToneList, normalized.toneExamples, 'tone');
+                this.renderArchiveEditableList(DOM.archiveAnchorList, normalized.anchors, 'anchor');
+                this.renderArchiveEditableList(DOM.archiveNewAnchorList, normalized.newAnchors, 'newAnchor');
+            },
+            updateArchivePanelChrome(status = '', isError = false) {
+                if (!archivePanelState || !DOM.relationshipArchiveSheet) return;
+                const isDraft = archivePanelState.mode === 'draft';
+                const isGenerating = archivePanelState.mode === 'generating';
+                DOM.relationshipArchiveSheet.classList.toggle('draft-mode', isDraft);
+                DOM.archiveNewAnchorsSection?.classList.toggle('visible', isDraft);
+                DOM.cancelArchiveBtn.textContent = isDraft ? '放弃草稿' : '取消';
+                DOM.saveArchiveBtn.textContent = isDraft ? '保存草稿' : '保存';
+                DOM.updateArchiveBtn.disabled = isGenerating;
+                DOM.saveArchiveBtn.disabled = isGenerating;
+                DOM.cancelArchiveBtn.disabled = isGenerating;
+                DOM.addToneExampleBtn.disabled = isGenerating;
+                DOM.relationshipArchiveSheet.querySelectorAll('textarea').forEach(field => { field.disabled = isGenerating; });
+                if (DOM.archiveStatus) {
+                    DOM.archiveStatus.textContent = status;
+                    DOM.archiveStatus.classList.toggle('visible', Boolean(status));
+                    DOM.archiveStatus.classList.toggle('error', Boolean(status && isError));
+                }
+            },
+            openRelationshipArchivePanel() {
+                const conv = DataManager.getCurrentConversation();
+                if (!conv) return;
+                this.closeChatMenu();
+                this.closeAllSheets(true);
+                const archive = normalizeConversationArchive(conv.archive);
+                const work = this.cloneArchivePanelWork(archive);
+                archivePanelState = {
+                    conversationId: conv.id,
+                    mode: 'edit',
+                    baseArchive: archive,
+                    baseWork: this.cloneArchivePanelWork(work),
+                    preDraftWork: null,
+                    currentEnd: null
+                };
+                this.applyArchivePanelWork(work);
+                DOM.archiveVersionMeta.textContent = archive.version > 0
+                    ? 'v' + archive.version + ' · 更新至第 ' + (archive.lastIndex + 1) + ' 条'
+                    : '尚未更新';
+                DOM.archiveModeLabel.textContent = '第三人称关系记录';
+                this.updateArchivePanelChrome();
+                DOM.dlgScrim.classList.add('open');
+                DOM.relationshipArchiveSheet.classList.add('open');
+            },
+            isArchivePanelDirty() {
+                if (!archivePanelState) return false;
+                if (archivePanelState.mode === 'draft' || archivePanelState.mode === 'generating') return true;
+                return JSON.stringify(this.collectArchivePanelWork()) !== JSON.stringify(archivePanelState.baseWork);
+            },
+            closeRelationshipArchivePanel(force = false) {
+                if (!archivePanelState) return true;
+                if (!force && this.isArchivePanelDirty() && !confirm('当前关系档案有未保存的修改，确定放弃吗？')) return false;
+                DOM.relationshipArchiveSheet?.classList.remove('open', 'draft-mode');
+                DOM.archiveNewAnchorsSection?.classList.remove('visible');
+                archivePanelState = null;
+                return true;
+            },
+            addArchiveListItem(kind) {
+                if (!archivePanelState || archivePanelState.mode === 'generating') return;
+                const work = this.collectArchivePanelWork();
+                if (kind === 'tone') work.toneExamples.push('');
+                this.applyArchivePanelWork(work);
+                const last = DOM.archiveToneList?.querySelector('.archive-list-row:last-child .archive-list-input');
+                last?.focus();
+            },
+            removeArchiveListItem(kind, index) {
+                if (!archivePanelState || archivePanelState.mode === 'generating') return;
+                const work = this.collectArchivePanelWork();
+                const key = kind === 'tone' ? 'toneExamples' : kind === 'anchor' ? 'anchors' : 'newAnchors';
+                work[key].splice(index, 1);
+                this.applyArchivePanelWork(work);
+            },
+            cancelArchivePanel() {
+                if (!archivePanelState) return;
+                if (archivePanelState.mode === 'draft') {
+                    this.applyArchivePanelWork(archivePanelState.preDraftWork || archivePanelState.baseWork);
+                    archivePanelState.mode = 'edit';
+                    archivePanelState.preDraftWork = null;
+                    archivePanelState.currentEnd = null;
+                    this.updateArchivePanelChrome();
+                    return;
+                }
+                this.closeAllSheets();
+            },
+            saveArchivePanel() {
+                if (!archivePanelState || archivePanelState.mode === 'generating') return;
+                const conv = DataManager.getCurrentConversation();
+                if (!conv || conv.id !== archivePanelState.conversationId) {
+                    alert('当前会话已切换，未保存这份关系档案。');
+                    return;
+                }
+                const work = this.collectArchivePanelWork();
+                const current = normalizeConversationArchive(conv.archive);
+                if (archivePanelState.mode === 'draft') {
+                    conv.archive = mergeRelationshipArchive(current, {
+                        state: work.state,
+                        journal: work.journal,
+                        toneExamples: work.toneExamples,
+                        protectedAnchors: work.anchors,
+                        newAnchors: work.newAnchors
+                    }, archivePanelState.currentEnd);
+                } else {
+                    conv.archive = {
+                        ...current,
+                        state: normalizeArchiveState(work.state),
+                        journal: work.journal,
+                        toneExamples: work.toneExamples,
+                        anchors: work.anchors
+                    };
+                }
+                DataManager.saveData();
+                this.renderChatFeed();
+                this.renderProfile();
+                this.renderRoleList();
+                this.closeAllSheets(true);
+                this.updateRelationshipArchiveMenuState(conv);
+            },
+            async requestRelationshipArchiveDraft(sourceArchive) {
                 const conv = DataManager.getCurrentConversation();
                 const role = DataManager.getCurrentRole();
-                if (!conv || !role) return;
-                conv.archive = normalizeConversationArchive(conv.archive);
+                if (!conv || !role) return null;
                 const increment = this.getArchiveIncrement(conv);
                 if (!increment.items.length) {
                     alert('当前没有新的有效对话可更新档案。');
-                    this.updateRelationshipArchiveMenuState(conv);
-                    return;
+                    return null;
                 }
                 if (increment.boundaryMissing && !confirm('上次档案更新的边界消息已被删除。为避免漏读，本次会从当前完整有效对话重新整理档案，是否继续？')) {
-                    return;
+                    return null;
                 }
-
-                this.closeChatMenu();
-                const roleLabel = role.name || 'AI侧角色/角色组';
+                const roleLabel = role.name || 'AI 角色';
                 const newChunkText = this.formatArchiveIncrementText(increment.items, roleLabel);
                 const apiMessages = buildRelationshipArchiveMessages({
                     role,
                     roleLabel,
-                    archive: increment.archive,
+                    archive: { ...sourceArchive, journalPerson: 'third' },
                     newChunkText
                 });
-
                 const pending = startPendingRequest({ type: 'relationship_archive', conversationId: conv.id });
                 if (DOM.relationshipArchiveMenuItem) DOM.relationshipArchiveMenuItem.dataset.generating = 'true';
                 this.updateRelationshipArchiveMenuState(conv);
-
                 try {
                     let lastError = null;
                     for (let attempt = 0; attempt < 2; attempt++) {
@@ -1154,31 +1349,67 @@
                                 maxTokens: Config.SUMMARY_FINAL_MAX_TOKENS
                             });
                             if (reply.finishReason === 'length') throw new Error('档案 JSON 被 max_tokens 截断');
-                            const draft = parseRelationshipArchiveReply(reply.content);
-                            conv.archive = mergeRelationshipArchive(increment.archive, draft, increment.currentEnd);
-                            DataManager.saveData();
-                            this.renderChatFeed();
-                            this.renderProfile();
-                            this.renderRoleList();
-                            alert('关系档案已更新。');
-                            return;
+                            return {
+                                draft: parseRelationshipArchiveReply(reply.content),
+                                currentEnd: increment.currentEnd
+                            };
                         } catch (err) {
                             lastError = err;
                             if (err.name === 'AbortError' || attempt === 1) throw err;
                         }
                     }
                     throw lastError || new Error('档案更新失败');
-                } catch (err) {
-                    if (err.name !== 'AbortError') {
-                        alert('档案更新失败，请重试。\n' + err.message);
-                    }
                 } finally {
                     if (DOM.relationshipArchiveMenuItem) delete DOM.relationshipArchiveMenuItem.dataset.generating;
                     clearPendingRequest(pending);
                     this.updateRelationshipArchiveMenuState(conv);
                 }
             },
-            
+            async generateArchiveUpdate() {
+                if (!archivePanelState) {
+                    this.openRelationshipArchivePanel();
+                    return;
+                }
+                if (!archivePanelState || archivePanelState.mode !== 'edit') return;
+                const conv = DataManager.getCurrentConversation();
+                if (!conv || conv.id !== archivePanelState.conversationId) return;
+                const beforeDraft = this.collectArchivePanelWork();
+                archivePanelState.mode = 'generating';
+                this.updateArchivePanelChrome('正在生成档案草稿，请稍候…');
+                try {
+                    const result = await this.requestRelationshipArchiveDraft({
+                        ...normalizeConversationArchive(conv.archive),
+                        state: beforeDraft.state,
+                        journal: beforeDraft.journal,
+                        toneExamples: beforeDraft.toneExamples,
+                        anchors: beforeDraft.anchors,
+                        journalPerson: 'third'
+                    });
+                    if (!result || !archivePanelState || archivePanelState.conversationId !== conv.id) {
+                        if (archivePanelState) archivePanelState.mode = 'edit';
+                        this.updateArchivePanelChrome();
+                        return;
+                    }
+                    archivePanelState.mode = 'draft';
+                    archivePanelState.preDraftWork = this.cloneArchivePanelWork(beforeDraft);
+                    archivePanelState.currentEnd = result.currentEnd;
+                    this.applyArchivePanelWork({
+                        state: result.draft.state,
+                        journal: result.draft.journal,
+                        toneExamples: result.draft.toneExamples,
+                        anchors: beforeDraft.anchors,
+                        newAnchors: result.draft.newAnchors
+                    });
+                    this.updateArchivePanelChrome('草稿尚未生效。审阅并修改后，点击“保存草稿”。');
+                } catch (err) {
+                    if (archivePanelState) archivePanelState.mode = 'edit';
+                    if (err.name !== 'AbortError') {
+                        this.updateArchivePanelChrome('档案更新失败，请重试。' + (err.message ? ' ' + err.message : ''), true);
+                    } else {
+                        this.updateArchivePanelChrome();
+                    }
+                }
+            },
             // 智能生成特定范围的剧情总结
             async generateStorySummary(summaryIndex, startOffset, endOffset) {
                 const conv = DataManager.getCurrentConversation();
@@ -1626,7 +1857,7 @@
             openOptionsSheet(kind) { optionSheetKind = kind; const isModel = kind === 'model'; const isContext = kind === 'context'; const isArchive = kind === 'archive'; const items = isArchive ? ARCHIVE_TRIGGER_OPTIONS : isContext ? CONTEXT_LIMIT_OPTIONS : isModel ? MODEL_OPTIONS : THINKING_OPTIONS; const current = isArchive ? String(normalizeStoryArchiveTriggerChars(DataManager.globalSettings.storyArchiveTriggerChars)) : isContext ? String(normalizeContextMessageLimit(DataManager.globalSettings.contextMessageLimit)) : isModel ? DataManager.currentModel : DataManager.currentThinkingMode; DOM.optSheetTitle.textContent = isArchive ? '剧情总结阈值' : isContext ? '上下文记忆' : isModel ? '默认模型' : '思考模式'; DOM.optSheetSub.textContent = isArchive ? '选择本卷剧情达到多少字符后提醒总结' : isContext ? '选择每次请求保留的最近消息数' : '选一个'; DOM.optList.innerHTML = items.map(item => '<div class="opt-row ' + (item.key === current ? 'on' : '') + '" data-option-key="' + item.key + '"><div class="opt-info"><div class="opt-name">' + escapeHtml(item.name) + '</div><div class="opt-desc">' + escapeHtml(item.desc) + '</div></div><div class="opt-tick">✓</div></div>').join(''); this.showSheet('optionsSheet'); DOM.optionsSheet.dataset.kind = kind; },
             renderModelMenu() { DOM.modelMenu.innerHTML = '<div class="mp-label">模型</div>' + MODEL_OPTIONS.map(item => '<div class="mp-item ' + (item.key === DataManager.currentModel ? 'on' : '') + '" data-model="' + item.key + '"><div class="left">' + escapeHtml(item.name) + '<small>' + escapeHtml(item.desc) + '</small></div><span class="tick">✓</span></div>').join('') + '<div class="mp-label" style="margin-top:6px">思考模式</div>' + THINKING_OPTIONS.map(item => '<div class="mp-item ' + (item.key === DataManager.currentThinkingMode ? 'on' : '') + '" data-thinking="' + item.key + '"><div class="left">' + escapeHtml(item.name) + '<small>' + escapeHtml(item.desc) + '</small></div><span class="tick">✓</span></div>').join(''); },
             toggleChatMenu(e) { e?.stopPropagation(); this.updateRelationshipArchiveMenuState(); DOM.chatMenu.classList.toggle('open'); this.closeModelMenu(); }, closeChatMenu() { DOM.chatMenu.classList.remove('open'); }, toggleModelMenu(e) { e?.stopPropagation(); this.renderModelMenu(); DOM.modelMenu.classList.toggle('open'); this.closeChatMenu(); }, closeModelMenu() { DOM.modelMenu.classList.remove('open'); },
-            showSheet(id) { this.closeAllSheets(); DOM.dlgScrim.classList.add('open'); document.getElementById(id)?.classList.add('open'); }, closeAllSheets() { DOM.dlgScrim.classList.remove('open'); [DOM.summarySheet, DOM.colorSheet, DOM.bgSheet, DOM.optionsSheet, DOM.importSheet, DOM.aboutSheet, DOM.avatarCropSheet].forEach(sheet => sheet?.classList.remove('open')); if (DOM.optionsSheet) delete DOM.optionsSheet.dataset.kind; avatarCropState = null; DOM.cpSaved.classList.remove('editing'); DOM.savedColorsEditBtn.textContent = '管理'; DOM.bgGrid.classList.remove('editing'); DOM.bgEditToggle.textContent = '管理'; },
+            showSheet(id) { if (this.closeAllSheets() === false) return; DOM.dlgScrim.classList.add('open'); document.getElementById(id)?.classList.add('open'); }, closeAllSheets(force = false) { if (!this.closeRelationshipArchivePanel(force)) return false; DOM.dlgScrim.classList.remove('open'); [DOM.summarySheet, DOM.relationshipArchiveSheet, DOM.colorSheet, DOM.bgSheet, DOM.optionsSheet, DOM.importSheet, DOM.aboutSheet, DOM.avatarCropSheet].forEach(sheet => sheet?.classList.remove('open')); if (DOM.optionsSheet) delete DOM.optionsSheet.dataset.kind; avatarCropState = null; DOM.cpSaved.classList.remove('editing'); DOM.savedColorsEditBtn.textContent = '管理'; DOM.bgGrid.classList.remove('editing'); DOM.bgEditToggle.textContent = '管理'; return true; },
             openColorSheet(scope = 'global') { colorScope = scope; const role = DataManager.getCurrentRole(); const startHex = scope === 'role' ? this.getEffectiveAccent(role, DataManager.getCurrentConversation()) : DataManager.globalSettings.defaultAccentColor; const [h, s, l] = hexToHsl(startHex); DOM.hSlider.value = h; DOM.sSlider.value = s; DOM.lSlider.value = l; DOM.cpScopeLabel.textContent = scope === 'role' && role ? '「' + role.name + '」的强调色' : '默认强调色'; DOM.cpScopeHint.textContent = scope === 'role' ? '仅影响当前角色。修改后会同步到列表、头像、对话中的高亮。' : '新建角色时的默认强调色，已有角色不受影响。'; this.renderSavedColors(); this.updateColorPicker(); this.showSheet('colorSheet'); },
             updateColorPicker() { const h = Number(DOM.hSlider.value), s = Number(DOM.sSlider.value), l = Number(DOM.lSlider.value); const hex = hslToHex(h, s, l); DOM.hNum.textContent = h; DOM.sNum.textContent = s; DOM.lNum.textContent = l; DOM.cpHex.textContent = hex.toUpperCase(); DOM.cpHsl.textContent = 'H ' + h + ' · S ' + s + ' · L ' + l; DOM.cpSwatch.style.setProperty('--cp-color', hex); DOM.sSlider.style.background = 'linear-gradient(to right, hsl(' + h + ' 0% ' + l + '%), hsl(' + h + ' 100% ' + l + '%))'; DOM.lSlider.style.background = 'linear-gradient(to right, hsl(' + h + ' ' + s + '% 5%), hsl(' + h + ' ' + s + '% 50%), hsl(' + h + ' ' + s + '% 95%))'; this.applyAccentColor(hex); if (colorScope === 'global') DOM.accentHex.textContent = hex.toUpperCase(); },
             cancelColorSheet() { DOM.accentHex.textContent = normalizeHexColor(DataManager.globalSettings.defaultAccentColor).toUpperCase(); this.applyCurrentAccent(); this.closeAllSheets(); },
@@ -1680,6 +1911,15 @@
         function initThemeFollowSystem() { const mq = window.matchMedia('(prefers-color-scheme: dark)'); mq.addEventListener('change', e => { if (!localStorage.getItem('deepseek_theme')) UIManager.setDay(!e.matches, true); }); }
         function bindEvents() {
             DOM.addRoleBtn.addEventListener('click', () => UIManager.openNewRolePanel()); document.querySelectorAll('[data-action="theme"]').forEach(btn => btn.addEventListener('click', () => UIManager.toggleTheme())); DOM.roleSearchInput.addEventListener('input', () => UIManager.renderRoleList()); document.querySelectorAll('.tab').forEach(btn => btn.addEventListener('click', () => UIManager.switchTab(btn.dataset.tab))); DOM.backBtn.addEventListener('click', () => UIManager.goBack()); DOM.chatAvatar.addEventListener('click', () => UIManager.openProfile()); DOM.profileAv.addEventListener('click', () => UIManager.openAvatarPicker()); DOM.profileScrim.addEventListener('click', () => UIManager.closeProfile()); DOM.chatMenuBtn.addEventListener('click', e => UIManager.toggleChatMenu(e)); DOM.summaryMenuItem.addEventListener('click', () => UIManager.openSummaryControl()); DOM.relationshipArchiveMenuItem?.addEventListener('click', () => UIManager.generateArchiveUpdate()); DOM.insertSceneItem.addEventListener('click', () => UIManager.insertSceneSeparator()); DOM.renameConvItem.addEventListener('click', () => UIManager.renameCurrentConversation()); DOM.clearConvItem.addEventListener('click', () => UIManager.clearCurrentConversation()); DOM.editRoleBtn.addEventListener('click', () => UIManager.openEditRolePanel()); DOM.changeBgBtn.addEventListener('click', () => { UIManager.closeProfile(); setTimeout(() => UIManager.openBgSheet('chat'), 260); }); DOM.roleColorBtn.addEventListener('click', () => { UIManager.closeProfile(); setTimeout(() => UIManager.openColorSheet('role'), 260); }); DOM.profileModelBtn.addEventListener('click', e => UIManager.toggleModelMenu(e)); DOM.profileRenameBtn.addEventListener('click', () => { UIManager.closeProfile(); setTimeout(() => UIManager.renameCurrentConversation(), 260); }); DOM.newConvBtn.addEventListener('click', () => UIManager.addConversation()); DOM.deleteCurrentRoleBtn.addEventListener('click', () => UIManager.deleteRole()); DOM.profileConvList.addEventListener('click', e => { const row = e.target.closest('.conv-row'); if (row) UIManager.switchConversation(DataManager.currentRoleId, row.dataset.convId); }); DOM.closeEditBtn.addEventListener('click', () => UIManager.closeEdit()); DOM.saveEditRoleBtn.addEventListener('click', () => UIManager.saveEditedRole()); document.querySelectorAll('[data-edit-mode]').forEach(btn => btn.addEventListener('click', () => setModeButtons('edit', btn.dataset.editMode))); DOM.closeNewRoleBtn.addEventListener('click', () => UIManager.closeNewRolePanel()); DOM.saveNewRoleBtn.addEventListener('click', () => UIManager.saveNewRole()); document.querySelectorAll('[data-new-mode]').forEach(btn => btn.addEventListener('click', () => setModeButtons('new', btn.dataset.newMode))); DOM.sendBtn.addEventListener('click', () => UIManager.sendMessage()); DOM.chatInput.addEventListener('input', () => adjustChatInputHeight()); DOM.chatInput.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); UIManager.sendMessage(); } });
+            DOM.cancelArchiveBtn?.addEventListener('click', () => UIManager.cancelArchivePanel());
+            DOM.saveArchiveBtn?.addEventListener('click', () => UIManager.saveArchivePanel());
+            DOM.updateArchiveBtn?.addEventListener('click', () => UIManager.generateArchiveUpdate());
+            DOM.addToneExampleBtn?.addEventListener('click', () => UIManager.addArchiveListItem('tone'));
+            DOM.relationshipArchiveSheet?.addEventListener('click', e => {
+                const remove = e.target.closest('[data-remove-archive-item]');
+                if (!remove) return;
+                UIManager.removeArchiveListItem(remove.dataset.removeArchiveItem, Number(remove.dataset.archiveListIndex));
+            });
             DOM.chatFeed.addEventListener('click', e => { const scene = e.target.closest('.scene[data-index]'); if (scene && !e.target.closest('button')) { const idx = Number(scene.dataset.index); const conv = DataManager.getCurrentConversation(); const msg = conv?.messages[idx]; if (msg?.role === 'scene_separator') openModal({ title: '编辑场景名', type: 'prompt', inputValue: msg.content || '', confirmLabel: '保存', onConfirm: value => { const v = String(value || '').trim(); if (!v) return false; msg.content = v; DataManager.saveData(); UIManager.renderChatFeed(); return true; } }); return; } const btn = e.target.closest('[data-action]'); if (!btn) return; const index = Number(btn.dataset.index); const conv = DataManager.getCurrentConversation(); switch (btn.dataset.action) { case 'toggle-reasoning': UIManager.toggleReasoning(index); break; case 'version': UIManager.changeAssistantVersion(index, Number(btn.dataset.delta)); break; case 'regenerate': UIManager.regenerateAssistantResponse(index); break; case 'edit-user': openEditUserModal(index, conv?.messages[index]?.content || ''); break; case 'edit-assistant': openEditAssistantModal(index, UIManager.getDialogueContent(conv?.messages[index])); break; case 'delete-user': UIManager.deleteUserMessageAndAssistant(index); break; case 'generate-summary': { const slider = document.getElementById('summary-slider-' + index); UIManager.generateStorySummary(index, slider ? Number(slider.dataset.start) : 0, slider ? Number(slider.value) : 0); break; } case 'copy-summary': { const msg = conv?.messages[index]; if (!msg) return; const prefix = '[系统指令]\n你现在需要扮演该角色。在开始对话之前，请先仔细阅读并内化以下【前情提要】。这份前情提要是你和用户之间已经发生过的所有事情的记录，它不是需要你分析或回应的内容，而是你的记忆。请将这份记忆完全融入你对角色的理解中，并基于此继续与用户进行互动。\n\n【前情提要】\n'; copyToClipboard(prefix + getSummaryMemoryText(msg), () => { btn.innerHTML = SVGIcons.check + '复制成功'; setTimeout(() => btn.innerHTML = SVGIcons.copy + '复制内容', 1600); }); break; } case 'regenerate-summary': { const msg = conv?.messages[index]; if (msg?.startOffset !== undefined && msg?.endOffset !== undefined && confirm('重新生成会覆盖当前剧情总结，是否继续？')) UIManager.generateStorySummary(index, msg.startOffset, msg.endOffset); break; } case 'next-volume': UIManager.openNextVolumeFromSummary(index); break; case 'link-conv': UIManager.linkExistingConversationFromSummary(index); break; case 'continue-summary': if (conv && !conv.messages.some(m => m.role === 'system_summary' && m.status !== 'done')) { conv.messages.push({ id: DataManager.generateId(), role: 'system_summary', status: 'warning', content: '', timestamp: new Date().toISOString() }); DataManager.saveData(); UIManager.jumpToLastPage(conv.messages.length); UIManager.renderChatFeed(); } break; case 'prev-page': if (Pagination.currentPage > 1) { Pagination.currentPage--; UIManager.renderChatFeed(); } break; case 'next-page': { const pages = Math.ceil((conv?.messages.length || 0) / Config.PAGE_SIZE); if (Pagination.currentPage < pages) { Pagination.currentPage++; UIManager.renderChatFeed(); } break; } } });
             DOM.chatFeed.addEventListener('input', e => { const slider = e.target.closest('[data-summary-slider]'); if (!slider) return; const text = document.getElementById('range-text-' + slider.dataset.summarySlider); if (text) text.textContent = '存档范围：从第 ' + (Number(slider.dataset.start) + 1) + ' 条 到 第 ' + (Number(slider.value) + 1) + ' 条'; });
             DOM.confirmEditMsgBtn.addEventListener('click', async () => {
