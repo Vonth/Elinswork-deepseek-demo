@@ -18,6 +18,8 @@
             SUMMARY_LONG_FINAL_MODEL: 'deepseek-v4-pro',
             SUMMARY_LONG_FINAL_THINKING_MODE: 'fast',
             SUMMARY_ARCHIVE_PROFILE: 'intimacy_multi_role',
+            RELATIONSHIP_ARCHIVE_REBUILD_MIN_CHARS: 20000,
+            RELATIONSHIP_ARCHIVE_REBUILD_SEGMENT_CHARS: 25000,
             STORY_ARCHIVE_TRIGGER_CHARS: 30000 // 3万字符触发本卷剧情存档建议
         };
 
@@ -598,6 +600,18 @@
             };
         }
 
+        function foldRelationshipArchiveDraft(accumulatedArchive, draft) {
+            const accumulated = normalizeConversationArchive(accumulatedArchive);
+            return {
+                ...accumulated,
+                journalPerson: 'third',
+                state: normalizeArchiveState(draft?.state),
+                journal: typeof draft?.journal === 'string' ? draft.journal : '',
+                toneExamples: Array.isArray(draft?.toneExamples) ? draft.toneExamples.filter(item => typeof item === 'string') : [],
+                anchors: dedupeAppendAnchors(accumulated.anchors, draft?.newAnchors)
+            };
+        }
+
         function appendDefaultContinuationConstraints(text) {
             const constraints = `
 
@@ -954,7 +968,11 @@
             archiveToneList: document.getElementById('archiveToneList'),
             archiveAnchorList: document.getElementById('archiveAnchorList'),
             archiveNewAnchorsSection: document.getElementById('archiveNewAnchorsSection'),
+            archiveNewAnchorsTitle: document.getElementById('archiveNewAnchorsTitle'),
             archiveNewAnchorList: document.getElementById('archiveNewAnchorList'),
+            archiveRebuildSection: document.getElementById('archiveRebuildSection'),
+            archiveRebuildMeta: document.getElementById('archiveRebuildMeta'),
+            rebuildArchiveBtn: document.getElementById('rebuildArchiveBtn'),
             archiveStatus: document.getElementById('archiveStatus'),
             addToneExampleBtn: document.getElementById('addToneExampleBtn'),
             cancelArchiveBtn: document.getElementById('cancelArchiveBtn'),
@@ -1030,6 +1048,33 @@
             },
             formatArchiveIncrementText(items, roleLabel) {
                 return items.map(item => `【第${item.effectiveIndex + 1}条】${item.role === 'user' ? '用户' : roleLabel}：${item.content}`).join('\n\n');
+            },
+            splitArchiveRebuildSegments(items, maxChars = Config.RELATIONSHIP_ARCHIVE_REBUILD_SEGMENT_CHARS) {
+                const segments = [];
+                let current = [];
+                let currentChars = 0;
+                const pushCurrent = () => {
+                    if (!current.length) return;
+                    segments.push({
+                        segmentIndex: segments.length,
+                        items: current,
+                        charCount: currentChars,
+                        start: current[0],
+                        end: current[current.length - 1]
+                    });
+                };
+                items.forEach(item => {
+                    const length = item.content?.length || 0;
+                    if (current.length && currentChars + length > maxChars) {
+                        pushCurrent();
+                        current = [];
+                        currentChars = 0;
+                    }
+                    current.push(item);
+                    currentChars += length;
+                });
+                pushCurrent();
+                return segments;
             },
             updateRelationshipArchiveMenuState(conv = DataManager.getCurrentConversation()) {
                 const item = DOM.relationshipArchiveMenuItem;
@@ -1209,15 +1254,22 @@
                 if (!archivePanelState || !DOM.relationshipArchiveSheet) return;
                 const isDraft = archivePanelState.mode === 'draft';
                 const isGenerating = archivePanelState.mode === 'generating';
+                const isRebuilding = archivePanelState.mode === 'rebuilding';
+                const isRebuildPaused = archivePanelState.mode === 'rebuildPaused';
+                const isRebuildFlow = isRebuilding || isRebuildPaused || archivePanelState.draftKind === 'rebuild';
+                const isBusy = isGenerating || isRebuilding;
                 DOM.relationshipArchiveSheet.classList.toggle('draft-mode', isDraft);
-                DOM.archiveNewAnchorsSection?.classList.toggle('visible', isDraft);
-                DOM.cancelArchiveBtn.textContent = isDraft ? '放弃草稿' : '取消';
+                DOM.archiveNewAnchorsSection?.classList.toggle('visible', isDraft || isRebuildFlow);
+                if (DOM.archiveNewAnchorsTitle) DOM.archiveNewAnchorsTitle.textContent = isRebuildFlow ? '重建产生锚点' : '本次新增锚点';
+                DOM.cancelArchiveBtn.textContent = isRebuilding ? '停止重建' : isRebuildPaused ? '放弃重建' : isDraft ? '放弃草稿' : '取消';
                 DOM.saveArchiveBtn.textContent = isDraft ? '保存草稿' : '保存';
-                DOM.updateArchiveBtn.disabled = isGenerating;
-                DOM.saveArchiveBtn.disabled = isGenerating;
+                DOM.updateArchiveBtn.disabled = isBusy || isRebuildPaused;
+                DOM.saveArchiveBtn.disabled = isBusy || isRebuildPaused;
                 DOM.cancelArchiveBtn.disabled = isGenerating;
-                DOM.addToneExampleBtn.disabled = isGenerating;
-                DOM.relationshipArchiveSheet.querySelectorAll('textarea').forEach(field => { field.disabled = isGenerating; });
+                DOM.addToneExampleBtn.disabled = isBusy || isRebuildPaused;
+                DOM.rebuildArchiveBtn.disabled = isBusy || isDraft;
+                DOM.rebuildArchiveBtn.textContent = isRebuildPaused ? '继续重建' : '从完整历史重建档案';
+                DOM.relationshipArchiveSheet.querySelectorAll('textarea').forEach(field => { field.disabled = isBusy || isRebuildPaused; });
                 if (DOM.archiveStatus) {
                     DOM.archiveStatus.textContent = status;
                     DOM.archiveStatus.classList.toggle('visible', Boolean(status));
@@ -1237,32 +1289,43 @@
                     baseArchive: archive,
                     baseWork: this.cloneArchivePanelWork(work),
                     preDraftWork: null,
-                    currentEnd: null
+                    currentEnd: null,
+                    draftKind: null,
+                    rebuild: null
                 };
                 this.applyArchivePanelWork(work);
                 DOM.archiveVersionMeta.textContent = archive.version > 0
                     ? 'v' + archive.version + ' · 更新至第 ' + (archive.lastIndex + 1) + ' 条'
                     : '尚未更新';
                 DOM.archiveModeLabel.textContent = '第三人称关系记录';
+                const effective = this.getArchiveEffectiveMessages(conv);
+                const totalChars = effective.reduce((sum, item) => sum + item.content.length, 0);
+                const estimatedSegments = this.splitArchiveRebuildSegments(effective).length;
+                const showRebuild = totalChars >= Config.RELATIONSHIP_ARCHIVE_REBUILD_MIN_CHARS;
+                DOM.archiveRebuildSection?.classList.toggle('visible', showRebuild);
+                if (DOM.archiveRebuildMeta) {
+                    DOM.archiveRebuildMeta.textContent = totalChars.toLocaleString('en-US') + ' 字符 · 预计 ' + estimatedSegments + ' 段';
+                }
                 this.updateArchivePanelChrome();
                 DOM.dlgScrim.classList.add('open');
                 DOM.relationshipArchiveSheet.classList.add('open');
             },
             isArchivePanelDirty() {
                 if (!archivePanelState) return false;
-                if (archivePanelState.mode === 'draft' || archivePanelState.mode === 'generating') return true;
+                if (['draft', 'generating', 'rebuilding', 'rebuildPaused'].includes(archivePanelState.mode)) return true;
                 return JSON.stringify(this.collectArchivePanelWork()) !== JSON.stringify(archivePanelState.baseWork);
             },
             closeRelationshipArchivePanel(force = false) {
                 if (!archivePanelState) return true;
                 if (!force && this.isArchivePanelDirty() && !confirm('当前关系档案有未保存的修改，确定放弃吗？')) return false;
+                if (archivePanelState.rebuild?.pending?.controller) archivePanelState.rebuild.pending.controller.abort();
                 DOM.relationshipArchiveSheet?.classList.remove('open', 'draft-mode');
                 DOM.archiveNewAnchorsSection?.classList.remove('visible');
                 archivePanelState = null;
                 return true;
             },
             addArchiveListItem(kind) {
-                if (!archivePanelState || archivePanelState.mode === 'generating') return;
+                if (!archivePanelState || ['generating', 'rebuilding', 'rebuildPaused'].includes(archivePanelState.mode)) return;
                 const work = this.collectArchivePanelWork();
                 if (kind === 'tone') work.toneExamples.push('');
                 this.applyArchivePanelWork(work);
@@ -1270,7 +1333,7 @@
                 last?.focus();
             },
             removeArchiveListItem(kind, index) {
-                if (!archivePanelState || archivePanelState.mode === 'generating') return;
+                if (!archivePanelState || ['generating', 'rebuilding', 'rebuildPaused'].includes(archivePanelState.mode)) return;
                 const work = this.collectArchivePanelWork();
                 const key = kind === 'tone' ? 'toneExamples' : kind === 'anchor' ? 'anchors' : 'newAnchors';
                 work[key].splice(index, 1);
@@ -1278,18 +1341,34 @@
             },
             cancelArchivePanel() {
                 if (!archivePanelState) return;
+                if (archivePanelState.mode === 'rebuilding') {
+                    archivePanelState.rebuild.stopRequested = true;
+                    archivePanelState.rebuild.pending?.controller.abort();
+                    return;
+                }
+                if (archivePanelState.mode === 'rebuildPaused') {
+                    this.applyArchivePanelWork(archivePanelState.rebuild?.preDraftWork || archivePanelState.baseWork);
+                    archivePanelState.mode = 'edit';
+                    archivePanelState.rebuild = null;
+                    archivePanelState.currentEnd = null;
+                    archivePanelState.draftKind = null;
+                    this.updateArchivePanelChrome();
+                    return;
+                }
                 if (archivePanelState.mode === 'draft') {
                     this.applyArchivePanelWork(archivePanelState.preDraftWork || archivePanelState.baseWork);
                     archivePanelState.mode = 'edit';
                     archivePanelState.preDraftWork = null;
                     archivePanelState.currentEnd = null;
+                    archivePanelState.draftKind = null;
+                    archivePanelState.rebuild = null;
                     this.updateArchivePanelChrome();
                     return;
                 }
                 this.closeAllSheets();
             },
             saveArchivePanel() {
-                if (!archivePanelState || archivePanelState.mode === 'generating') return;
+                if (!archivePanelState || ['generating', 'rebuilding', 'rebuildPaused'].includes(archivePanelState.mode)) return;
                 const conv = DataManager.getCurrentConversation();
                 if (!conv || conv.id !== archivePanelState.conversationId) {
                     alert('当前会话已切换，未保存这份关系档案。');
@@ -1321,6 +1400,35 @@
                 this.closeAllSheets(true);
                 this.updateRelationshipArchiveMenuState(conv);
             },
+            async requestRelationshipArchiveDraftForChunk({ role, archive, items, signal }) {
+                if (!role || !Array.isArray(items) || !items.length) return null;
+                const roleLabel = role.name || 'AI 角色';
+                const newChunkText = this.formatArchiveIncrementText(items, roleLabel);
+                const apiMessages = buildRelationshipArchiveMessages({
+                    role,
+                    roleLabel,
+                    archive: { ...archive, journalPerson: 'third' },
+                    newChunkText
+                });
+                let lastError = null;
+                for (let attempt = 0; attempt < 2; attempt++) {
+                    try {
+                        const reply = await callChatApi({
+                            model: Config.SUMMARY_FINAL_MODEL,
+                            messages: apiMessages,
+                            signal,
+                            thinkingMode: Config.SUMMARY_FINAL_THINKING_MODE,
+                            maxTokens: Config.SUMMARY_FINAL_MAX_TOKENS
+                        });
+                        if (reply.finishReason === 'length') throw new Error('档案 JSON 被 max_tokens 截断');
+                        return parseRelationshipArchiveReply(reply.content);
+                    } catch (err) {
+                        lastError = err;
+                        if (err.name === 'AbortError' || attempt === 1) throw err;
+                    }
+                }
+                throw lastError || new Error('档案更新失败');
+            },
             async requestRelationshipArchiveDraft(sourceArchive) {
                 const conv = DataManager.getCurrentConversation();
                 const role = DataManager.getCurrentRole();
@@ -1333,42 +1441,117 @@
                 if (increment.boundaryMissing && !confirm('上次档案更新的边界消息已被删除。为避免漏读，本次会从当前完整有效对话重新整理档案，是否继续？')) {
                     return null;
                 }
-                const roleLabel = role.name || 'AI 角色';
-                const newChunkText = this.formatArchiveIncrementText(increment.items, roleLabel);
-                const apiMessages = buildRelationshipArchiveMessages({
-                    role,
-                    roleLabel,
-                    archive: { ...sourceArchive, journalPerson: 'third' },
-                    newChunkText
-                });
                 const pending = startPendingRequest({ type: 'relationship_archive', conversationId: conv.id });
                 if (DOM.relationshipArchiveMenuItem) DOM.relationshipArchiveMenuItem.dataset.generating = 'true';
                 this.updateRelationshipArchiveMenuState(conv);
                 try {
-                    let lastError = null;
-                    for (let attempt = 0; attempt < 2; attempt++) {
-                        try {
-                            const reply = await callChatApi({
-                                model: Config.SUMMARY_FINAL_MODEL,
-                                messages: apiMessages,
-                                signal: pending.controller.signal,
-                                thinkingMode: Config.SUMMARY_FINAL_THINKING_MODE,
-                                maxTokens: Config.SUMMARY_FINAL_MAX_TOKENS
-                            });
-                            if (reply.finishReason === 'length') throw new Error('档案 JSON 被 max_tokens 截断');
-                            return {
-                                draft: parseRelationshipArchiveReply(reply.content),
-                                currentEnd: increment.currentEnd
-                            };
-                        } catch (err) {
-                            lastError = err;
-                            if (err.name === 'AbortError' || attempt === 1) throw err;
-                        }
-                    }
-                    throw lastError || new Error('档案更新失败');
+                    const draft = await this.requestRelationshipArchiveDraftForChunk({
+                        role,
+                        archive: sourceArchive,
+                        items: increment.items,
+                        signal: pending.controller.signal
+                    });
+                    return draft ? { draft, currentEnd: increment.currentEnd } : null;
                 } finally {
                     if (DOM.relationshipArchiveMenuItem) delete DOM.relationshipArchiveMenuItem.dataset.generating;
                     clearPendingRequest(pending);
+                    this.updateRelationshipArchiveMenuState(conv);
+                }
+            },
+            async startOrResumeArchiveRebuild() {
+                if (!archivePanelState) return;
+                if (archivePanelState.mode === 'rebuildPaused' && archivePanelState.rebuild) {
+                    await this.runArchiveRebuild();
+                    return;
+                }
+                if (archivePanelState.mode !== 'edit') return;
+                const conv = DataManager.getCurrentConversation();
+                const role = DataManager.getCurrentRole();
+                if (!conv || !role || conv.id !== archivePanelState.conversationId) return;
+                const items = this.getArchiveEffectiveMessages(conv);
+                const totalChars = items.reduce((sum, item) => sum + item.content.length, 0);
+                if (totalChars < Config.RELATIONSHIP_ARCHIVE_REBUILD_MIN_CHARS) {
+                    alert('当前有效对话不足 20,000 字符，不需要从完整历史重建。');
+                    return;
+                }
+                const segments = this.splitArchiveRebuildSegments(items);
+                const current = normalizeConversationArchive(conv.archive);
+                const hasCurrentArchive = hasActiveRelationshipArchive(current);
+                const confirmText = [
+                    `将读取全部 ${totalChars.toLocaleString('en-US')} 个字符，预计分为 ${segments.length} 段处理。`,
+                    '模型会从空档案开始，不使用旧剧情总结或当前关系档案作为种子。',
+                    hasCurrentArchive
+                        ? '当前正式档案会保持不变，只有重建完成、审阅并保存草稿后才会覆盖。'
+                        : '正式档案会保持不变，只有重建完成、审阅并保存草稿后才会写入。',
+                    '此过程耗时和 token 消耗可能较高，是否开始？'
+                ].join('\n\n');
+                if (!confirm(confirmText)) return;
+                const preDraftWork = this.collectArchivePanelWork();
+                archivePanelState.rebuild = {
+                    segments,
+                    nextIndex: 0,
+                    accumulated: createEmptyArchive(),
+                    preDraftWork: this.cloneArchivePanelWork(preDraftWork),
+                    currentEnd: items[items.length - 1] || null,
+                    totalChars,
+                    pending: null,
+                    stopRequested: false
+                };
+                await this.runArchiveRebuild();
+            },
+            async runArchiveRebuild() {
+                const panelState = archivePanelState;
+                const rebuild = panelState?.rebuild;
+                const conv = DataManager.getCurrentConversation();
+                const role = DataManager.getCurrentRole();
+                if (!panelState || !rebuild || !conv || !role || conv.id !== panelState.conversationId) return;
+                panelState.mode = 'rebuilding';
+                rebuild.stopRequested = false;
+                const pending = startPendingRequest({ type: 'relationship_archive_rebuild', conversationId: conv.id });
+                rebuild.pending = pending;
+                if (DOM.relationshipArchiveMenuItem) DOM.relationshipArchiveMenuItem.dataset.generating = 'true';
+                this.updateRelationshipArchiveMenuState(conv);
+                try {
+                    while (rebuild.nextIndex < rebuild.segments.length) {
+                        if (rebuild.stopRequested) throw new DOMException('Stopped', 'AbortError');
+                        const segment = rebuild.segments[rebuild.nextIndex];
+                        this.updateArchivePanelChrome(`正在处理第 ${rebuild.nextIndex + 1}/${rebuild.segments.length} 段…`);
+                        const draft = await this.requestRelationshipArchiveDraftForChunk({
+                            role,
+                            archive: rebuild.accumulated,
+                            items: segment.items,
+                            signal: pending.controller.signal
+                        });
+                        if (!draft) throw new Error('本段未返回有效档案草稿');
+                        if (!archivePanelState || archivePanelState !== panelState) return;
+                        rebuild.accumulated = foldRelationshipArchiveDraft(rebuild.accumulated, draft);
+                        rebuild.nextIndex += 1;
+                        this.applyArchivePanelWork({
+                            state: rebuild.accumulated.state,
+                            journal: rebuild.accumulated.journal,
+                            toneExamples: rebuild.accumulated.toneExamples,
+                            anchors: rebuild.preDraftWork.anchors,
+                            newAnchors: rebuild.accumulated.anchors
+                        });
+                    }
+                    if (!archivePanelState || archivePanelState !== panelState) return;
+                    panelState.mode = 'draft';
+                    panelState.draftKind = 'rebuild';
+                    panelState.preDraftWork = this.cloneArchivePanelWork(rebuild.preDraftWork);
+                    panelState.currentEnd = rebuild.currentEnd;
+                    this.updateArchivePanelChrome(`完整历史重建草稿已生成，共处理 ${rebuild.segments.length} 段。审阅后点击“保存草稿”。`);
+                } catch (err) {
+                    if (!archivePanelState || archivePanelState !== panelState) return;
+                    panelState.mode = 'rebuildPaused';
+                    if (err.name === 'AbortError') {
+                        this.updateArchivePanelChrome(`重建已停止，已完成 ${rebuild.nextIndex}/${rebuild.segments.length} 段。可继续或放弃。`);
+                    } else {
+                        this.updateArchivePanelChrome(`第 ${rebuild.nextIndex + 1}/${rebuild.segments.length} 段处理失败，已完成结果仍保留。可继续重试。${err.message ? ' ' + err.message : ''}`, true);
+                    }
+                } finally {
+                    if (DOM.relationshipArchiveMenuItem) delete DOM.relationshipArchiveMenuItem.dataset.generating;
+                    clearPendingRequest(pending);
+                    if (rebuild.pending === pending) rebuild.pending = null;
                     this.updateRelationshipArchiveMenuState(conv);
                 }
             },
@@ -1398,6 +1581,7 @@
                         return;
                     }
                     archivePanelState.mode = 'draft';
+                    archivePanelState.draftKind = 'incremental';
                     archivePanelState.preDraftWork = this.cloneArchivePanelWork(beforeDraft);
                     archivePanelState.currentEnd = result.currentEnd;
                     this.applyArchivePanelWork({
@@ -1921,6 +2105,7 @@
             DOM.cancelArchiveBtn?.addEventListener('click', () => UIManager.cancelArchivePanel());
             DOM.saveArchiveBtn?.addEventListener('click', () => UIManager.saveArchivePanel());
             DOM.updateArchiveBtn?.addEventListener('click', () => UIManager.generateArchiveUpdate());
+            DOM.rebuildArchiveBtn?.addEventListener('click', () => UIManager.startOrResumeArchiveRebuild());
             DOM.addToneExampleBtn?.addEventListener('click', () => UIManager.addArchiveListItem('tone'));
             DOM.archiveJournal?.addEventListener('input', () => UIManager.updateArchiveJournalCount());
             DOM.relationshipArchiveSheet?.addEventListener('click', e => {
